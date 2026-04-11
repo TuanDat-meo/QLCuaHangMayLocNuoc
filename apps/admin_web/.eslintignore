@@ -1,0 +1,12 @@
+.eslintignore
+node_modules/
+dist/
+build/
+coverage/
+.next/
+
+.prettierignore
+node_modules/
+dist/
+build/
+coverage/

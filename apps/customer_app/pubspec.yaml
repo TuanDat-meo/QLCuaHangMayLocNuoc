@@ -1,0 +1,84 @@
+name: customer_app
+description: AquaCareSystem - Customer Mobile App
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Shared package
+  shared:
+    path: ../../packages/shared
+
+  # Firebase
+  firebase_core: ^3.0.0
+  firebase_auth: ^5.0.0
+  cloud_firestore: ^5.0.0
+  firebase_storage: ^12.0.0
+  firebase_messaging: ^15.0.0
+
+  # Navigation
+  go_router: ^14.0.0
+
+  # State management
+  flutter_riverpod: ^2.4.0
+  riverpod_annotation: ^2.3.0
+
+  # Maps & Location
+  google_maps_flutter: ^2.8.0
+  location: ^8.0.0
+  geolocator: ^11.0.0
+  google_places_flutter: ^2.1.0
+
+  # UI
+  cached_network_image: ^3.3.0
+  image_picker: ^1.2.0
+  flutter_image_compress: ^2.3.0
+  carousel_slider: ^4.2.0
+  dotted_border: ^2.1.0
+  shimmer: ^3.0.0
+  lottie: ^3.2.0
+
+  # Storage & Security
+  shared_preferences: ^2.2.0
+  flutter_secure_storage: ^9.2.0
+
+  # Utilities
+  intl: ^0.20.0
+  uuid: ^4.0.0
+  dio: ^5.4.0
+  url_launcher: ^6.2.0
+
+  # Icons
+  material_design_icons_flutter: ^7.0.0
+
+  cupertino_icons: ^1.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  build_runner: ^2.4.0
+  riverpod_generator: ^2.3.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/lottie/
+
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Roboto-Medium.ttf
+          weight: 500

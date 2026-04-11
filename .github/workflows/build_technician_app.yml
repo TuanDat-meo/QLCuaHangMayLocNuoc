@@ -1,0 +1,53 @@
+name: Build Technician App
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/technician_app/**'
+      - 'packages/shared/**'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.13.0'
+          channel: 'stable'
+      
+      - name: Get dependencies
+        working-directory: apps/technician_app
+        run: |
+          flutter pub get
+          cd ../../packages/shared
+          flutter pub get
+      
+      - name: Analyze code
+        working-directory: apps/technician_app
+        run: flutter analyze
+      
+      - name: Format check
+        working-directory: apps/technician_app
+        run: dart format --set-exit-if-changed lib/
+      
+      - name: Run tests
+        working-directory: apps/technician_app
+        run: flutter test
+      
+      - name: Build APK
+        working-directory: apps/technician_app
+        run: flutter build apk --release
+      
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: technician-app-apk
+          path: apps/technician_app/build/app/outputs/flutter-apk/app-release.apk

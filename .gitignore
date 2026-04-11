@@ -1,0 +1,57 @@
+# Dart/Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+*.lock
+build/
+coverage/
+.coverage
+pubspec.lock
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+dist/
+build/
+.next/
+out/
+npm-debug.log
+yarn-error.log
+
+# Firebase
+.firebaserc
+firebase-debug.log
+functions/node_modules/
+.firebase/
+
+# Admin Web
+apps/admin_web/dist/
+apps/admin_web/build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated
+*.g.dart
+*.config.dart
+*.freezed.dart
+
+# Testing
+coverage/
+.nyc_output/
