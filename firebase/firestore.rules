@@ -1,70 +1,105 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users - read/write own data
-    match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
-      allow read: if request.auth.token.role == 'admin';
+    
+    // ─────────────────────────────────────────────────────
+    // Người dùng - Đọc/ghi data của chính mình
+    // ─────────────────────────────────────────────────────
+    match /nguoiDung/{uid} {
+      // User đọc/ghi data của mình
+      allow read, write: if request.auth.uid == uid;
+      // Admin đọc tất cả
+      allow read: if request.auth.token.vaiTro == 'admin';
+      // Admin ghi tất cả
+      allow write: if request.auth.token.vaiTro == 'admin';
+      
+      // Sub-collections
+      match /diaChiGiaoHang/{doc=**} {
+        allow read, write: if request.auth.uid == uid;
+      }
+      match /gioHang/{doc=**} {
+        allow read, write: if request.auth.uid == uid;
+      }
+      match /lichSuHoatDong/{doc=**} {
+        allow read: if request.auth.uid == uid;
+      }
     }
 
-    // Products - public read, admin write
-    match /products/{productId} {
+    // ─────────────────────────────────────────────────────
+    // Sản phẩm - Public read, Admin write
+    // ─────────────────────────────────────────────────────
+    match /sanPham/{productId} {
       allow read: if true;
-      allow write: if request.auth.token.role == 'admin';
+      allow write: if request.auth.token.vaiTro == 'admin';
     }
 
-    // Categories - public read, admin write
-    match /categories/{categoryId} {
+    // ─────────────────────────────────────────────────────
+    // Đơn hàng - Khách read/write own, Admin/Tech read all
+    // ─────────────────────────────────────────────────────
+    match /donHang/{orderId} {
+      allow read: if 
+        request.auth.uid == resource.data.khachHangId ||
+        request.auth.token.vaiTro == 'admin' ||
+        request.auth.token.vaiTro == 'technician';
+      
+      allow create: if 
+        request.auth.uid == request.resource.data.khachHangId &&
+        request.resource.data.trangThai == 'cho_xn';
+      
+      allow update: if 
+        request.auth.uid == resource.data.khachHangId ||
+        request.auth.token.vaiTro == 'admin' ||
+        (request.auth.token.vaiTro == 'technician' && 
+         request.auth.uid == resource.data.kyThuatVienId);
+      
+      // Lịch sử trạng thái
+      match /lichSuTrangThai/{doc=**} {
+        allow read: if 
+          request.auth.uid == resource.parent.parent.data().khachHangId ||
+          request.auth.token.vaiTro == 'admin' ||
+          request.auth.token.vaiTro == 'technician';
+      }
+    }
+
+    // ─────────────────────────────────────────────────────
+    // Thiết bị - Admin/Tech read all, Customer read own
+    // ─────────────────────────────────────────────────────
+    match /thietBi/{deviceId} {
+      allow read: if 
+        request.auth.uid == resource.data.khachHangId ||
+        request.auth.token.vaiTro == 'admin' ||
+        request.auth.token.vaiTro == 'technician';
+      
+      allow write: if 
+        request.auth.token.vaiTro == 'admin' ||
+        request.auth.token.vaiTro == 'technician';
+    }
+
+    // ─────────────────────────────────────────────────────
+    // Thông báo - Read own, Write for admin/tech
+    // ─────────────────────────────────────────────────────
+    match /thongBao/{notificationId} {
+      allow read: if request.auth.uid == resource.data.nguoiNhanId;
+      allow create: if request.auth.token.vaiTro == 'admin' ||
+                       request.auth.token.vaiTro == 'technician';
+      allow update: if request.auth.uid == resource.data.nguoiNhanId;
+    }
+
+    // ─────────────────────────────────────────────────────
+    // Danh mục, Nhà cung cấp - Public read, Admin write
+    // ─────────────────────────────────────────────────────
+    match /danhMuc/{doc=**} {
       allow read: if true;
-      allow write: if request.auth.token.role == 'admin';
+      allow write: if request.auth.token.vaiTro == 'admin';
+    }
+    match /nhaCungCap/{doc=**} {
+      allow read: if true;
+      allow write: if request.auth.token.vaiTro == 'admin';
     }
 
-    // Orders - customer read/write own, others read for admin/tech
-    match /orders/{orderId} {
-      allow read: if request.auth.uid == resource.data.customer_id
-                      || request.auth.token.role == 'admin'
-                      || request.auth.token.role == 'technician';
-      allow create: if request.auth.uid == request.resource.data.customer_id
-                       && request.resource.data.status == 'pending';
-      allow update: if request.auth.uid == resource.data.customer_id
-                       || request.auth.token.role == 'admin';
-    }
-
-    // Assignments - technician read/write own, admin all
-    match /assignments/{assignmentId} {
-      allow read: if request.auth.uid == resource.data.technician_id
-                      || request.auth.token.role == 'admin';
-      allow write: if request.auth.token.role == 'admin'
-                      || (request.auth.uid == resource.data.technician_id && request.resource.data.status != 'assigned');
-    }
-
-    // Devices - customer read own, admin all
-    match /devices/{deviceId} {
-      allow read: if request.auth.uid == resource.data.customer_id
-                      || request.auth.token.role == 'admin';
-      allow write: if request.auth.token.role == 'admin';
-    }
-
-    // Maintenance - customer read own, admin/tech write
-    match /maintenance/{maintenanceId} {
-      allow read: if request.auth.uid == resource.data.customer_id
-                      || request.auth.token.role == 'admin'
-                      || request.auth.uid == resource.data.technician_id;
-      allow write: if request.auth.token.role == 'admin';
-    }
-
-    // Notifications - user read own
-    match /notifications/{notificationId} {
-      allow read: if request.auth.uid == resource.data.user_id;
-      allow write: if request.auth.token.role == 'admin';
-    }
-
-    // Audit log - admin only
-    match /audit_log/{logId} {
-      allow read, write: if request.auth.token.role == 'admin';
-    }
-
-    // Deny all by default
+    // ─────────────────────────────────────────────────────
+    // Mặc định: Từ chối tất cả
+    // ─────────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }
