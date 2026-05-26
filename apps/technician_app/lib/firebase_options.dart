@@ -3,58 +3,78 @@
 // To use real Firebase, run: flutterfire configure --project=<your_firebase_project_id>
 
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 
 class DefaultFirebaseOptions {
-  // Firebase Emulator configuration for local development
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'demo-aquacare-local',
-    appId: '1:123456789:web:demo',
-    messagingSenderId: '123456789',
-    projectId: 'demo-aquacare-local',
-    authDomain: 'localhost',
-    storageBucket: 'demo-aquacare-local.appspot.com',
-    measurementId: 'G-DEMO',
+    apiKey: 'AIzaSyAJW9WpWf7s0g-wUTlv9JJAocnUOQodcf4',
+    appId: '1:730710129450:web:042b8b26d99d5e0cb47c53',
+    messagingSenderId: '730710129450',
+    projectId: 'aquacaresystem0608',
+    authDomain: 'aquacaresystem0608.firebaseapp.com',
+    storageBucket: 'aquacaresystem0608.firebasestorage.app',
+    measurementId: '',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'demo-aquacare-local',
-    appId: '1:123456789:android:demo',
-    messagingSenderId: '123456789',
-    projectId: 'demo-aquacare-local',
-    databaseURL: 'http://localhost:9000',
-    storageBucket: 'demo-aquacare-local.appspot.com',
+    apiKey: 'AIzaSyD17XDbb-7wgDXrVvK_65CCFzywodwe13w',
+    appId: '1:1078139113677:android:60634f9979b45461b09984',
+    messagingSenderId: '1078139113677',
+    projectId: 'aquacaresystem0608',
+    storageBucket: 'aquacaresystem0608.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'demo-aquacare-local',
-    appId: '1:123456789:ios:demo',
-    messagingSenderId: '123456789',
-    projectId: 'demo-aquacare-local',
-    databaseURL: 'http://localhost:9000',
-    storageBucket: 'demo-aquacare-local.appspot.com',
+    apiKey: 'AIzaSyDYhU454erQWkQF7KOnh_axbEP4ToPfT4Q',
+    appId: '1:1078139113677:ios:76086aae31758220b09984',
+    messagingSenderId: '1078139113677',
+    projectId: 'aquacaresystem0608',
+    storageBucket: 'aquacaresystem0608.firebasestorage.app',
     iosBundleId: 'com.aquacare.technician',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'demo-aquacare-local',
-    appId: '1:123456789:macos:demo',
-    messagingSenderId: '123456789',
-    projectId: 'demo-aquacare-local',
-    databaseURL: 'http://localhost:9000',
-    storageBucket: 'demo-aquacare-local.appspot.com',
+    apiKey: 'AIzaSyDYhU454erQWkQF7KOnh_axbEP4ToPfT4Q',
+    appId: '1:1078139113677:macos:demo',
+    messagingSenderId: '1078139113677',
+    projectId: 'aquacaresystem0608',
+    storageBucket: 'aquacaresystem0608.firebasestorage.app',
     iosBundleId: 'com.aquacare.technician.macos',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'demo-aquacare-local',
-    appId: '1:123456789:windows:demo',
-    messagingSenderId: '123456789',
-    projectId: 'demo-aquacare-local',
-    authDomain: 'localhost',
-    databaseURL: 'http://localhost:9000',
-    storageBucket: 'demo-aquacare-local.appspot.com',
+    apiKey: 'AIzaSyAJW9WpWf7s0g-wUTlv9JJAocnUOQodcf4',
+    appId: '1:730710129450:web:042b8b26d99d5e0cb47c53',
+    messagingSenderId: '730710129450',
+    projectId: 'aquacaresystem0608',
+    authDomain: 'aquacaresystem0608.firebaseapp.com',
+    storageBucket: 'aquacaresystem0608.firebasestorage.app',
   );
 
-  // Use Android config for mobile, web for web
-  static const FirebaseOptions currentPlatform = android;
+  // Get Firebase options based on current platform
+  static FirebaseOptions get currentPlatform {
+    if (kIsWeb) {
+      return web;
+    }
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return android;
+      case TargetPlatform.iOS:
+        return ios;
+      case TargetPlatform.macOS:
+        return macos;
+      case TargetPlatform.windows:
+        return windows;
+      case TargetPlatform.linux:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions has not been configured for linux - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
+      case TargetPlatform.fuchsia:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions has not been configured for fuchsia - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
+    }
+  }
 }

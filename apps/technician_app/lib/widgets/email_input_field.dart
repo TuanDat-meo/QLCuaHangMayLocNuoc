@@ -1,4 +1,5 @@
 /// Reusable email input field widget
+library;
 import 'package:flutter/material.dart';
 
 class EmailInputField extends StatelessWidget {

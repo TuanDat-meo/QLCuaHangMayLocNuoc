@@ -1,0 +1,47 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "donHang",
+      "queryScope": "Collection",
+      "fields": [
+        {
+          "fieldPath": "khachHangId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "donHang",
+      "queryScope": "Collection",
+      "fields": [
+        {
+          "fieldPath": "technicianId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "sanPham",
+      "queryScope": "Collection",
+      "fields": [
+        {
+          "fieldPath": "trangThai",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_at",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

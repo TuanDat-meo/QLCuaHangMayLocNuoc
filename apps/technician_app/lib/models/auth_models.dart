@@ -1,7 +1,10 @@
 /// Auth models for technician app
 /// Re-export AuthUser from shared package for use across the app
+library;
+
+import 'package:shared/services/auth_service.dart';
 export 'package:shared/services/auth_service.dart'
-    show AuthUser, AuthException, UserRole;
+    show AuthUser, AuthException, UserRoles;
 
 class LoginRequest {
   final String email;
@@ -23,14 +26,14 @@ class SignupRequest {
   final String password;
   final String displayName;
   final String phoneNumber;
-  final String role;
+  final int role;
 
   SignupRequest({
     required this.email,
     required this.password,
     required this.displayName,
     required this.phoneNumber,
-    this.role = 'technician', // Default role for technician app
+    this.role = UserRoles.technician, // Default role for technician app
   });
 
   Map<String, dynamic> toJson() => {

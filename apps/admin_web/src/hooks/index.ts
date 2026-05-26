@@ -10,3 +10,5 @@ export {
   useResetPassword,
   useLogout,
 } from './useAuth';
+
+export { useNotifications } from './useNotifications';

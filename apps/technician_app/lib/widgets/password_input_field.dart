@@ -1,4 +1,5 @@
 /// Reusable password input field widget
+library;
 import 'package:flutter/material.dart';
 
 class PasswordInputField extends StatefulWidget {

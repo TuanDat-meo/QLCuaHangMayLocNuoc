@@ -1,204 +1,104 @@
-# 🗺️ Phase Roadmap
+# 🗺️ Phase Roadmap — AquaCareSystem
 
-Lộ trình phát triển AquaCareSystem từ Phase 1 → 4
+## Phase 1 — Core ✅ (Tháng 1–2)
+> Vòng đời đơn hàng khép kín: Đặt hàng → Lắp đặt → Hoàn tất
 
-## 📊 Timeline Overview
-
-### Phase 1: Core (Tháng 1-2)
-
-**Mục tiêu**: Vòng đời đơn hàng khép kín, đặt hàng → lắp đặt → hoàn tất
-
-#### Customer App
-- [x] Onboarding & Đăng ký OTP
-- [x] Trang chủ + Banner
+### Customer App
+- [x] Onboarding & Đăng ký / Đăng nhập
+- [x] Trang chủ + Banner sản phẩm
 - [x] Danh sách sản phẩm + Tìm kiếm
-- [x] Đặt hàng với Google Places (chọn địa chỉ)
+- [x] Đặt hàng với Google Places
 - [x] Theo dõi đơn hàng real-time
-- [x] Wishlist
-- [x] Hồ sơ tài khoản
 - [x] Thông báo FCM
+- [x] Hồ sơ tài khoản
 
-#### Technician App
-- [x] Đăng nhập + OTP
+### Technician App
+- [x] Đăng nhập
 - [x] Danh sách công việc hôm nay
-- [x] Chi tiết đơn + thông tin khách
+- [x] Chi tiết đơn & thông tin khách
 - [x] Google Maps chỉ đường
 - [x] Chụp ≤5 ảnh xác nhận
 - [x] Nhập COD + Tip
 - [x] Thông báo FCM
-- [x] Hồ sơ tài khoản
 
-#### Admin Web
+### Admin Web
 - [x] Dashboard KPI (doanh thu, đơn hôm nay, KTV online)
 - [x] Quản lý sản phẩm & danh mục
 - [x] Quản lý kho hàng
-- [x] Danh sách đơn hàng + filter/search
+- [x] Danh sách đơn hàng (filter/search)
 - [x] Danh sách KTV + rating
 - [x] Phân công KTV cho đơn hàng
-- [x] Cài đặt & Phân quyền (admin/tech/customer)
+- [x] Cài đặt & phân quyền
 
-#### Firebase Backend
-- [x] `onOrderCreated` - Gửi notification admin
-- [x] `onStatusChanged` - FCM theo trạng thái
-- [x] `onCompletionSubmitted` - Ghi nhận COD + ảnh
-- [x] `setCustomClaims` - Phân quyền role
-- [x] `verifyOtp` - Xác thực OTP
-- [x] `checkStockOnOrder` - Kiểm tra tồn kho
-- [x] Security Rules - Firestore, Storage
-
----
-
-### Phase 2: Expansion (Tháng 3-4)
-
-**Mục tiêu**: Mở rộng tính năng - pre-order, thiết bị, bảo hành, bảo trì
-
-#### Features
-- [ ] Pre-order khi hết hàng → Notification khi còn hàng
-- [ ] Quản lý thiết bị (serial, QR code)
-- [ ] Bảo hành tự động - device_status = "warranty_active"
-- [ ] Bảo trì định kỳ - nhắc nhở 7 ngày trước
-- [ ] CRM khách hàng - lịch sử mua, liên hệ
-- [ ] Audit log - ghi hành động admin
-- [ ] Multi-photo gallery từ KTV
-
-#### Customer App
-- [ ] My Devices screen
-- [ ] Warranty status view
-- [ ] Schedule maintenance
-- [ ] Receive maintenance reminders
-
-#### Admin Web
-- [ ] 4.7 Devices management
-- [ ] 4.8 Warranty & Maintenance
-- [ ] 4.9 Customer CRM
-- [ ] 4.12 Audit Log viewer
-- [ ] Pre-order management
-
-#### Firebase
-- [ ] `createOnInstallation` - Auto create warranty
-- [ ] `scheduleReminders` - Cron job bảo trì
-- [ ] `onStockBelowThreshold` - Alert kho
-- [ ] `auditLog` - Track all admin actions
+### Firebase Backend
+- [x] `onOrderCreated` — gửi notification cho admin
+- [x] `onStatusChanged` — FCM theo trạng thái đơn
+- [x] `onCompletionSubmitted` — ghi nhận COD + ảnh
+- [x] `setCustomClaims` — phân quyền role
+- [x] `checkStockOnOrder` — kiểm tra tồn kho
+- [x] Security Rules — Firestore & Storage
 
 ---
 
-### Phase 3: Reporting (Tháng 5)
+## Phase 2 — Expansion ⏳ (Tháng 3–4)
+> Mở rộng: thiết bị, bảo hành, bảo trì, CRM
 
-**Mục tiêu**: Advanced analytics & reports
-
-#### Features
-- [ ] Revenue reports - Daily/Monthly/Yearly
-- [ ] Technician performance - Orders completed, rating, speed
-- [ ] Inventory reports - Stock levels, turnover
-- [ ] Customer analytics - Repeat buyers, LTV
-- [ ] Export Excel/PDF
-- [ ] Custom date range filters
-
-#### Admin Web
-- [ ] 4.10 Reports module (Revenue, Performance, Inventory)
-- [ ] Dashboard charts upgrade
-- [ ] Export functionality
-
-#### Firebase
-- [ ] `generateDailyReport` - Cloud Scheduler
-- [ ] `exportExcel` - Callable function
-- [ ] `exportPdf` - Callable function
+- [ ] Pre-order khi hết hàng → Notify khi có hàng
+- [ ] Quản lý thiết bị (serial, QR Code)
+- [ ] Bảo hành tự động khi lắp đặt xong
+- [ ] Bảo trì định kỳ — nhắc nhở 7 ngày trước
+- [ ] CRM khách hàng — lịch sử mua, liên hệ
+- [ ] Audit log — ghi lại hành động admin
+- [ ] `createOnInstallation` — tự tạo warranty
+- [ ] `scheduleReminders` — Cron job bảo trì
+- [ ] `onStockBelowThreshold` — cảnh báo kho
 
 ---
 
-### Phase 4: Advanced Features (Tháng 6)
+## Phase 3 — Reporting ⏳ (Tháng 5)
+> Báo cáo nâng cao & phân tích
 
-**Mục tiêu**: Polish, mobile features, realtime communication
+- [ ] Báo cáo doanh thu (Ngày/Tháng/Năm)
+- [ ] Báo cáo hiệu suất KTV (đơn hoàn thành, rating, tốc độ)
+- [ ] Báo cáo tồn kho
+- [ ] Phân tích khách hàng (LTV, khách quay lại)
+- [ ] Xuất Excel / PDF
+- [ ] `generateDailyReport` — Cloud Scheduler
+- [ ] `exportExcel` / `exportPdf` — Callable Functions
 
-#### Features
-- [ ] QR Code scanning - Device check-in/check-out
-- [ ] Chat realtime - Admin ↔ Customer support
-- [ ] Push notifications - More granular
-- [ ] Analytics dashboard - User engagement
+---
+
+## Phase 4 — Advanced ⏳ (Tháng 6)
+> Tính năng cao cấp: QR, chat, offline
+
+- [ ] Quét QR Code thiết bị — check-in/check-out
+- [ ] Chat realtime Admin ↔ Khách
+- [ ] Push notification chi tiết hơn
 - [ ] Web push notifications
-- [ ] Offline support (SQLite for Flutter)
-
-#### Technician App
-- [ ] QR scan in device detail
-- [ ] Check maintenance history
-
-#### Customer App
-- [ ] QR scan device to see warranty
-- [ ] Chat with support
-- [ ] Push notification preferences
-
-#### Admin Web
-- [ ] Live chat with customers
-- [ ] Analytics dashboard
-- [ ] Real-time notifications
-
-#### Firebase
-- [ ] `onQrScanned` - Track device events
-- [ ] `onMessageCreated` - Chat FCM
-- [ ] `sendPushNotification` - Enhanced FCM
+- [ ] Offline support (SQLite cho Flutter)
+- [ ] `onQrScanned` — theo dõi sự kiện thiết bị
+- [ ] `onMessageCreated` — Chat FCM
+- [ ] Analytics dashboard — user engagement
 
 ---
 
-## 📋 Database Milestones
+## 📋 Collections Theo Phase
 
-### Phase 1 Ready Collections
-- users ✓
-- products ✓
-- categories ✓
-- orders ✓
-- assignments ✓
-- notifications ✓
-- audit_log ✓
-
-### Phase 2 New Collections
-- devices ✓
-- warranties ✓
-- maintenance ✓
-- pre_orders ✓
-
-### Phase 3-4
-- inventory (from Phase 1)
-- analytics (new)
+| Phase | Collections |
+|-------|------------|
+| Phase 1 | `users`, `products`, `orders`, `assignments`, `notifications`, `audit_log` |
+| Phase 2 | + `devices`, `warranties`, `maintenance`, `pre_orders` |
+| Phase 3–4 | + `analytics` |
 
 ---
 
-## 🔐 Auth & Permissions
+## 🔐 Roles Theo Phase
 
-### Phase 1 Roles
-- **customer** - Browse, order, track
-- **technician** - Accept jobs, complete work
-- **admin** - Full access
-
-### Phase 2+
-- **support** - Chat, customer service
-- **warehouse** - Inventory management
-- **finance** - View reports
+| Phase | Roles |
+|-------|-------|
+| Phase 1 | `customer`, `technician`, `admin` |
+| Phase 2+ | + `support`, `warehouse`, `finance` |
 
 ---
 
-## 📱 UI/UX Priorities
-
-### Phase 1
-- Minimal, functional
-- Focus on core features
-- Native platform feel
-
-### Phase 2-4
-- Animations & micro-interactions
-- Dark mode support
-- Accessibility improvements
-- Performance optimization
-
----
-
-## 🚀 Deployment Strategy
-
-- **Phase 1**: Closed beta → Selected partners
-- **Phase 2**: Soft launch → 100 users
-- **Phase 3**: Public launch → Scale
-- **Phase 4**: Mature product → Expansion features
-
----
-
-**Last Updated**: 2024  
-**Status**: Ready for Phase 1 development
+**Last Updated**: 2026-05-05 · **Status**: 🚧 Phase 1 Complete, Phase 2 In Progress

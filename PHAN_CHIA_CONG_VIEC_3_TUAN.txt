@@ -1,0 +1,793 @@
+═══════════════════════════════════════════════════════════════════════════════
+AquaCareSystem — PHÂN CHIA CÔNG VIỆC NHÓM 3 NGƯỜI (3 TUẦN)
+═══════════════════════════════════════════════════════════════════════════════
+
+NHÂN SỰ:
+  • Đạt  - Backend (Firebase + Database)
+  • Huy  - Admin Web (React/TS)
+  • Bình - Mobile Apps (Flutter)
+
+TỔNG PHẠM VI: Hoàn thiện Phase 1 + Fix bugs → Sẵn sàng deploy
+
+═══════════════════════════════════════════════════════════════════════════════
+TUẦN 1: THIẾT LẬP BACKEND & ADMIN WEB (17/5 - 23/5)
+═══════════════════════════════════════════════════════════════════════════════
+
+[ĐẠT] FIREBASE FUNCTIONS (Priority: CRITICAL)
+────────────────────────────────────────────────────────────────────────────────
+T1.01 | Implement onStatusChanged Function
+      | Description: Khi trạng thái đơn hàng thay đổi (pending→confirmed→assigned...), 
+      |              gửi FCM notification cho customer, technician, admin
+      | Scope: 
+      |   - Lắng nghe orders/{orderId} update status
+      |   - Xác định role của người nhận thông báo
+      |   - Gửi FCM qua Firebase Admin SDK
+      |   - Log audit trail vào analytics
+      | Acceptance: FCM gửi đúng người, đúng thời điểm
+      | Deadline: 19/5 (3 ngày)
+
+T1.02 | Implement onCompletionSubmitted Function
+      | Description: Khi KTV nhập COD + ảnh xác nhận, tự động:
+      |              - Tạo device record (thiết bị được lắp)
+      |              - Tạo warranty record
+      |              - Cập nhật order status → completed
+      |              - Gửi thông báo cho customer
+      | Scope:
+      |   - Trigger: assignments/{aid}/completions create
+      |   - Parse ảnh + COD amount
+      |   - Ghi vào devices + warranties collections
+      |   - Update orders status
+      | Acceptance: Toàn bộ quy trình tự động hóa
+      | Deadline: 20/5 (1 ngày)
+
+T1.03 | Implement checkStockOnOrder Function
+      | Description: Khi đặt hàng, check tồn kho sản phẩm:
+      |              - Nếu stock > qty: Confirmed
+      |              - Nếu stock < qty: Pre-order (thêm vào pre_orders collection)
+      | Scope:
+      |   - Callable function từ customer_app
+      |   - Kiểm tra products/{pid} stock field
+      |   - Tạo pre-order record nếu cần
+      |   - Return response với trạng thái
+      | Acceptance: Đơn hàng được assign đúng status
+      | Deadline: 20/5 (1 ngày)
+
+T1.04 | Implement onStockBelowThreshold Function (BONUS Phase 2)
+      | Description: Khi stock sản phẩm dưới ngưỡng (5 cái), 
+      |              tạo alert notification cho warehouse/admin
+      | Scope:
+      |   - Trigger: products/{pid} update stock
+      |   - Check nếu stock < 5
+      |   - Tạo alert document
+      |   - Gửi FCM cho admin
+      | Acceptance: Alert được tạo & gửi
+      | Deadline: 23/5 (tùy chọn, nếu xong sớm)
+
+T1.05 | Review & Fix Existing Functions
+      | Description: Kiểm tra adminCreateUser, adminUpdateUser, adminDeleteUser:
+      |              - Verify error handling
+      |              - Add input validation
+      |              - Add logging/audit trail
+      | Scope:
+      |   - Test all 3 functions
+      |   - Add proper error messages (vi_VN)
+      |   - Add role-based authorization check
+      | Acceptance: Functions chạy không lỗi, error message rõ ràng
+      | Deadline: 21/5 (2 ngày)
+
+T1.06 | Firestore Security Rules - Final Review
+      | Description: Kiểm tra & hoàn thiện security rules:
+      |              - Verify role-based access (Admin/Manager/Customer/Technician)
+      |              - Check document-level permissions
+      |              - Validate custom claims usage
+      | Scope:
+      |   - Test all collections (users, products, orders, assignments)
+      |   - Verify read/write/delete permissions per role
+      |   - Test edge cases (user updating own profile vs other's)
+      | Acceptance: Không có security leak, rules match permission model
+      | Deadline: 22/5 (1 ngày)
+
+T1.07 | Storage Rules - Final Review
+      | Description: Kiểm tra storage.rules cho product images, technician photos
+      | Scope:
+      |   - Verify public assets accessible
+      |   - Verify technician photos only tech + admin can access
+      |   - Verify product images admin-write only
+      | Acceptance: File uploads/downloads work as expected
+      | Deadline: 22/5 (cùng T1.06)
+
+────────────────────────────────────────────────────────────────────────────────
+
+[HUY] ADMIN WEB — USERS MANAGEMENT (Priority: HIGH)
+────────────────────────────────────────────────────────────────────────────────
+
+T1.08 | Implement UsersPage - List + CRUD
+      | Description: Trang quản lý người dùng (Customer, Technician, Admin)
+      | Scope:
+      |   - Display users table: ID | Name | Email | Phone | Role | Status | Actions
+      |   - Filter by role (customer/technician/admin)
+      |   - Search by name/email/phone
+      |   - Edit user: name, phone, status
+      |   - Delete user (soft delete → status: inactive)
+      |   - Call adminUpdateUser/adminDeleteUser Cloud Functions
+      | UI Components:
+      |   - Table with pagination
+      |   - Modal: Edit User Form
+      |   - Modal: Confirm Delete
+      |   - Status badge: Active/Inactive/Banned
+      | Acceptance: CRUD fully functional, data persist in Firestore
+      | Deadline: 23/5 (4 ngày, ngày cuối)
+
+T1.09 | Implement DashboardPage - KPI Widgets
+      | Description: Dashboard tính toán hiển thị:
+      |              - Total revenue (sum orders.final_price where status=completed)
+      |              - Orders today (count where created_at >= today)
+      |              - Active technicians (count users role=technician AND status=active)
+      |              - Avg order value
+      | Scope:
+      |   - Query Firestore real-time
+      |   - Use TanStack React Query for data fetching
+      |   - Recharts for chart visualization
+      |   - Format currency VND
+      | UI Components:
+      |   - 4 KPI cards (Revenue, Orders, Techs, Avg Value)
+      |   - Revenue trend chart (last 7 days)
+      |   - Top products by order count
+      | Acceptance: Dashboard load data, display metrics correctly
+      | Deadline: 23/5 (song song với T1.08)
+
+────────────────────────────────────────────────────────────────────────────────
+
+[BÌNH] MOBILE APPS — FOUNDATION CHECK (Priority: HIGH)
+────────────────────────────────────────────────────────────────────────────────
+
+T1.10 | Customer App - Auth Flow Verification
+      | Description: Kiểm tra & fix auth flow:
+      |              - Sign up: tạo user trong Firestore + Auth
+      |              - Sign in: kiểm tra credentials
+      |              - Password reset: gửi email
+      |              - Session management (persist token)
+      | Scope:
+      |   - Test sign up → sign in → sign out flow
+      |   - Verify tokens saved in SharedPreferences
+      |   - Check Firebase Auth initialization
+      |   - Verify error handling (invalid email, weak password)
+      | Acceptance: Auth flow không crash, user data persist
+      | Deadline: 20/5 (3 ngày)
+
+T1.11 | Technician App - Auth Flow Verification
+      | Description: Kiểm tra auth flow (cơ chế login cho KTV)
+      | Scope:
+      |   - Phone/Email + password login
+      |   - Verify technician role (role = 'technician' in Firestore)
+      |   - Home screen load today's jobs
+      |   - Session persist
+      | Acceptance: Login works, redirects to home/job list
+      | Deadline: 20/5 (cùng T1.10)
+
+T1.12 | Customer App - Cart Feature Verify
+      | Description: Kiểm tra cart flow:
+      |              - Add product → increase qty
+      |              - Remove product
+      |              - Update quantity
+      |              - Persist cart in local storage
+      |              - Proceed to checkout
+      | Scope:
+      |   - Test add/remove/update cart items
+      |   - Verify Firestore write (orders collection)
+      |   - Check order creation with proper status (pending)
+      | Acceptance: Cart operations work, order created in Firestore
+      | Deadline: 22/5 (2 ngày)
+
+T1.13 | Technician App - Home Screen Verify
+      | Description: Kiểm tra danh sách công việc hôm nay
+      | Scope:
+      |   - Query assignments collection: where status='assigned' AND assigned_date=today
+      |   - Display job card: Order ID, Customer Name, Address, Product
+      |   - Tap job → navigate to job_detail
+      |   - Verify real-time updates (Firestore listener)
+      | Acceptance: Job list loads, displays correct data
+      | Deadline: 21/5 (2 ngày)
+
+════════════════════════════════════════════════════════════════════════════════
+TUẦN 2: MOBILE APPS COMPLETION & ADMIN WEB FEATURES (24/5 - 30/5)
+════════════════════════════════════════════════════════════════════════════════
+
+[BÌNH] TECHNICIAN APP — FULL FEATURE (Priority: CRITICAL)
+────────────────────────────────────────────────────────────────────────────────
+
+T2.01 | Implement Job Detail Screen
+      | Description: Chi tiết công việc: order info + customer info + maps
+      | Scope:
+      |   - Display order details: Product, Price, Quantity, Delivery Address
+      |   - Display customer info: Name, Phone, Address with GeoPoint
+      |   - Google Maps: Show customer location + draw route from current location
+      |   - Buttons: [Accept Job] [Reject Job]
+      |   - Call updateAssignmentStatus cloud function
+      | UI Components:
+      |   - Order card (product, price, qty)
+      |   - Customer card (name, phone, address)
+      |   - Google Maps widget with route
+      | Acceptance: Map renders, location accurate, buttons functional
+      | Deadline: 25/5 (2 ngày)
+
+T2.02 | Implement Job Actions (Accept/Reject/On Route/Arrived)
+      | Description: Cập nhật assignment status qua Firestore
+      | Scope:
+      |   - Accept job: assignments/{aid} status → 'accepted'
+      |   - Reject job: cancel job, notify admin
+      |   - On the way: status → 'on_route'
+      |   - Arrived: status → 'arrived'
+      |   - Real-time FCM to customer + admin
+      | Acceptance: Status updates reflect in Firestore, notifications sent
+      | Deadline: 26/5 (1 ngày)
+
+T2.03 | Implement Photo Capture (≤5 photos)
+      | Description: Chụp ảnh xác nhận thi công (max 5 ảnh)
+      | Scope:
+      |   - Use camera_picker (or image_picker) package
+      |   - Allow max 5 photos
+      |   - Show thumbnail gallery
+      |   - Upload to Firebase Storage: /technician/{uid}/{jobId}/{timestamp}.jpg
+      |   - Store photo URLs in assignments/completions subcollection
+      | UI Components:
+      |   - Camera button + photo gallery display
+      |   - Add/remove photo buttons
+      |   - Counter "3/5 photos"
+      | Acceptance: Photos captured, uploaded, stored in Firestore
+      | Deadline: 27/5 (2 ngày)
+
+T2.04 | Implement COD + Tip Form
+      | Description: Form nhập số tiền COD + tip từ khách hàng
+      | Scope:
+      |   - Input field: COD amount (số tiền nhận từ khách)
+      |   - Input field: Tip amount (tiền thưởng tự nguyện)
+      |   - Validate COD > 0
+      |   - Submit form → tạo completions subcollection
+      |   - Trigger onCompletionSubmitted function
+      | UI Components:
+      |   - Currency input (VND format)
+      |   - Validation error messages
+      |   - Submit button
+      | Acceptance: Form validates, submits correctly
+      | Deadline: 28/5 (1 ngày)
+
+T2.05 | Implement Job Completion Flow
+      | Description: Hoàn toàn flow: Chụp ảnh → Nhập COD → Submit → Order marked completed
+      | Scope:
+      |   - Combine T2.03 + T2.04
+      |   - Show completion summary screen
+      |   - Display success message
+      |   - Update assignment status → 'completed'
+      |   - Navigate back to home (job list)
+      | Acceptance: Full flow works end-to-end
+      | Deadline: 28/5 (cùng T2.04)
+
+T2.06 | Implement Technician Notifications
+      | Description: Nhận FCM notifications cho job assignments, status updates
+      | Scope:
+      |   - Initialize FCM token
+      |   - Handle new job notifications
+      |   - Handle job cancellation notifications
+      |   - Display local push notifications
+      | Acceptance: Notifications display & actionable
+      | Deadline: 29/5 (1 ngày)
+
+T2.07 | Implement Technician Profile Screen
+      | Description: Profile KTV: name, phone, address, rating, total jobs, earnings
+      | Scope:
+      |   - Fetch user from Firestore
+      |   - Display stats: completed jobs, rating, total earnings
+      |   - Edit profile: name, phone, address
+      |   - Sign out button
+      | Acceptance: Profile loads and displays correctly
+      | Deadline: 30/5 (1 ngày, ngày cuối)
+
+────────────────────────────────────────────────────────────────────────────────
+
+[BÌNH] CUSTOMER APP — ORDERS & TRACKING (Priority: HIGH)
+────────────────────────────────────────────────────────────────────────────────
+
+T2.08 | Implement Checkout Flow
+      | Description: Từ cart → input delivery address (Google Places) → place order
+      | Scope:
+      |   - Add delivery address (Google Places autocomplete)
+      |   - Display order summary: product × qty, total price, delivery fee
+      |   - Place order: create orders document in Firestore
+      |   - Order status = 'pending'
+      |   - Clear cart after order success
+      | UI Components:
+      |   - Google Places search field
+      |   - Order summary card
+      |   - Place Order button
+      | Acceptance: Order created in Firestore with correct data
+      | Deadline: 25/5 (2 ngày)
+
+T2.09 | Implement Orders List Screen
+      | Description: Danh sách đơn hàng đã đặt (pending, confirmed, in_progress, completed)
+      | Scope:
+      |   - Query orders where customer_id = current_user.uid
+      |   - Display: Order ID, Date, Status Badge, Total Price
+      |   - Filter by status (All, Pending, In Progress, Completed)
+      |   - Tap order → navigate to order detail
+      | Acceptance: List displays all user's orders
+      | Deadline: 25/5 (cùng T2.08)
+
+T2.10 | Implement Order Detail + Real-time Tracking
+      | Description: Chi tiết đơn + theo dõi KTV trên map real-time
+      | Scope:
+      |   - Fetch order + assignment details
+      |   - Display order info: product, qty, price, address
+      |   - Display technician info: name, phone, rating
+      |   - Real-time map: show technician location (if started)
+      |   - Status timeline: pending → confirmed → on_route → arrived → completed
+      | UI Components:
+      |   - Order info card
+      |   - Technician card
+      |   - Google Maps widget
+      |   - Status timeline (vertical steps)
+      | Acceptance: Order loaded, map updates real-time
+      | Deadline: 27/5 (2 ngày)
+
+T2.11 | Implement Customer Notifications
+      | Description: FCM notifications cho order status changes
+      | Scope:
+      |   - Order created → admin notification
+      |   - Technician assigned → customer notification
+      |   - Technician on the way → customer notification
+      |   - Technician arrived → customer notification
+      |   - Order completed → customer notification
+      |   - Display local push in app
+      | Acceptance: Notifications receive & display correctly
+      | Deadline: 28/5 (1 ngày)
+
+T2.12 | Implement Customer Profile
+      | Description: Profile khách hàng: name, phone, address, order history
+      | Scope:
+      |   - Display user info: name, phone, address, email
+      |   - Edit profile: name, phone, address
+      |   - Show order history (last 10 orders)
+      |   - Sign out
+      | Acceptance: Profile loads, edit works
+      | Deadline: 30/5 (1 ngày, ngày cuối)
+
+────────────────────────────────────────────────────────────────────────────────
+
+[HUY] ADMIN WEB — ORDERS & ASSIGNMENTS (Priority: HIGH)
+────────────────────────────────────────────────────────────────────────────────
+
+T2.13 | Implement Orders Management Page
+      | Description: Trang quản lý đơn hàng
+      | Scope:
+      |   - Display orders table: Order ID, Customer, Product, Qty, Total, Status, Date
+      |   - Filter by status (Pending, Confirmed, In Progress, Completed, Cancelled)
+      |   - Search by order ID or customer name
+      |   - Pagination
+      |   - Click order → show detail + assignment info
+      | UI Components:
+      |   - Table with sorting + filtering
+      |   - Status badge: Pending (yellow), Confirmed (blue), In Progress (purple), Completed (green)
+      |   - Detail modal
+      | Acceptance: Orders display correctly, filters work
+      | Deadline: 26/5 (2 ngày)
+
+T2.14 | Implement Technician Assignment
+      | Description: Assign KTV cho đơn hàng (pending orders)
+      | Scope:
+      |   - View pending orders
+      |   - Select order → open assignment modal
+      |   - Dropdown: Choose available technician (filter by today's workload)
+      |   - Submit assignment → create assignments document
+      |   - Status → 'assigned'
+      |   - FCM notification to technician
+      | UI Components:
+      |   - Technician dropdown/list
+      |   - Assignment modal
+      |   - Submit button
+      | Acceptance: Assignment created in Firestore, technician receives notification
+      | Deadline: 27/5 (1 ngày)
+
+T2.15 | Implement Technicians List & Rating
+      | Description: Trang danh sách KTV với rating, workload
+      | Scope:
+      |   - Display: Name, Phone, Rating, Completed Orders, Status (Online/Offline)
+      |   - Click technician → show detail + recent jobs
+      |   - Search by name/phone
+      |   - Filter by status
+      | Acceptance: List displays all technicians
+      | Deadline: 28/5 (1 ngày)
+
+T2.16 | Implement Products Management
+      | Description: Quản lý sản phẩm: CRUD products
+      | Scope:
+      |   - List products: ID, Name, Price, Category, Stock, Status
+      |   - Add product: name, description, price, category, stock, image
+      |   - Edit product: update fields
+      |   - Delete product: soft delete (status = inactive)
+      |   - Upload image to Firebase Storage
+      | UI Components:
+      |   - Product table
+      |   - Add/Edit product form modal
+      |   - Image upload
+      | Acceptance: Product CRUD fully functional
+      | Deadline: 29/5 (1 ngày)
+
+T2.17 | Implement Settings & Permissions
+      | Description: Settings page: Role management, notification settings
+      | Scope:
+      |   - View roles: Admin, Technician, Customer
+      |   - Manage permissions per role
+      |   - Notification settings (email, in-app, SMS)
+      |   - System settings
+      | Acceptance: Settings load and display
+      | Deadline: 30/5 (1 ngày, ngày cuối)
+
+════════════════════════════════════════════════════════════════════════════════
+TUẦN 3: TESTING, BUG FIXES & DEPLOYMENT (31/5 - 6/6)
+════════════════════════════════════════════════════════════════════════════════
+
+[ĐẠT] BACKEND - INTEGRATION TESTING & FIXES
+────────────────────────────────────────────────────────────────────────────────
+
+T3.01 | End-to-End Testing - Order Flow
+      | Description: Test hoàn toàn quy trình: đặt hàng → phân công → hoàn tất
+      | Scope:
+      |   - Customer đặt hàng → order created in Firestore
+      |   - Admin phân công KTV → assignment created
+      |   - KTV nhận job → status updated
+      |   - KTV submit completion → order marked completed
+      |   - Verify FCM notifications at each step
+      |   - Verify database state consistency
+      | Acceptance Criteria:
+      |   - All status transitions correct
+      |   - Notifications sent to right people
+      |   - Database state consistent
+      | Deadline: 1/6 (2 ngày)
+
+T3.02 | Security Testing - Firestore Rules
+      | Description: Verify security rules prevent unauthorized access
+      | Scope:
+      |   - Test unauthenticated user cannot read/write
+      |   - Test customer cannot read/write other customer's orders
+      |   - Test technician cannot modify admin settings
+      |   - Test role-based access (admin can read all, tech can only read own)
+      | Acceptance Criteria:
+      |   - No data leaks
+      |   - Permissions enforced correctly
+      | Deadline: 2/6 (1 ngày)
+
+T3.03 | Bug Fixes - Firebase Functions Error Handling
+      | Description: Fix any errors from T1 functions testing
+      | Scope:
+      |   - Review function logs
+      |   - Fix null pointer errors
+      |   - Fix invalid database writes
+      |   - Add proper error messages
+      | Acceptance Criteria:
+      |   - Functions execute without errors
+      |   - Error messages user-friendly (Vietnamese)
+      | Deadline: 2/6 (cùng T3.02)
+
+T3.04 | Performance Optimization
+      | Description: Optimize Firestore queries
+      | Scope:
+      |   - Add composite indexes for common queries
+      |   - Review function execution times
+      |   - Optimize batch operations
+      | Acceptance Criteria:
+      |   - Query response < 500ms
+      |   - Functions execute < 3 seconds
+      | Deadline: 3/6 (1 ngày)
+
+T3.05 | Deployment Preparation
+      | Description: Prepare Firebase functions for production deploy
+      | Scope:
+      |   - Review firestore.rules & storage.rules syntax
+      |   - Run `firebase deploy --only functions,firestore:rules,storage`
+      |   - Verify deployment success
+      |   - Test functions on production
+      | Acceptance Criteria:
+      |   - Deploy succeeds
+      |   - Production functions work
+      | Deadline: 4/6 (1 ngày)
+
+────────────────────────────────────────────────────────────────────────────────
+
+[HUY] ADMIN WEB - POLISH & DEPLOYMENT
+────────────────────────────────────────────────────────────────────────────────
+
+T3.06 | UI/UX Polish & Responsive Design
+      | Description: Kiểm tra responsive design trên tablet/mobile
+      | Scope:
+      |   - Test all pages on: desktop, tablet (iPad), mobile (iPhone)
+      |   - Fix layout issues
+      |   - Ensure buttons/inputs responsive
+      |   - Dark mode support (if applicable)
+      | Deadline: 1/6 (1 ngày)
+
+T3.07 | Bug Fixes - Admin Web Issues
+      | Description: Fix any bugs found during testing
+      | Scope:
+      |   - Fix data loading issues
+      |   - Fix form validation errors
+      |   - Fix routing issues
+      |   - Fix Firestore query errors
+      | Deadline: 2/6 (1 ngày)
+
+T3.08 | Performance Optimization - Admin Web
+      | Description: Optimize page load times
+      | Scope:
+      |   - Review Webpack bundle size
+      |   - Optimize images
+      |   - Implement code splitting
+      |   - Lazy load pages
+      | Deadline: 3/6 (1 ngày)
+
+T3.09 | Build & Deploy to Firebase Hosting
+      | Description: Build production bundle & deploy
+      | Scope:
+      |   - Run `npm run build`
+      |   - Verify build output
+      |   - Deploy to Firebase Hosting: `firebase deploy --only hosting`
+      |   - Test production URL
+      | Acceptance Criteria:
+      |   - Build succeeds
+      |   - Site accessible & fully functional
+      | Deadline: 4/6 (1 ngày)
+
+T3.10 | Admin Web Final Testing
+      | Description: Full regression testing on production
+      | Scope:
+      |   - Test all CRUD operations
+      |   - Test all filters & searches
+      |   - Test notifications
+      |   - Test user flows: create user → edit → delete
+      | Deadline: 5/6 (1 ngày)
+
+────────────────────────────────────────────────────────────────────────────────
+
+[BÌNH] MOBILE APPS - FINAL TESTING & BUILD
+────────────────────────────────────────────────────────────────────────────────
+
+T3.11 | Customer App - Full Testing
+      | Description: End-to-end testing customer app
+      | Scope:
+      |   - Test sign up/sign in/sign out
+      |   - Test product browsing
+      |   - Test cart operations
+      |   - Test checkout & order placement
+      |   - Test order tracking real-time
+      |   - Test notifications
+      |   - Test profile management
+      | Devices: Android (1 device) + iOS (if available)
+      | Deadline: 1/6 (2 ngày)
+
+T3.12 | Technician App - Full Testing
+      | Description: End-to-end testing technician app
+      | Scope:
+      |   - Test login
+      |   - Test job list loading
+      |   - Test job detail with maps
+      |   - Test job accept/reject
+      |   - Test photo capture (≤5)
+      |   - Test COD + tip entry
+      |   - Test completion flow
+      |   - Test notifications
+      | Devices: Android (1 device) + iOS (if available)
+      | Deadline: 2/6 (1 ngày)
+
+T3.13 | Customer App - Bug Fixes
+      | Description: Fix any bugs found during T3.11
+      | Scope:
+      |   - Fix crashes
+      |   - Fix UI layout issues
+      |   - Fix Firestore sync issues
+      |   - Fix camera/image picker issues
+      | Deadline: 3/6 (1 ngày)
+
+T3.14 | Technician App - Bug Fixes
+      | Description: Fix any bugs found during T3.12
+      | Scope:
+      |   - Fix crashes
+      |   - Fix maps issues
+      |   - Fix notification issues
+      |   - Fix Firestore sync issues
+      | Deadline: 3/6 (cùng T3.13)
+
+T3.15 | Performance Optimization - Mobile
+      | Description: Optimize app performance
+      | Scope:
+      |   - Reduce app build size
+      |   - Optimize Firestore queries (add pagination)
+      |   - Optimize image loading
+      |   - Reduce FCM processing time
+      | Deadline: 4/6 (1 ngày)
+
+T3.16 | Build APK/IPA for Release
+      | Description: Build production releases
+      | Scope:
+      |   - Customer App: `flutter build apk --release` + `flutter build ios --release`
+      |   - Technician App: same
+      |   - Sign APK with release keystore
+      |   - Generate iOS provisioning profiles
+      | Acceptance Criteria:
+      |   - Builds complete without errors
+      |   - Size reasonable (< 150MB)
+      | Deadline: 5/6 (1 ngày)
+
+T3.17 | Final Validation - All Apps
+      | Description: Last minute checks on all platforms
+      | Scope:
+      |   - Test on Android devices
+      |   - Test on iOS (if available)
+      |   - Test web on Chrome/Firefox
+      |   - Verify data consistency across all apps
+      |   - Check all links/buttons work
+      | Deadline: 6/6 (1 ngày, ngày cuối)
+
+════════════════════════════════════════════════════════════════════════════════
+DEPENDENCY & SYNCHRONIZATION NOTES
+════════════════════════════════════════════════════════════════════════════════
+
+Critical Path (phải làm trước):
+  1. Firebase Functions (T1.01-T1.07) → Tuần 1 xong → T2 có thể test
+  2. Admin Users CRUD (T1.08) → Tuần 1 xong → Tạo user cho testing
+  3. Auth flows (T1.10-T1.11) → Tuần 1 xong → Mobile test user creation
+  4. Dashboard (T1.09) → Tuần 1 xong → Lấy metrics từ backend
+
+Synchronization Points:
+  • End of Tuần 1: Tất cả backend ready + admin basic CRUD
+  • End of Tuần 2: Tất cả features hoàn tất trên cả 3 apps
+  • End of Tuần 3: Testing xong, ready to production
+
+Communication Plan:
+  • Daily standup: 9:00 AM (15 min)
+    - Đạt báo: Functions progress, errors encountered
+    - Huy báo: Admin Web UI progress, blocking issues
+    - Bình báo: Mobile Apps progress, testing status
+  • Milestone sync: End of each tuần (30 min)
+    - Review completed tasks
+    - Identify blockers
+    - Adjust task assignments nếu cần
+
+════════════════════════════════════════════════════════════════════════════════
+RISK MITIGATION
+════════════════════════════════════════════════════════════════════════════════
+
+Risk 1: Firebase Functions debugging takes longer than expected
+  → Mitigation: Setup local Firebase emulator from Day 1 (before Tuần 1 starts)
+
+Risk 2: Flutter camera/maps integration issues
+  → Mitigation: Test camera & maps permissions on devices immediately in T1
+
+Risk 3: Firestore real-time sync latency
+  → Mitigation: Use Firestore offline persistence mode, add caching layer
+
+Risk 4: Google Places API integration
+  → Mitigation: Pre-test API on Day 1, cache API key securely
+
+Risk 5: iOS deployment takes longer (provisioning profiles, signing)
+  → Mitigation: If iOS unavailable, focus on Android for submission
+
+════════════════════════════════════════════════════════════════════════════════
+SUCCESS CRITERIA (GO/NO-GO)
+════════════════════════════════════════════════════════════════════════════════
+
+By End of Tuần 3 (6/6):
+
+✅ Backend
+  □ All 5 Firebase Functions deployed & tested
+  □ Firestore security rules working
+  □ Storage rules working
+  □ No outstanding backend issues
+
+✅ Admin Web
+  □ Users CRUD fully functional
+  □ Dashboard showing correct metrics
+  □ Orders management working
+  □ Deployed to Firebase Hosting
+  □ No critical bugs
+
+✅ Customer App
+  □ All features implemented
+  □ APK built & signed
+  □ No crashes on test devices
+  □ Real-time order tracking working
+  □ Notifications received
+
+✅ Technician App
+  □ All features implemented
+  □ APK built & signed
+  □ Maps & geolocation working
+  □ Photo capture working
+  □ Job completion flow working
+  □ Notifications received
+
+✅ Integration
+  □ End-to-end order flow tested
+  □ Data consistent across apps
+  □ All notifications sent correctly
+  □ No data leaks in security rules
+
+════════════════════════════════════════════════════════════════════════════════
+ESTIMATED TIMELINE SUMMARY
+════════════════════════════════════════════════════════════════════════════════
+
+Tuần 1 (17-23/5):
+  • Đạt: Firebase Functions + Security Rules → 40 hours
+  • Huy: Admin Web (Users + Dashboard) → 32 hours
+  • Bình: Mobile Apps (Auth + Cart verify) → 32 hours
+  TOTAL: ~104 hours
+
+Tuần 2 (24-30/5):
+  • Bình: Technician App (full) + Customer App (orders) → 56 hours
+  • Huy: Admin Web (Orders + Assignments) → 40 hours
+  • Đạt: Backend support + refinement → 16 hours
+  TOTAL: ~112 hours
+
+Tuần 3 (31/5-6/6):
+  • Đạt: Testing + Deployment → 32 hours
+  • Huy: Polish + Deploy to Hosting → 32 hours
+  • Bình: Mobile testing + Build releases → 40 hours
+  TOTAL: ~104 hours
+
+GRAND TOTAL: ~320 hours (≈ 10.7 hours/day × 3 people × 21 days)
+
+════════════════════════════════════════════════════════════════════════════════
+FORMAT FOR EXCEL IMPORT
+════════════════════════════════════════════════════════════════════════════════
+
+Copy dữ liệu dưới đây vào Excel (Tab-separated):
+
+Week	Task ID	Task Name	Owner	Description	Category	Est Days	Deadline	Status
+1	T1.01	Implement onStatusChanged	Đạt	FCM notifications cho order status changes	Backend	3	19/5	Not Started
+1	T1.02	Implement onCompletionSubmitted	Đạt	Auto create device/warranty on completion	Backend	1	20/5	Not Started
+1	T1.03	Implement checkStockOnOrder	Đạt	Validate stock & create pre-order	Backend	1	20/5	Not Started
+1	T1.04	Implement onStockBelowThreshold	Đạt	Alert when stock < 5	Backend	1	23/5	Not Started (Bonus)
+1	T1.05	Review Existing Functions	Đạt	Fix error handling	Backend	2	21/5	Not Started
+1	T1.06	Security Rules - Final Review	Đạt	Verify role-based permissions	Backend	1	22/5	Not Started
+1	T1.07	Storage Rules - Final Review	Đạt	Verify file access permissions	Backend	1	22/5	Not Started
+1	T1.08	Users Management Page	Huy	CRUD users + list + filter	Admin Web	4	23/5	Not Started
+1	T1.09	Dashboard KPI Widgets	Huy	Revenue, orders, techs, avg value	Admin Web	4	23/5	Not Started
+1	T1.10	Customer Auth Verification	Bình	Sign up/in/out, token persist	Mobile	3	20/5	Not Started
+1	T1.11	Technician Auth Verification	Bình	Login, role verify, session	Mobile	3	20/5	Not Started
+1	T1.12	Customer Cart Verify	Bình	Add/remove/update, persist, checkout	Mobile	2	22/5	Not Started
+1	T1.13	Technician Home Verify	Bình	Job list, real-time updates	Mobile	2	21/5	Not Started
+2	T2.01	Job Detail Screen	Bình	Order + customer + maps display	Mobile	2	25/5	Not Started
+2	T2.02	Job Actions	Bình	Accept/Reject/On Route/Arrived	Mobile	1	26/5	Not Started
+2	T2.03	Photo Capture (≤5)	Bình	Camera, upload to Storage	Mobile	2	27/5	Not Started
+2	T2.04	COD + Tip Form	Bình	Input, validation, submit	Mobile	1	28/5	Not Started
+2	T2.05	Completion Flow	Bình	Photos + COD + success screen	Mobile	1	28/5	Not Started
+2	T2.06	Technician Notifications	Bình	FCM for job assignments	Mobile	1	29/5	Not Started
+2	T2.07	Technician Profile	Bình	User info, stats, sign out	Mobile	1	30/5	Not Started
+2	T2.08	Checkout Flow	Bình	Address + summary + place order	Mobile	2	25/5	Not Started
+2	T2.09	Orders List	Bình	Filter by status, tap to detail	Mobile	2	25/5	Not Started
+2	T2.10	Order Detail + Tracking	Bình	Real-time tech location on map	Mobile	2	27/5	Not Started
+2	T2.11	Customer Notifications	Bình	FCM for order status	Mobile	1	28/5	Not Started
+2	T2.12	Customer Profile	Bình	Info, history, sign out	Mobile	1	30/5	Not Started
+2	T2.13	Orders Management	Huy	Table, filter, search, detail	Admin Web	2	26/5	Not Started
+2	T2.14	Technician Assignment	Huy	Assign tech to order	Admin Web	1	27/5	Not Started
+2	T2.15	Technicians List & Rating	Huy	Display tech stats	Admin Web	1	28/5	Not Started
+2	T2.16	Products Management	Huy	Product CRUD + image upload	Admin Web	1	29/5	Not Started
+2	T2.17	Settings & Permissions	Huy	Role management, notifications	Admin Web	1	30/5	Not Started
+3	T3.01	E2E Testing - Order Flow	Đạt	Full flow testing + verification	Testing	2	1/6	Not Started
+3	T3.02	Security Testing	Đạt	Firestore rules validation	Testing	1	2/6	Not Started
+3	T3.03	Bug Fixes - Functions	Đạt	Fix errors from testing	Testing	1	2/6	Not Started
+3	T3.04	Performance Optimization	Đạt	Query optimization, indexes	Backend	1	3/6	Not Started
+3	T3.05	Firebase Deployment	Đạt	Deploy functions + rules	Deployment	1	4/6	Not Started
+3	T3.06	UI/UX Polish - Admin	Huy	Responsive design, dark mode	Admin Web	1	1/6	Not Started
+3	T3.07	Bug Fixes - Admin	Huy	Fix any issues found	Admin Web	1	2/6	Not Started
+3	T3.08	Performance - Admin	Huy	Bundle size, lazy loading	Admin Web	1	3/6	Not Started
+3	T3.09	Build & Deploy Admin	Huy	Production build + Firebase deploy	Deployment	1	4/6	Not Started
+3	T3.10	Final Testing - Admin	Huy	Regression testing	Testing	1	5/6	Not Started
+3	T3.11	Customer App Testing	Bình	End-to-end testing	Testing	2	1/6	Not Started
+3	T3.12	Technician App Testing	Bình	End-to-end testing	Testing	1	2/6	Not Started
+3	T3.13	Customer App Fixes	Bình	Bug fixes	Testing	1	3/6	Not Started
+3	T3.14	Technician App Fixes	Bình	Bug fixes	Testing	1	3/6	Not Started
+3	T3.15	Mobile Performance	Bình	Build size, query optimization	Mobile	1	4/6	Not Started
+3	T3.16	Build APK/IPA	Bình	Release builds	Deployment	1	5/6	Not Started
+3	T3.17	Final Validation	Bình	All platforms check	Testing	1	6/6	Not Started
+
+════════════════════════════════════════════════════════════════════════════════
+END OF DOCUMENT
+════════════════════════════════════════════════════════════════════════════════

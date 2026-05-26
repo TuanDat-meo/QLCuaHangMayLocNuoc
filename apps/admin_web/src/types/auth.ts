@@ -1,24 +1,29 @@
 /**
- * Authentication Types & Interfaces
+ * Authentication Types & Interfaces - Numeric Role Version
  */
 
-export type UserRole = 'customer' | 'technician' | 'admin';
+export enum UserRole {
+  ADMIN = 1,
+  MANAGER = 2,
+  STAFF = 3,
+  TECHNICIAN = 4,
+  CUSTOMER = 5,
+  ACCOUNTANT = 6,
+  PENDING = 0
+}
 
 export interface AuthUser {
   uid: string;
   email: string;
   displayName: string;
   phoneNumber: string;
-  role: UserRole;
+  role: UserRole | null;
   createdAt: Date;
   updatedAt: Date;
   avatar?: string;
   isVerified: boolean;
-}
-
-export interface LoginCredentials {
-  email: string;
-  password: string;
+  status: 'active' | 'pending' | 'blocked';
+  source: 'admin_web' | 'customer_app' | 'technician_app';
 }
 
 export interface SignupCredentials {
@@ -27,17 +32,13 @@ export interface SignupCredentials {
   confirmPassword: string;
   displayName: string;
   phoneNumber: string;
-  role: UserRole;
+  role?: UserRole | null;
+  source?: string;
 }
 
-export interface ForgotPasswordRequest {
+export interface LoginCredentials {
   email: string;
-}
-
-export interface ResetPasswordRequest {
-  code: string;
-  newPassword: string;
-  confirmPassword: string;
+  password: string;
 }
 
 export interface AuthState {

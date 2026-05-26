@@ -2,104 +2,55 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Helper: Lấy quyền của người dùng (dạng số)
+    // 1: Admin, 2: Manager, 3: Staff, 4: Technician, 5: Customer, 0: Pending
+    function getRole() {
+      return get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role;
+    }
+
+    // Kiểm tra Admin (Role 1)
+    function isAdmin() {
+      return request.auth != null && getRole() == 1;
+    }
+
+    // Kiểm tra Quản lý hoặc cao hơn (Role 1 hoặc 2)
+    function isManager() {
+      return request.auth != null && getRole() <= 2 && getRole() != 0;
+    }
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
     // ─────────────────────────────────────────────────────
-    // Người dùng - Đọc/ghi data của chính mình
+    // Collection: Người dùng (nguoiDung)
     // ─────────────────────────────────────────────────────
     match /nguoiDung/{uid} {
-      // User đọc/ghi data của mình
-      allow read, write: if request.auth.uid == uid;
-      // Admin đọc tất cả
-      allow read: if request.auth.token.vaiTro == 'admin';
-      // Admin ghi tất cả
-      allow write: if request.auth.token.vaiTro == 'admin';
+      allow get: if isOwner(uid) || isManager();
+      allow list: if isManager();
       
-      // Sub-collections
-      match /diaChiGiaoHang/{doc=**} {
-        allow read, write: if request.auth.uid == uid;
-      }
-      match /gioHang/{doc=**} {
-        allow read, write: if request.auth.uid == uid;
-      }
-      match /lichSuHoatDong/{doc=**} {
-        allow read: if request.auth.uid == uid;
-      }
+      // Tạo tài khoản mới
+      allow create: if request.auth != null && request.auth.uid == uid;
+
+      // Cập nhật: Admin/Manager được sửa role/status, User chỉ sửa profile
+      allow update: if isManager() || (isOwner(uid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status']));
+
+      allow delete: if isAdmin();
     }
 
     // ─────────────────────────────────────────────────────
-    // Sản phẩm - Public read, Admin write
+    // Các collection khác
     // ─────────────────────────────────────────────────────
-    match /sanPham/{productId} {
-      allow read: if true;
-      allow write: if request.auth.token.vaiTro == 'admin';
+    match /sanPham/{id} { allow read: if true; allow write: if isManager(); }
+    match /danhMuc/{id} { allow read: if true; allow write: if isManager(); }
+    match /banner/{id} { allow read: if true; allow write: if isManager(); }
+
+    match /donHang/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if isManager() || request.auth.uid == resource.data.khachHangId || request.auth.uid == resource.data.kyThuatVienId;
     }
 
-    // ─────────────────────────────────────────────────────
-    // Đơn hàng - Khách read/write own, Admin/Tech read all
-    // ─────────────────────────────────────────────────────
-    match /donHang/{orderId} {
-      allow read: if 
-        request.auth.uid == resource.data.khachHangId ||
-        request.auth.token.vaiTro == 'admin' ||
-        request.auth.token.vaiTro == 'technician';
-      
-      allow create: if 
-        request.auth.uid == request.resource.data.khachHangId &&
-        request.resource.data.trangThai == 'cho_xn';
-      
-      allow update: if 
-        request.auth.uid == resource.data.khachHangId ||
-        request.auth.token.vaiTro == 'admin' ||
-        (request.auth.token.vaiTro == 'technician' && 
-         request.auth.uid == resource.data.kyThuatVienId);
-      
-      // Lịch sử trạng thái
-      match /lichSuTrangThai/{doc=**} {
-        allow read: if 
-          request.auth.uid == resource.parent.parent.data().khachHangId ||
-          request.auth.token.vaiTro == 'admin' ||
-          request.auth.token.vaiTro == 'technician';
-      }
-    }
-
-    // ─────────────────────────────────────────────────────
-    // Thiết bị - Admin/Tech read all, Customer read own
-    // ─────────────────────────────────────────────────────
-    match /thietBi/{deviceId} {
-      allow read: if 
-        request.auth.uid == resource.data.khachHangId ||
-        request.auth.token.vaiTro == 'admin' ||
-        request.auth.token.vaiTro == 'technician';
-      
-      allow write: if 
-        request.auth.token.vaiTro == 'admin' ||
-        request.auth.token.vaiTro == 'technician';
-    }
-
-    // ─────────────────────────────────────────────────────
-    // Thông báo - Read own, Write for admin/tech
-    // ─────────────────────────────────────────────────────
-    match /thongBao/{notificationId} {
-      allow read: if request.auth.uid == resource.data.nguoiNhanId;
-      allow create: if request.auth.token.vaiTro == 'admin' ||
-                       request.auth.token.vaiTro == 'technician';
-      allow update: if request.auth.uid == resource.data.nguoiNhanId;
-    }
-
-    // ─────────────────────────────────────────────────────
-    // Danh mục, Nhà cung cấp - Public read, Admin write
-    // ─────────────────────────────────────────────────────
-    match /danhMuc/{doc=**} {
-      allow read: if true;
-      allow write: if request.auth.token.vaiTro == 'admin';
-    }
-    match /nhaCungCap/{doc=**} {
-      allow read: if true;
-      allow write: if request.auth.token.vaiTro == 'admin';
-    }
-
-    // ─────────────────────────────────────────────────────
-    // Mặc định: Từ chối tất cả
-    // ─────────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }

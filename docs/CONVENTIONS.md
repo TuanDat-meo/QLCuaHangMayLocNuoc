@@ -1,155 +1,69 @@
-# 📋 Quy ước - Đặt tên & Coding Style
+# 📋 Quy ước Code — AquaCareSystem
 
-## 📝 Dart (Flutter)
+## Dart / Flutter
 
-### Naming Conventions
+### Đặt tên
+
+| Loại | Convention | Ví dụ |
+|------|-----------|-------|
+| Class, Enum | `PascalCase` | `OrderStatus`, `UserProfile` |
+| Method, variable | `camelCase` | `fetchUserData()`, `totalPrice` |
+| Constant | `camelCase` với `const` | `const appName = 'AquaCare'` |
+| Private | `_leadingUnderscore` | `_privateMethod()` |
+| File | `snake_case` | `order_model.dart`, `home_screen.dart` |
+
+### Cấu trúc file
+
+```
+feature/
+├── screens/      # UI screens
+├── widgets/      # Reusable widgets
+├── controllers/  # Business logic (Provider/Riverpod)
+├── services/     # Firebase / API calls
+└── models/       # Data models
+```
+
+### Code style
 
 ```dart
-// Classes - PascalCase
-class UserProfile {}
-class OrderStatus {}
-
-// Functions/Methods - camelCase
-void fetchUserData() {}
-String getUserName() {}
-
-// Variables - camelCase
-String userName = "John";
-int totalPrice = 1000;
-
-// Constants - camelCase with const
-const String appName = "AquaCareSystem";
-const int maxRetries = 3;
-
-// Enums - PascalCase
-enum OrderStatusEnum { pending, confirmed, shipped }
-
-// Private - leading underscore
-String _privateVariable;
-void _privateMethod() {}
-```
-
-### File Naming
-
-```
-screen: home_screen.dart
-widget: product_card.dart
-model: order_model.dart
-provider: order_provider.dart
-service: firebase_service.dart
-util: date_utils.dart
-```
-
-### Class Structure
-
-```dart
-class OrderDetailScreen extends StatefulWidget {
-  const OrderDetailScreen({Key? key}) : super(key: key);
-
-  @override
-  State<OrderDetailScreen> createState() => _OrderDetailScreenState();
-}
-
-class _OrderDetailScreenState extends State<OrderDetailScreen> {
-  // Properties
-  String? orderId;
-  
-  @override
-  void initState() {
-    super.initState();
-    // Initialization
-  }
-
-  @override
-  void dispose() {
-    // Cleanup
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Order Detail')),
-      body: _buildBody(),
-    );
-  }
-
-  Widget _buildBody() {
-    return Center(child: CircularProgressIndicator());
-  }
-}
-```
-
-### Code Style
-
-```dart
-// Use const when possible
+// ✅ Dùng const khi có thể
 const Text('Hello')
 
-// Use spread operator
-Widget build(context) {
-  return Column(
-    children: [
-      ...ListTile
-      ...SizedBox
-    ],
-  );
+// ✅ Null safety
+String? userName;
+String name = userName ?? 'Unknown';
+user?.profile?.name;
+
+// ✅ Async/await (tránh callback hell)
+Future<void> fetchData() async {
+  try {
+    final data = await firestore.collection('users').get();
+    setState(() => users = data.docs);
+  } catch (e) {
+    debugPrint('Error: $e');
+  }
 }
 
-// Use if with collection
-if (isLoading) ...[
-  LoadingWidget(),
-]
-
-// Comments
-/// Doc comment for public API
-// Regular comment
-// TODO: vấn đề cần xử lý
+// ✅ Comments có ý nghĩa
+/// Tính tổng giá trị đơn hàng (giá × số lượng từng sản phẩm)
+double calculateTotal(List<OrderItem> items) { ... }
 ```
 
-## 🎨 TypeScript/React
+---
 
-### Naming Conventions
+## TypeScript / React
 
-```typescript
-// Types/Interfaces - PascalCase
-interface UserProfile {
-  userId: string;
-  userName: string;
-}
+### Đặt tên
 
-// Functions - camelCase
-const fetchUserData = () => {};
-const handleSubmit = () => {};
+| Loại | Convention | Ví dụ |
+|------|-----------|-------|
+| Interface, Type | `PascalCase` | `UserProfile`, `OrderStatus` |
+| Function, variable | `camelCase` | `fetchUserData()`, `totalPrice` |
+| Constant toàn cục | `UPPER_SNAKE_CASE` | `API_BASE_URL` |
+| React Component | `PascalCase` | `ProductCard`, `DashboardPage` |
+| File | `PascalCase.tsx` (component), `camelCase.ts` (logic) | `ProductCard.tsx`, `apiService.ts` |
 
-// Variables - camelCase
-let userName = "John";
-const totalPrice = 1000;
-
-// Constants - UPPER_SNAKE_CASE
-const API_BASE_URL = "https://api.example.com";
-const MAX_RETRIES = 3;
-
-// React Components - PascalCase
-export const UserProfile: React.FC = () => {};
-
-// Private functions - leading underscore
-const _privateHelper = () => {};
-```
-
-### File Naming
-
-```
-page: UserProfilePage.tsx
-component: ProductCard.tsx
-hook: useUserData.ts
-service: apiService.ts
-store: userStore.ts
-type: types.ts or models.ts
-util: dateUtils.ts
-```
-
-### Component Structure
+### Cấu trúc component
 
 ```typescript
 interface ProductCardProps {
@@ -157,124 +71,48 @@ interface ProductCardProps {
   onSelect: (id: string) => void;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({
-  productId,
-  onSelect,
-}) => {
-  // Hooks
+export const ProductCard: React.FC<ProductCardProps> = ({ productId, onSelect }) => {
+  // 1. Hooks
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
 
-  // Effects
-  useEffect(() => {
-    // Setup
-  }, []);
+  // 2. Effects
+  useEffect(() => { /* setup */ }, []);
 
-  // Handlers
-  const handleClick = () => {
-    onSelect(productId);
-  };
+  // 3. Handlers
+  const handleClick = () => onSelect(productId);
 
-  // Render
-  return (
-    <div className="product-card" onClick={handleClick}>
-      {/* JSX */}
-    </div>
-  );
+  // 4. Render
+  return <div onClick={handleClick}>{/* JSX */}</div>;
 };
 ```
 
-## 📏 General Guidelines
+---
 
-### Comments
+## Best Practices
 
-```dart
-// BAD - vô ích
-int count = 0; // Số lượng
-
-// GOOD - giải thích tại sao
-// Giới hạn số lượng sản phẩm trong giỏ hàng
-int count = 0;
-
-/// Tính tổng giá trị đơn hàng
-/// 
-/// Cộng giá của từng sản phẩm với số lượng
-double calculateTotal(List<OrderItem> items) {}
-```
-
-### Null Safety
-
-```dart
-// Use ? cho nullable
-String? userName;
-
-// Use ! khi chắc chắn non-null
-String name = userName!;
-
-// Use ?? cho default value
-String name = userName ?? 'Unknown';
-
-// Use ?. cho optional chaining
-user?.profile?.name;
-```
-
-### Async/Await
-
-```dart
-// Good
-Future<void> fetchData() async {
-  try {
-    final data = await firestore.collection('users').get();
-    setState(() {
-      users = data.docs;
-    });
-  } catch (e) {
-    print('Error: $e');
-  }
-}
-
-// Avoid callback hell
-// ❌ BAD
-getUserData().then((user) {
-  getOrders(user.id).then((orders) {
-    getDetails(orders[0].id).then((details) {
-      print(details);
-    });
-  });
-});
-```
-
-## 🎯 Best Practices
-
-### DRY - Don't Repeat Yourself
-- Extract common widgets/components
-- Create shared utilities
-- Use generics when appropriate
+### DRY — Don't Repeat Yourself
+- Tách widget/component dùng chung
+- Đặt vào `packages/shared` (Flutter) hoặc `src/components` (React)
 
 ### Single Responsibility
-- Một class/function làm một việc
-- Screens hiển thị UI, services xử lý logic
-- Providers/stores quản lý state
-
-### Defensive Programming
-```dart
-// Check null before use
-if (userName != null && userName.isNotEmpty) {
-  // Use userName
-}
-
-// Provide fallback
-String displayName = user?.name ?? 'Anonymous';
-```
+- Screen/Page: chỉ hiển thị UI
+- Controller/Store: chỉ quản lý state
+- Service: chỉ xử lý API/Firebase
 
 ### Performance
-- Use const constructors
-- Lazy load data
-- Avoid rebuilds (Flutter: use RepaintBoundary)
-- Use async/await thay vì callbacks
+- Flutter: dùng `const` constructor, `RepaintBoundary`, lazy load
+- React: `useMemo`, `useCallback`, code splitting
 
 ---
 
-Mọi PRs phải tuân thủ những quy ước này. Sử dụng linters:
-- Flutter: `flutter analyze`
-- React: `npm run lint`
+## Linting
+
+```bash
+# Flutter
+flutter analyze
+
+# React
+npm run lint
+```
+
+> Mọi PR phải pass lint trước khi merge.

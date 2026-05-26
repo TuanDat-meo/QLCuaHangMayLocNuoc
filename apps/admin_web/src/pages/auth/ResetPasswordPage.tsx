@@ -1,10 +1,11 @@
 /**
- * Reset Password Page Component
+ * Reset Password Page - Admin Web Authentication
+ * Aligned with DESIGN.md Material Design 3 system
  */
 
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { Lock, Loader, CheckCircle, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Lock, Loader, CheckCircle, Eye, EyeOff, AlertCircle, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useResetPassword } from '@/hooks';
 import { validateResetPasswordForm } from '@/utils/validation';
@@ -26,7 +27,6 @@ const ResetPasswordPage: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [invalidCode, setInvalidCode] = useState(false);
 
-  // Check if code exists
   useEffect(() => {
     if (!code) {
       setInvalidCode(true);
@@ -39,7 +39,6 @@ const ResetPasswordPage: React.FC = () => {
       ...prev,
       [name]: value,
     }));
-    // Clear error for this field
     if (errors[name]) {
       setErrors((prev) => ({
         ...prev,
@@ -52,7 +51,6 @@ const ResetPasswordPage: React.FC = () => {
     e.preventDefault();
     setErrors({});
 
-    // Validate form
     const validationErrors = validateResetPasswordForm(
       formData.newPassword,
       formData.confirmPassword
@@ -82,28 +80,27 @@ const ResetPasswordPage: React.FC = () => {
 
   if (invalidCode) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4 py-12">
+      <div className="min-h-screen bg-surface flex items-center justify-center px-md py-lg">
         <div className="w-full max-w-md">
-          <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-            <div className="mb-6">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full">
-                <AlertCircle className="h-8 w-8 text-red-600" />
+          <div className="card text-center shadow-ambient-md border-none ring-1 ring-outline-variant/30">
+            <div className="mb-lg">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-error/10 rounded-full">
+                <AlertCircle className="h-10 w-10 text-error" />
               </div>
             </div>
 
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Đường link không hợp lệ
-            </h2>
+            <h2 className="h2 text-on-surface mb-xs font-bold">Đường link không hợp lệ</h2>
 
-            <p className="text-gray-600 mb-6">
-              Đường link reset mật khẩu không có hoặc đã hết hạn. Vui lòng yêu cầu một đường link mới.
+            <p className="body-md text-on-surface-variant mb-lg">
+              Đường link reset mật khẩu không có hoặc đã hết hạn. <br />
+              Vui lòng yêu cầu một đường link mới.
             </p>
 
             <Link
               to="/forgot-password"
-              className="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition inline-block"
+              className="btn-primary w-full py-3 inline-block"
             >
-              Yêu cầu Reset Lại
+              Yêu cầu mã mới
             </Link>
           </div>
         </div>
@@ -113,28 +110,27 @@ const ResetPasswordPage: React.FC = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4 py-12">
+      <div className="min-h-screen bg-surface flex items-center justify-center px-md py-lg">
         <div className="w-full max-w-md">
-          <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-            <div className="mb-6">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+          <div className="card text-center shadow-ambient-md border-none ring-1 ring-outline-variant/30">
+            <div className="mb-lg">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-emerald-100 rounded-full">
+                <CheckCircle className="h-10 w-10 text-emerald-600" />
               </div>
             </div>
 
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Mật khẩu đã được reset!
-            </h2>
+            <h2 className="h2 text-on-surface mb-xs font-bold">Thành công!</h2>
 
-            <p className="text-gray-600 mb-6">
-              Mật khẩu của bạn đã được thay đổi thành công. Vui lòng đăng nhập với mật khẩu mới.
+            <p className="body-md text-on-surface-variant mb-lg">
+              Mật khẩu của bạn đã được thay đổi. <br />
+              Bây giờ bạn có thể đăng nhập với mật khẩu mới.
             </p>
 
             <button
               onClick={() => navigate('/login')}
-              className="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition"
+              className="btn-primary w-full py-3"
             >
-              Đăng nhập
+              Đăng nhập ngay
             </button>
           </div>
         </div>
@@ -143,13 +139,22 @@ const ResetPasswordPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-surface flex items-center justify-center px-md py-xl">
       <div className="w-full max-w-md">
+        {/* Back Link */}
+        <Link
+          to="/login"
+          className="inline-flex items-center gap-xs text-primary hover:text-primary-container font-bold mb-lg transition"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Quay lại đăng nhập
+        </Link>
+
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-indigo-600 rounded-lg mb-4">
+        <div className="text-center mb-xl">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl mb-md shadow-ambient-sm">
             <svg
-              className="w-6 h-6 text-white"
+              className="w-8 h-8 text-on-primary"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -162,20 +167,20 @@ const ResetPasswordPage: React.FC = () => {
               />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Reset mật khẩu</h1>
-          <p className="text-gray-600 mt-2">Tạo mật khẩu mới cho tài khoản của bạn</p>
+          <h1 className="h1 text-on-surface font-bold">Đặt lại mật khẩu</h1>
+          <p className="body-md text-on-surface-variant mt-xs">Tạo mật khẩu mới cho tài khoản của bạn</p>
         </div>
 
-        {/* Form */}
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Form Card */}
+        <div className="card shadow-ambient-md border-none ring-1 ring-outline-variant/30">
+          <form onSubmit={handleSubmit} className="space-y-md">
             {/* New Password Field */}
             <div>
-              <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="newPassword" className="block label-sm text-on-surface mb-xs font-semibold">
                 Mật khẩu mới
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <Lock className="absolute left-md top-1/2 -translate-y-1/2 h-5 w-5 text-on-surface-variant" />
                 <input
                   id="newPassword"
                   name="newPassword"
@@ -183,42 +188,40 @@ const ResetPasswordPage: React.FC = () => {
                   value={formData.newPassword}
                   onChange={handleChange}
                   placeholder="••••••••"
-                  className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition ${
-                    errors.newPassword ? 'border-red-500' : 'border-gray-300'
+                  className={`input-field pl-12 pr-12 ${
+                    errors.newPassword ? 'border-error focus:ring-error' : 'border-outline focus:ring-primary'
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-gray-400"
+                  className="absolute right-md top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition"
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
               {errors.newPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.newPassword}</p>
+                <p className="mt-xs text-label-sm text-error font-medium">{errors.newPassword}</p>
               )}
-              <div className="mt-2 text-xs text-gray-600 space-y-1">
-                <p>Mật khẩu phải có:</p>
-                <ul className="list-disc list-inside">
-                  <li>Ít nhất 8 ký tự</li>
-                  <li>Chữ hoa và chữ thường</li>
-                  <li>Số và ký tự đặc biệt (@$!%*?&)</li>
+
+              <div className="mt-md p-md bg-surface-container rounded-lg border border-outline-variant/30">
+                <p className="label-sm text-on-surface font-bold mb-xs">Yêu cầu bảo mật:</p>
+                <ul className="text-xs text-on-surface-variant space-y-1 list-disc list-inside">
+                  <li>Tối thiểu 8 ký tự</li>
+                  <li>Bao gồm chữ hoa và chữ thường</li>
+                  <li>Bao gồm ít nhất 1 chữ số</li>
+                  <li>Bao gồm ký tự đặc biệt (@, #, $, ...)</li>
                 </ul>
               </div>
             </div>
 
             {/* Confirm Password Field */}
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="confirmPassword" className="block label-sm text-on-surface mb-xs font-semibold">
                 Xác nhận mật khẩu
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <Lock className="absolute left-md top-1/2 -translate-y-1/2 h-5 w-5 text-on-surface-variant" />
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
@@ -226,68 +229,39 @@ const ResetPasswordPage: React.FC = () => {
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   placeholder="••••••••"
-                  className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition ${
-                    errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                  className={`input-field pl-12 pr-12 ${
+                    errors.confirmPassword ? 'border-error focus:ring-error' : 'border-outline focus:ring-primary'
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-3 text-gray-400"
+                  className="absolute right-md top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition"
                 >
-                  {showConfirmPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
+                  {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
               {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
+                <p className="mt-xs text-label-sm text-error font-medium">{errors.confirmPassword}</p>
               )}
-            </div>
-
-            {/* Info Box */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-              <p>
-                Sử dụng mật khẩu mạnh để bảo vệ tài khoản của bạn. Không chia sẻ mật khẩu với bất kỳ ai.
-              </p>
             </div>
 
             {/* Submit Button */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="btn-primary w-full flex items-center justify-center gap-xs mt-lg py-3"
             >
               {isLoading ? (
                 <>
                   <Loader className="h-5 w-5 animate-spin" />
-                  Đang reset...
+                  <span>Đang cập nhật...</span>
                 </>
               ) : (
-                'Reset mật khẩu'
+                'Cập nhật mật khẩu'
               )}
             </button>
           </form>
-
-          {/* Help Text */}
-          <div className="mt-6 pt-6 border-t border-gray-200 text-center">
-            <p className="text-sm text-gray-600 mb-4">
-              Gặp vấn đề? Liên hệ với
-            </p>
-            <a
-              href="mailto:support@aquacare.vn"
-              className="text-indigo-600 hover:text-indigo-700 font-medium transition"
-            >
-              support@aquacare.vn
-            </a>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-8 text-center text-sm text-gray-600">
-          <p>© 2024 AquaCare System. Bảo vệ quyền riêng tư của bạn.</p>
         </div>
       </div>
     </div>

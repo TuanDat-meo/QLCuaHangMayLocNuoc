@@ -6,11 +6,11 @@
  */
 
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
-import { getStorage, connectStorageEmulator } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import { getMessaging, onMessage } from 'firebase/messaging';
-import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
+import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -30,31 +30,12 @@ export const storage = getStorage(app);
 export const messaging = getMessaging(app);
 export const functions = getFunctions(app, 'asia-southeast1');
 
-// Connect to emulators in development
-if (import.meta.env.DEV && window.location.hostname === 'localhost') {
-  try {
-    connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-    connectFirestoreEmulator(firestore, 'localhost', 8080);
-    connectStorageEmulator(storage, 'localhost', 9199);
-    connectFunctionsEmulator(functions, 'localhost', 5001);
-  } catch (error) {
-    // Emulator already connected
-    console.log('Emulators already initialized or not running');
-  }
-}
+// Using production Firebase from console.firebase.google.com
+console.log('✅ Firebase initialized - connecting to production (aquacaresystem0608)');
 
 // Listen for foreground messages
 onMessage(messaging, (payload) => {
   console.log('Message received:', payload);
 });
-
-export default app;
-export const storage = getStorage(app);
-
-try {
-  export const messaging = getMessaging(app);
-} catch (error) {
-  console.log('Messaging not available');
-}
 
 export default app;

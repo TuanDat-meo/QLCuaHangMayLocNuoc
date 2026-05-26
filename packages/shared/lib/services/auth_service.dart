@@ -1,21 +1,33 @@
 // Flutter Auth Service
-// Shared between customer_app and technician_app
+// Shared between customer_app and technician_app - Numeric Role Version
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:developer' as dev;
 
-enum UserRole { customer, technician, admin }
+// Numeric Role Definitions
+// 1: Admin, 2: Manager, 3: Staff, 4: Technician, 5: Customer, 0: Pending
+class UserRoles {
+  static const int admin = 1;
+  static const int manager = 2;
+  static const int staff = 3;
+  static const int technician = 4;
+  static const int customer = 5;
+  static const int pending = 0;
+}
 
 class AuthUser {
   final String uid;
   final String email;
   final String displayName;
   final String phoneNumber;
-  final UserRole role;
+  final int role; 
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? avatar;
   final bool isVerified;
+  final String status;
+  final String? source;
 
   AuthUser({
     required this.uid,
@@ -27,28 +39,28 @@ class AuthUser {
     required this.updatedAt,
     this.avatar,
     required this.isVerified,
+    required this.status,
+    this.source,
   });
 
   factory AuthUser.fromFirestore(DocumentSnapshot doc, User firebaseUser) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+    String status = data['status'] ?? 'pending';
+    bool verified = (status == 'active');
+    
     return AuthUser(
       uid: firebaseUser.uid,
-      email: firebaseUser.email ?? '',
-      displayName: firebaseUser.displayName ?? data['displayName'] ?? '',
-      phoneNumber: firebaseUser.phoneNumber ?? data['phoneNumber'] ?? '',
-      role: _parseRole(data['role'] ?? 'customer'),
+      email: firebaseUser.email ?? data['email'] ?? '',
+      displayName: data['displayName'] ?? firebaseUser.displayName ?? '',
+      phoneNumber: data['phoneNumber'] ?? firebaseUser.phoneNumber ?? '',
+      role: data['role'] ?? UserRoles.pending,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ??
           DateTime.parse(firebaseUser.metadata.creationTime.toString()),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      avatar: firebaseUser.photoURL ?? data['avatar'],
-      isVerified: firebaseUser.emailVerified,
-    );
-  }
-
-  static UserRole _parseRole(String role) {
-    return UserRole.values.firstWhere(
-      (e) => e.toString().split('.').last == role,
-      orElse: () => UserRole.customer,
+      avatar: data['avatar'] ?? firebaseUser.photoURL,
+      isVerified: verified,
+      status: status,
+      source: data['source'],
     );
   }
 }
@@ -74,250 +86,130 @@ class AuthService {
 
   AuthService._internal();
 
-  /// Get current user stream
   Stream<AuthUser?> get currentUserStream {
     return _auth.authStateChanges().asyncMap((firebaseUser) async {
       if (firebaseUser == null) return null;
-
       try {
-        final userDoc = await _firestore
-            .collection('nguoiDung')
-            .doc(firebaseUser.uid)
-            .get();
-
-        if (userDoc.exists) {
-          return AuthUser.fromFirestore(userDoc, firebaseUser);
-        } else {
-          return null;
-        }
+        final userDoc = await _firestore.collection('nguoiDung').doc(firebaseUser.uid).get();
+        return userDoc.exists ? AuthUser.fromFirestore(userDoc, firebaseUser) : null;
       } catch (e) {
         return null;
       }
     });
   }
 
-  /// Get current user (one-time)
-  Future<AuthUser?> getCurrentUser() async {
+  Future<AuthUser?> getCurrentUser({bool fromServer = false}) async {
     try {
       final firebaseUser = _auth.currentUser;
       if (firebaseUser == null) return null;
-
       final userDoc = await _firestore
           .collection('nguoiDung')
           .doc(firebaseUser.uid)
-          .get();
-
-      if (userDoc.exists) {
-        return AuthUser.fromFirestore(userDoc, firebaseUser);
-      }
-      return null;
+          .get(fromServer ? const GetOptions(source: Source.server) : null);
+      return userDoc.exists ? AuthUser.fromFirestore(userDoc, firebaseUser) : null;
     } catch (e) {
-      throw AuthException('Lỗi lấy thông tin người dùng: $e');
+      return null;
     }
   }
 
-  /// Login with email and password
-  Future<AuthUser> loginWithEmail({
-    required String email,
-    required String password,
-  }) async {
+  Future<AuthUser> loginWithEmail({required String email, required String password}) async {
     try {
-      await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      final authUser = await getCurrentUser();
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      final authUser = await getCurrentUser(fromServer: true);
       if (authUser == null) {
-        throw AuthException('Không thể lấy thông tin người dùng');
+        await _auth.signOut();
+        throw AuthException('Tài khoản chưa có dữ liệu trên hệ thống.');
       }
-
-      // Log login history
-      await _logLoginHistory(authUser.uid, email, 'success');
-
+      if (authUser.status != 'active') {
+        await _auth.signOut();
+        throw AuthException('Tài khoản của bạn đang chờ quản trị viên phê duyệt.');
+      }
       return authUser;
     } on FirebaseAuthException catch (e) {
-      await _logLoginHistory('unknown', email, 'failed');
-
-      String message;
-      switch (e.code) {
-        case 'user-not-found':
-          message = 'Email không tồn tại trong hệ thống';
-          break;
-        case 'wrong-password':
-          message = 'Mật khẩu không chính xác';
-          break;
-        case 'too-many-requests':
-          message = 'Quá nhiều lần đăng nhập thất bại. Vui lòng thử lại sau.';
-          break;
-        case 'user-disabled':
-          message = 'Tài khoản này đã bị vô hiệu hóa';
-          break;
-        default:
-          message = 'Đăng nhập thất bại: ${e.message}';
-      }
+      String message = 'Email hoặc mật khẩu không chính xác.';
+      if (e.code == 'user-not-found') message = 'Email này chưa được đăng ký.';
       throw AuthException(message, code: e.code);
+    } catch (e) {
+      if (e is AuthException) rethrow;
+      throw AuthException('Đăng nhập thất bại.');
     }
   }
 
-  /// Signup with email and password
+  Future<void> logout() async {
+    await _auth.signOut();
+  }
+
+  Future<void> sendPasswordReset(String email) async {
+    try {
+      final userQuery = await _firestore
+          .collection('nguoiDung')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+
+      if (userQuery.docs.isEmpty) {
+        throw AuthException('Email không tồn tại trong hệ thống.');
+      }
+
+      await _auth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      throw AuthException('Không thể gửi mail reset mật khẩu.', code: e.code);
+    } catch (e) {
+      if (e is AuthException) rethrow;
+      throw AuthException('Lỗi hệ thống khi gửi email.');
+    }
+  }
+
+  Future<void> resetPassword(String code, String newPassword) async {
+    try {
+      await _auth.confirmPasswordReset(code: code, newPassword: newPassword);
+    } on FirebaseAuthException catch (e) {
+      String message = 'Mã xác nhận không hợp lệ hoặc đã hết hạn.';
+      if (e.code == 'weak-password') message = 'Mật khẩu quá yếu.';
+      throw AuthException(message, code: e.code);
+    } catch (e) {
+      throw AuthException('Không thể đặt lại mật khẩu.');
+    }
+  }
+
   Future<AuthUser> signupWithEmail({
     required String email,
     required String password,
     required String displayName,
     required String phoneNumber,
-    required String role,
+    required int role,
+    required String source,
   }) async {
     try {
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      // Update profile
+      final userCredential = await _auth.createUserWithEmailAndPassword(email: email, password: password);
       await userCredential.user!.updateDisplayName(displayName);
-
-      // Save to Firestore
+      
+      final String initialStatus = (source == 'customer_app') ? 'active' : 'pending';
+      
       await _firestore.collection('nguoiDung').doc(userCredential.user!.uid).set({
         'uid': userCredential.user!.uid,
         'email': email,
         'displayName': displayName,
         'phoneNumber': phoneNumber,
         'role': role,
-        'avatar': null,
-        'isVerified': false,
+        'status': initialStatus,
+        'source': source,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-
-      // Log signup history
-      await _logSignupHistory(userCredential.user!.uid, email, role);
-
-      return await getCurrentUser() ??
-          (throw AuthException('Không thể lấy thông tin người dùng'));
-    } on FirebaseAuthException catch (e) {
-      String message;
-      switch (e.code) {
-        case 'email-already-in-use':
-          message = 'Email này đã được đăng ký';
-          break;
-        case 'weak-password':
-          message = 'Mật khẩu quá yếu';
-          break;
-        case 'invalid-email':
-          message = 'Email không hợp lệ';
-          break;
-        default:
-          message = 'Đăng ký thất bại: ${e.message}';
+      
+      if (initialStatus == 'pending') {
+        await _auth.signOut();
+        throw AuthException('Đăng ký thành công! Vui lòng chờ quản trị viên kích hoạt tài khoản.');
       }
-      throw AuthException(message, code: e.code);
-    }
-  }
-
-  /// Send password reset email
-  Future<void> sendPasswordReset(String email) async {
-    try {
-      await _auth.sendPasswordResetEmail(email: email);
+      
+      final authUser = await getCurrentUser(fromServer: true);
+      return authUser ?? (throw AuthException('Lỗi đồng bộ dữ liệu sau đăng ký.'));
     } on FirebaseAuthException catch (e) {
-      String message;
-      switch (e.code) {
-        case 'user-not-found':
-          message = 'Email không tồn tại trong hệ thống';
-          break;
-        default:
-          message = 'Không thể gửi email reset: ${e.message}';
-      }
-      throw AuthException(message, code: e.code);
-    }
-  }
-
-  /// Confirm password reset
-  Future<void> confirmPasswordReset({
-    required String code,
-    required String newPassword,
-  }) async {
-    try {
-      await _auth.confirmPasswordReset(code: code, newPassword: newPassword);
-      await _logPasswordResetHistory('unknown', 'success');
-    } on FirebaseAuthException catch (e) {
-      await _logPasswordResetHistory('unknown', 'failed');
-      String message;
-      switch (e.code) {
-        case 'invalid-action-code':
-          message = 'Mã reset không hợp lệ hoặc đã hết hạn';
-          break;
-        case 'weak-password':
-          message = 'Mật khẩu quá yếu';
-          break;
-        default:
-          message = 'Reset mật khẩu thất bại: ${e.message}';
-      }
-      throw AuthException(message, code: e.code);
-    }
-  }
-
-  /// Logout
-  Future<void> logout() async {
-    try {
-      await _auth.signOut();
+      throw AuthException(e.code == 'email-already-in-use' ? 'Email đã được sử dụng.' : 'Đăng ký thất bại.', code: e.code);
     } catch (e) {
-      throw AuthException('Đăng xuất thất bại: $e');
-    }
-  }
-
-  /// Log login history
-  Future<void> _logLoginHistory(
-    String userId,
-    String email,
-    String status,
-  ) async {
-    try {
-      await _firestore.collection('loginHistory').add({
-        'userId': userId,
-        'email': email,
-        'status': status,
-        'timestamp': FieldValue.serverTimestamp(),
-        'userAgent': 'Flutter Mobile App',
-      });
-    } catch (e) {
-      // Silently fail - don't affect login process
-    }
-  }
-
-  /// Log signup history
-  Future<void> _logSignupHistory(
-    String userId,
-    String email,
-    String role,
-  ) async {
-    try {
-      await _firestore.collection('signupHistory').add({
-        'userId': userId,
-        'email': email,
-        'role': role,
-        'timestamp': FieldValue.serverTimestamp(),
-        'userAgent': 'Flutter Mobile App',
-      });
-    } catch (e) {
-      // Silently fail
-    }
-  }
-
-  /// Log password reset history
-  Future<void> _logPasswordResetHistory(
-    String email,
-    String status,
-  ) async {
-    try {
-      await _firestore.collection('passwordResetHistory').add({
-        'email': email,
-        'status': status,
-        'timestamp': FieldValue.serverTimestamp(),
-        'userAgent': 'Flutter Mobile App',
-        'method': 'email',
-      });
-    } catch (e) {
-      // Silently fail
+      if (e is AuthException) rethrow;
+      throw AuthException('Lỗi trong quá trình đăng ký.');
     }
   }
 }

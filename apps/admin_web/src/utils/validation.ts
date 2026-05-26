@@ -1,8 +1,8 @@
 /**
- * Form Validation Utilities
+ * Form Validation Utilities - Numeric Role Version
  */
 
-import { ValidationError } from '../types/auth';
+import { ValidationError, UserRole } from '../types/auth';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^(\+84|0)[0-9]{9,10}$/; // Vietnam phone format
@@ -112,13 +112,15 @@ export const validatePhoneNumber = (phoneNumber: string): string | null => {
 };
 
 /**
- * Validate role
+ * Validate role (Numeric)
  */
-export const validateRole = (role: string): string | null => {
-  if (!role) {
-    return ValidationRules.role.required;
+export const validateRole = (role: any): string | null => {
+  if (role === null || role === undefined) {
+    return null; // Cho phép null khi đăng ký từ Web
   }
-  if (!['customer', 'technician', 'admin'].includes(role)) {
+
+  const validRoles = Object.values(UserRole).filter(v => typeof v === 'number');
+  if (!validRoles.includes(role)) {
     return 'Vị trí không hợp lệ';
   }
   return null;
@@ -155,7 +157,7 @@ export const validateSignupForm = (
   confirmPassword: string,
   displayName: string,
   phoneNumber: string,
-  role: string
+  role?: any
 ): ValidationError[] => {
   const errors: ValidationError[] = [];
 
@@ -184,9 +186,11 @@ export const validateSignupForm = (
     errors.push({ field: 'phoneNumber', message: phoneError });
   }
 
-  const roleError = validateRole(role);
-  if (roleError) {
-    errors.push({ field: 'role', message: roleError });
+  if (role !== undefined) {
+    const roleError = validateRole(role);
+    if (roleError) {
+      errors.push({ field: 'role', message: roleError });
+    }
   }
 
   return errors;

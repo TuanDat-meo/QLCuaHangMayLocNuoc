@@ -1,5 +1,6 @@
 /// Base Firebase Service
 /// Shared Firebase operations across all apps
+library;
 
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;

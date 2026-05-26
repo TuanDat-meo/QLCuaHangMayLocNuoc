@@ -1,14 +1,11 @@
-/**
- * Signup Page Component
- */
-
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Phone, ChevronDown, Loader, Eye, EyeOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Mail, Lock, User, Phone, Loader, ArrowLeft, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useSignup } from '@/hooks';
-import { validateSignupForm } from '@/utils/validation';
-import { ValidationError, UserRole } from '@/types/auth';
+import { useSignup } from '../../hooks';
+import { validateSignupForm } from '../../utils/validation';
+import { createNotification } from '../../services/notificationService';
+import { UserRole } from '../../types/auth';
 
 const SignupPage: React.FC = () => {
   const navigate = useNavigate();
@@ -20,339 +17,233 @@ const SignupPage: React.FC = () => {
     confirmPassword: '',
     displayName: '',
     phoneNumber: '',
-    role: 'customer' as UserRole,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [isAgreed, setIsAgreed] = useState(false);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value as any,
-    }));
-    // Clear error for this field
+    setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: '',
-      }));
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrors({});
-
-    if (!acceptTerms) {
-      toast.error('Vui lòng đồng ý với điều khoản dịch vụ');
+    if (!isAgreed) {
+      toast.error('Vui lòng xác nhận thông tin là chính xác');
       return;
     }
 
-    // Validate form
-    const validationErrors = validateSignupForm(
+    setErrors({});
+    // Validate form (role is passed as null for admin_web signup)
+    const valErrors = validateSignupForm(
       formData.email,
       formData.password,
       formData.confirmPassword,
       formData.displayName,
       formData.phoneNumber,
-      formData.role
+      'null' // Passing 'null' string or similar to bypass old validation if needed
     );
 
-    if (validationErrors.length > 0) {
+    if (valErrors.length > 0) {
       const errorMap: Record<string, string> = {};
-      validationErrors.forEach((error: ValidationError) => {
-        errorMap[error.field] = error.message;
+      valErrors.forEach(err => {
+        errorMap[err.field] = err.message;
       });
-      setErrors(errorMap);
-      return;
+      // Filter out role error as it's null by default now
+      if (errorMap.role) delete errorMap.role;
+
+      if (Object.keys(errorMap).length > 0) {
+        setErrors(errorMap);
+        toast.error('Vui lòng kiểm tra lại các thông tin');
+        return;
+      }
     }
 
     try {
       await signup({
-        email: formData.email,
-        password: formData.password,
-        confirmPassword: formData.confirmPassword,
-        displayName: formData.displayName,
-        phoneNumber: formData.phoneNumber,
-        role: formData.role,
+        ...formData,
+        role: null,
+        source: 'admin_web'
       });
 
-      toast.success('Đăng ký thành công! Vui lòng kiểm tra email để xác minh.');
+      // Tạo thông báo cho Admin về thành viên mới đăng ký
+      await createNotification({
+        title: 'Yêu cầu đăng ký mới',
+        message: `Thành viên ${formData.displayName} (${formData.email}) vừa gửi yêu cầu tham gia hệ thống.`,
+        type: 'system',
+        recipient_role: [UserRole.ADMIN]
+      }).catch(err => console.error("Error creating signup notification:", err));
+
+      toast.success('Đăng ký thành công! Vui lòng chờ Admin kích hoạt tài khoản.', {
+        duration: 5000,
+        icon: '🚀'
+      });
       navigate('/login');
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (err: any) {
+      console.error("Signup Catch Error:", err);
+      toast.error(err.message || 'Đăng ký thất bại. Vui lòng thử lại.');
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-2xl">
-        {/* Logo/Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-indigo-600 rounded-lg mb-4">
-            <svg
-              className="w-6 h-6 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-              />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900">AquaCare</h1>
-          <p className="text-gray-600 mt-2">Tạo tài khoản mới</p>
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl p-8 md:p-12 border border-slate-100 relative z-10">
+        <button
+          type="button"
+          onClick={() => navigate('/login')}
+          className="flex items-center gap-2 text-slate-400 hover:text-[#00459a] font-bold mb-8 transition-colors group cursor-pointer border-none bg-transparent"
+        >
+          <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+          <span>Quay lại Đăng nhập</span>
+        </button>
+
+        <div className="text-center mb-10">
+          <h1 className="text-3xl font-black text-[#0b1c30] tracking-tight">Đăng ký thành viên nội bộ</h1>
+          <p className="text-slate-500 mt-2 font-medium">Tài khoản sẽ được phê duyệt bởi Quản trị viên</p>
         </div>
 
-        {/* Signup Form */}
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Grid for two columns */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Email Field */}
-              <div className="md:col-span-2">
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="your@email.com"
-                    className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition ${
-                      errors.email ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                </div>
-                {errors.email && (
-                  <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-                )}
-              </div>
-
-              {/* Display Name Field */}
-              <div>
-                <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-2">
-                  Họ tên
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input
-                    id="displayName"
-                    name="displayName"
-                    type="text"
-                    value={formData.displayName}
-                    onChange={handleChange}
-                    placeholder="Nguyễn Văn A"
-                    className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition ${
-                      errors.displayName ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                </div>
-                {errors.displayName && (
-                  <p className="mt-1 text-sm text-red-600">{errors.displayName}</p>
-                )}
-              </div>
-
-              {/* Phone Number Field */}
-              <div>
-                <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-2">
-                  Số điện thoại
-                </label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input
-                    id="phoneNumber"
-                    name="phoneNumber"
-                    type="tel"
-                    value={formData.phoneNumber}
-                    onChange={handleChange}
-                    placeholder="0912345678"
-                    className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition ${
-                      errors.phoneNumber ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                </div>
-                {errors.phoneNumber && (
-                  <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
-                )}
-              </div>
-
-              {/* Role Field */}
-              <div>
-                <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
-                  Vị trí
-                </label>
-                <div className="relative">
-                  <ChevronDown className="absolute right-3 top-3 h-5 w-5 text-gray-400 pointer-events-none" />
-                  <select
-                    id="role"
-                    name="role"
-                    value={formData.role}
-                    onChange={handleChange}
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition appearance-none ${
-                      errors.role ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  >
-                    <option value="customer">Khách hàng</option>
-                    <option value="technician">Kỹ thuật viên</option>
-                  </select>
-                </div>
-                {errors.role && (
-                  <p className="mt-1 text-sm text-red-600">{errors.role}</p>
-                )}
-              </div>
-
-              {/* Password Field */}
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                  Mật khẩu
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input
-                    id="password"
-                    name="password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={formData.password}
-                    onChange={handleChange}
-                    placeholder="••••••••"
-                    className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition ${
-                      errors.password ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-gray-400"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5" />
-                    ) : (
-                      <Eye className="h-5 w-5" />
-                    )}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-                )}
-              </div>
-
-              {/* Confirm Password Field */}
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                  Xác nhận mật khẩu
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    placeholder="••••••••"
-                    className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition ${
-                      errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-3 text-gray-400"
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff className="h-5 w-5" />
-                    ) : (
-                      <Eye className="h-5 w-5" />
-                    )}
-                  </button>
-                </div>
-                {errors.confirmPassword && (
-                  <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Terms Agreement */}
-            <div className="flex items-start">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+          {/* Email */}
+          <div className="md:col-span-2 space-y-1.5">
+            <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Email công việc</label>
+            <div className={`relative flex items-center bg-slate-50 border-2 rounded-2xl transition-all ${
+              errors.email ? 'border-red-400 bg-red-50/30' : 'border-slate-50 focus-within:border-[#00459a] focus-within:bg-white'
+            }`}>
+              <Mail className={`absolute left-4 ${errors.email ? 'text-red-400' : 'text-slate-300'}`} size={18} />
               <input
-                id="terms"
-                type="checkbox"
-                checked={acceptTerms}
-                onChange={(e) => setAcceptTerms(e.target.checked)}
-                className="mt-1 rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="w-full pl-11 pr-4 py-4 bg-transparent outline-none font-semibold text-slate-700 placeholder:text-slate-300 text-sm"
+                placeholder="example@aquacare.com"
               />
-              <label htmlFor="terms" className="ml-2 text-sm text-gray-600">
-                Tôi đồng ý với{' '}
-                <Link to="/terms" className="text-indigo-600 hover:text-indigo-700">
-                  điều khoản dịch vụ
-                </Link>{' '}
-                và{' '}
-                <Link to="/privacy" className="text-indigo-600 hover:text-indigo-700">
-                  chính sách bảo mật
-                </Link>
-              </label>
             </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <Loader className="h-5 w-5 animate-spin" />
-                  Đang tạo tài khoản...
-                </>
-              ) : (
-                'Đăng ký'
-              )}
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="mt-6 relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Hoặc</span>
-            </div>
+            {errors.email && <p className="text-[10px] text-red-500 font-bold ml-2 mt-1 italic">*{errors.email}</p>}
           </div>
 
-          {/* Login Link */}
-          <div className="mt-6 text-center">
-            <p className="text-gray-600 text-sm">
-              Đã có tài khoản?{' '}
-              <Link
-                to="/login"
-                className="text-indigo-600 hover:text-indigo-700 font-medium transition"
-              >
-                Đăng nhập
-              </Link>
-            </p>
+          {/* Họ tên */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Họ và tên</label>
+            <div className={`relative flex items-center bg-slate-50 border-2 rounded-2xl transition-all ${
+              errors.displayName ? 'border-red-400 bg-red-50/30' : 'border-slate-50 focus-within:border-[#00459a] focus-within:bg-white'
+            }`}>
+              <User className={`absolute left-4 ${errors.displayName ? 'text-red-400' : 'text-slate-300'}`} size={18} />
+              <input
+                name="displayName"
+                type="text"
+                value={formData.displayName}
+                onChange={handleChange}
+                className="w-full pl-11 pr-4 py-4 bg-transparent outline-none font-semibold text-slate-700 placeholder:text-slate-300 text-sm"
+                placeholder="Nguyễn Văn A"
+              />
+            </div>
+            {errors.displayName && <p className="text-[10px] text-red-500 font-bold ml-2 mt-1 italic">*{errors.displayName}</p>}
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className="mt-8 text-center text-sm text-gray-600">
-          <p>© 2024 AquaCare System. Bảo vệ quyền riêng tư của bạn.</p>
-        </div>
+          {/* Số điện thoại */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Số điện thoại</label>
+            <div className={`relative flex items-center bg-slate-50 border-2 rounded-2xl transition-all ${
+              errors.phoneNumber ? 'border-red-400 bg-red-50/30' : 'border-slate-50 focus-within:border-[#00459a] focus-within:bg-white'
+            }`}>
+              <Phone className={`absolute left-4 ${errors.phoneNumber ? 'text-red-400' : 'text-slate-300'}`} size={18} />
+              <input
+                name="phoneNumber"
+                type="tel"
+                value={formData.phoneNumber}
+                onChange={handleChange}
+                className="w-full pl-11 pr-4 py-4 bg-transparent outline-none font-semibold text-slate-700 placeholder:text-slate-300 text-sm"
+                placeholder="098xxx"
+              />
+            </div>
+            {errors.phoneNumber && <p className="text-[10px] text-red-500 font-bold ml-2 mt-1 italic">*{errors.phoneNumber}</p>}
+          </div>
+
+          {/* Mật khẩu */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Mật khẩu</label>
+            <div className={`relative flex items-center bg-slate-50 border-2 rounded-2xl transition-all ${
+              errors.password ? 'border-red-400 bg-red-50/30' : 'border-slate-50 focus-within:border-[#00459a] focus-within:bg-white'
+            }`}>
+              <Lock className={`absolute left-4 ${errors.password ? 'text-red-400' : 'text-slate-300'}`} size={18} />
+              <input
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                value={formData.password}
+                onChange={handleChange}
+                className="w-full pl-11 pr-12 py-4 bg-transparent outline-none font-semibold text-slate-700 placeholder:text-slate-300 text-sm"
+                placeholder="••••••••"
+              />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 text-slate-300 hover:text-[#00459a] p-1 flex items-center justify-center">
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            {errors.password && <p className="text-[10px] text-red-500 font-bold ml-2 mt-1 italic">*{errors.password}</p>}
+          </div>
+
+          {/* Xác nhận mật khẩu */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Xác nhận mật khẩu</label>
+            <div className={`relative flex items-center bg-slate-50 border-2 rounded-2xl transition-all ${
+              errors.confirmPassword ? 'border-red-400 bg-red-50/30' : 'border-slate-50 focus-within:border-[#00459a] focus-within:bg-white'
+            }`}>
+              <Lock className={`absolute left-4 ${errors.confirmPassword ? 'text-red-400' : 'text-slate-300'}`} size={18} />
+              <input
+                name="confirmPassword"
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                className="w-full pl-11 pr-12 py-4 bg-transparent outline-none font-bold text-slate-700 placeholder:text-slate-300 text-sm"
+                placeholder="••••••••"
+              />
+              <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-4 text-slate-300 hover:text-[#00459a] p-1 flex items-center justify-center">
+                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            {errors.confirmPassword && <p className="text-[10px] text-red-500 font-bold ml-2 mt-1 italic">*{errors.confirmPassword}</p>}
+          </div>
+
+          {/* Checkbox điều khoản */}
+          <div className="md:col-span-2 py-2">
+            <label className="flex items-center gap-4 cursor-pointer p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50 select-none">
+              <input
+                type="checkbox"
+                checked={isAgreed}
+                onChange={(e) => setIsAgreed(e.target.checked)}
+                className="w-6 h-6 rounded-lg accent-[#00459a] cursor-pointer"
+              />
+              <span className="text-sm font-bold text-slate-600">
+                Tôi xác nhận các thông tin trên là chính xác và cam kết tuân thủ quy định bảo mật.
+              </span>
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="md:col-span-2 w-full bg-[#00459a] hover:bg-[#00367a] text-white py-5 rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-blue-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 cursor-pointer"
+          >
+            {isLoading ? (
+              <Loader className="animate-spin" size={20} />
+            ) : (
+              <>
+                <CheckCircle2 size={20} />
+                <span>Gửi yêu cầu đăng ký</span>
+              </>
+            )}
+          </button>
+        </form>
       </div>
     </div>
   );

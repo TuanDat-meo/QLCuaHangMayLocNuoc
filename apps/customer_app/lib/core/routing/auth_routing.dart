@@ -7,6 +7,7 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/signup_screen.dart';
 import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/auth/screens/reset_password_screen.dart';
+import '../../features/home/screens/home_screen.dart';
 
 /// AuthGate widget to handle auth state and routing
 class AuthGate extends flutter_material.StatelessWidget {
@@ -39,13 +40,7 @@ class AuthGate extends flutter_material.StatelessWidget {
 
         // User is logged in
         if (snapshot.hasData && snapshot.data != null) {
-          // Navigate to home/dashboard based on role
-          // TODO: Implement your home/dashboard screen
-          return const flutter_material.Scaffold(
-            body: flutter_material.Center(
-              child: flutter_material.Text('Dashboard'),
-            ),
-          );
+          return const HomeScreen();
         }
 
         // User is not logged in - show login screen

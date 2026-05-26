@@ -1,5 +1,5 @@
 /**
- * Custom Authentication Hooks
+ * Custom Authentication Hooks - Fixed Redirect Logic
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -14,56 +14,56 @@ import {
 } from '../services/authService';
 import { AuthUser, LoginCredentials, SignupCredentials } from '../types/auth';
 
-/**
- * useAuth - Main auth hook for authentication state management
- */
 export const useAuth = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Check current user on mount
   useEffect(() => {
-    const checkAuth = async () => {
+    let mounted = true;
+    let unsubscribe: (() => void) | null = null;
+
+    const setupAuth = async () => {
       try {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
-        setError(null);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
+        const authInstance = getAuthInstance();
+        unsubscribe = authInstance.onAuthStateChanged(async (firebaseUser) => {
+          if (!mounted) return;
+
+          if (firebaseUser) {
+            try {
+              const currentUser = await getCurrentUser();
+              if (mounted) {
+                setUser(currentUser);
+              }
+            } catch (err) {
+              if (mounted) setUser(null);
+            }
+          } else {
+            if (mounted) setUser(null);
+          }
+          if (mounted) setIsLoading(false);
+        });
+      } catch (err) {
+        if (mounted) setIsLoading(false);
       }
     };
 
-    checkAuth();
-
-    // Subscribe to auth changes
-    const authInstance = getAuthInstance();
-    const unsubscribe = authInstance.onAuthStateChanged(async (firebaseUser) => {
-      if (firebaseUser) {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
-      } else {
-        setUser(null);
-      }
-      setIsLoading(false);
-    });
-
-    return () => unsubscribe();
+    setupAuth();
+    return () => {
+      mounted = false;
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   return {
     user,
     isLoading,
     error,
-    isAuthenticated: user !== null,
+    // QUAN TRỌNG: Chỉ isAuthenticated khi user đã active
+    isAuthenticated: user !== null && user.isVerified === true,
   };
 };
 
-/**
- * useLogin - Hook for login functionality
- */
 export const useLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,14 +71,11 @@ export const useLogin = () => {
   const login = useCallback(async (credentials: LoginCredentials) => {
     setIsLoading(true);
     setError(null);
-
     try {
-      const user = await loginWithEmail(credentials);
-      return user;
+      return await loginWithEmail(credentials);
     } catch (err: any) {
-      const errorMessage = err.message || 'Đăng nhập thất bại';
-      setError(errorMessage);
-      throw new Error(errorMessage);
+      setError(err.message);
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -87,9 +84,6 @@ export const useLogin = () => {
   return { login, isLoading, error };
 };
 
-/**
- * useSignup - Hook for signup functionality
- */
 export const useSignup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,14 +91,11 @@ export const useSignup = () => {
   const signup = useCallback(async (credentials: SignupCredentials) => {
     setIsLoading(true);
     setError(null);
-
     try {
-      const user = await signupWithEmail(credentials);
-      return user;
+      await signupWithEmail(credentials);
     } catch (err: any) {
-      const errorMessage = err.message || 'Đăng ký thất bại';
-      setError(errorMessage);
-      throw new Error(errorMessage);
+      setError(err.message);
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -113,9 +104,6 @@ export const useSignup = () => {
   return { signup, isLoading, error };
 };
 
-/**
- * useForgotPassword - Hook for forgot password functionality
- */
 export const useForgotPassword = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,15 +112,12 @@ export const useForgotPassword = () => {
   const sendReset = useCallback(async (email: string) => {
     setIsLoading(true);
     setError(null);
-    setSuccess(false);
-
     try {
       await sendPasswordReset(email);
       setSuccess(true);
     } catch (err: any) {
-      const errorMessage = err.message || 'Không thể gửi email reset mật khẩu';
-      setError(errorMessage);
-      throw new Error(errorMessage);
+      setError(err.message);
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -141,9 +126,6 @@ export const useForgotPassword = () => {
   return { sendReset, isLoading, error, success };
 };
 
-/**
- * useResetPassword - Hook for reset password functionality
- */
 export const useResetPassword = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -152,15 +134,12 @@ export const useResetPassword = () => {
   const reset = useCallback(async (code: string, newPassword: string) => {
     setIsLoading(true);
     setError(null);
-    setSuccess(false);
-
     try {
       await resetPasswordWithCode(code, newPassword);
       setSuccess(true);
     } catch (err: any) {
-      const errorMessage = err.message || 'Reset mật khẩu thất bại';
-      setError(errorMessage);
-      throw new Error(errorMessage);
+      setError(err.message);
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -169,23 +148,16 @@ export const useResetPassword = () => {
   return { reset, isLoading, error, success };
 };
 
-/**
- * useLogout - Hook for logout functionality
- */
 export const useLogout = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleLogout = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
-
     try {
       await logout();
     } catch (err: any) {
-      const errorMessage = err.message || 'Đăng xuất thất bại';
-      setError(errorMessage);
-      throw new Error(errorMessage);
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }

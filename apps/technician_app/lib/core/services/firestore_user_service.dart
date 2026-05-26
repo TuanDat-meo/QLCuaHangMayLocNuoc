@@ -1,5 +1,6 @@
 /// Firestore User Service for Technician App
 /// Handles user profile operations (read, update, delete)
+library;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared/services/auth_service.dart';
 
@@ -20,8 +21,6 @@ class FirestoreUserService {
       final userDoc = await _firestore.collection('nguoiDung').doc(uid).get();
 
       if (userDoc.exists) {
-        // Need Firebase Auth user info to construct AuthUser properly
-        // This is a simplified version - in practice, you'd use AuthService.getCurrentUser()
         final data = userDoc.data() as Map<String, dynamic>;
         return _authUserFromFirestore(uid, data);
       }
@@ -34,7 +33,6 @@ class FirestoreUserService {
   /// Update user profile in Firestore
   Future<void> updateUserProfile(String uid, Map<String, dynamic> data) async {
     try {
-      // Ensure updatedAt is always updated
       data['updatedAt'] = FieldValue.serverTimestamp();
 
       await _firestore
@@ -74,7 +72,7 @@ class FirestoreUserService {
     try {
       final querySnapshot = await _firestore
           .collection('nguoiDung')
-          .where('role', isEqualTo: 'technician')
+          .where('role', isEqualTo: UserRoles.technician)
           .get();
 
       return querySnapshot.docs.map((doc) {
@@ -102,19 +100,12 @@ class FirestoreUserService {
       email: data['email'] ?? '',
       displayName: data['displayName'] ?? '',
       phoneNumber: data['phoneNumber'] ?? '',
-      role: _parseRole(data['role'] ?? 'technician'),
+      role: data['role'] ?? UserRoles.technician,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       avatar: data['avatar'],
-      isVerified: data['isVerified'] ?? false,
-    );
-  }
-
-  /// Parse role string to UserRole enum
-  UserRole _parseRole(String role) {
-    return UserRole.values.firstWhere(
-      (e) => e.toString().split('.').last == role,
-      orElse: () => UserRole.technician,
+      isVerified: data['status'] == 'active',
+      status: data['status'] ?? 'pending',
     );
   }
 }

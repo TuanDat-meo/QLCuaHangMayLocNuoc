@@ -15,57 +15,120 @@ export const onOrderCreated = functions
   .region("asia-southeast1")
   .firestore.document("orders/{orderId}")
   .onCreate(async (snapshot, context) => {
-    /**
-     * Trigger khi tạo đơn hàng mới
-     */
     try {
       const orderId = context.params.orderId;
       const data = snapshot.data();
-
-      console.log(`Order created: ${orderId}`);
-      console.log(`Order data:`, data);
-
-      // TODO: Gửi notification đến admin
-      // TODO: Ghi audit log
+      console.log(`Order created: ${orderId}`, data);
     } catch (error) {
       console.error("Error in onOrderCreated:", error);
       throw error;
     }
   });
 
-export const setCustomClaims = functions
+/**
+ * Cập nhật thông tin người dùng (Password, Role, v.v.) dành cho Admin
+ */
+export const adminUpdateUser = functions
   .region("asia-southeast1")
-  .https.onRequest({ cors: true }, async (req, res) => {
-    /**
-     * Set custom claims (role) cho user
-     */
-    try {
-      const { uid, role } = req.body; // "admin", "technician", "customer"
+  .https.onCall(async (data, context) => {
+    // Kiểm tra quyền Admin
+    if (!context.auth || context.auth.token.role !== 1) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Chỉ Admin mới có quyền thực hiện thao tác này."
+      );
+    }
 
-      if (!uid || !role) {
-        res.status(400).json({ error: "Missing uid or role" });
-        return;
+    const { uid, password, displayName, phoneNumber, role, status } = data;
+
+    try {
+      const updateData: any = {};
+      if (password) updateData.password = password;
+      if (displayName) updateData.displayName = displayName;
+      if (phoneNumber) updateData.phoneNumber = phoneNumber;
+
+      // Cập nhật Auth
+      if (Object.keys(updateData).length > 0) {
+        await admin.auth().updateUser(uid, updateData);
       }
 
-      // Set custom claims
-      await admin.auth().setCustomUserClaims(uid, { role });
+      // Cập nhật Custom Claims nếu role thay đổi
+      if (role !== undefined) {
+        await admin.auth().setCustomUserClaims(uid, { role });
+      }
 
-      res.status(200).json({
-        success: true,
-        message: `Role ${role} set for user ${uid}`,
-      });
-    } catch (error) {
-      console.error("Error:", error);
-      res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+      // Cập nhật Firestore
+      const dbUpdate: any = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+      if (displayName) dbUpdate.displayName = displayName;
+      if (phoneNumber) dbUpdate.phoneNumber = phoneNumber;
+      if (role !== undefined) dbUpdate.role = role;
+      if (status) dbUpdate.status = status;
+
+      await admin.firestore().collection("nguoiDung").doc(uid).update(dbUpdate);
+
+      return { success: true, message: "Cập nhật thành công" };
+    } catch (error: any) {
+      console.error("Error adminUpdateUser:", error);
+      throw new functions.https.HttpsError("internal", error.message);
     }
   });
 
-export const verifyOtp = functions
+/**
+ * Xóa người dùng (Auth + Firestore)
+ */
+export const adminDeleteUser = functions
   .region("asia-southeast1")
-  .https.onRequest({ cors: true }, async (req, res) => {
-    /**
-     * Xác thực OTP
-     */
-    // TODO: Implement OTP verification
-    res.status(501).json({ error: "OTP verification not implemented" });
+  .https.onCall(async (data, context) => {
+    if (!context.auth || context.auth.token.role !== 1) {
+      throw new functions.https.HttpsError("permission-denied", "Không có quyền.");
+    }
+
+    const { uid } = data;
+    try {
+      await admin.auth().deleteUser(uid);
+      await admin.firestore().collection("nguoiDung").doc(uid).delete();
+      return { success: true };
+    } catch (error: any) {
+      throw new functions.https.HttpsError("internal", error.message);
+    }
+  });
+
+/**
+ * Tạo người dùng mới từ Admin
+ */
+export const adminCreateUser = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
+    if (!context.auth || context.auth.token.role !== 1) {
+      throw new functions.https.HttpsError("permission-denied", "Không có quyền.");
+    }
+
+    const { email, password, displayName, phoneNumber, role } = data;
+
+    try {
+      const userRecord = await admin.auth().createUser({
+        email,
+        password,
+        displayName,
+        phoneNumber,
+      });
+
+      await admin.auth().setCustomUserClaims(userRecord.uid, { role });
+
+      await admin.firestore().collection("nguoiDung").doc(userRecord.uid).set({
+        uid: userRecord.uid,
+        email,
+        displayName,
+        phoneNumber: phoneNumber || "",
+        role: role || 0,
+        status: "active",
+        source: "admin_web",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return { success: true, uid: userRecord.uid };
+    } catch (error: any) {
+      throw new functions.https.HttpsError("internal", error.message);
+    }
   });

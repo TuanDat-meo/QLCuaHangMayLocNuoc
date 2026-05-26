@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "1078139113677",
+    "project_id": "aquacare-system",
+    "storage_bucket": "aquacare-system.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1078139113677:android:a17c59a642c3b521b09984",
+        "android_client_info": {
+          "package_name": "com.aquacare.customer_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD17XDbb-7wgDXrVvK_65CCFzywodwe13w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1078139113677:android:d11519ef6a0be1b1b09984",
+        "android_client_info": {
+          "package_name": "com.aquacare.technician_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD17XDbb-7wgDXrVvK_65CCFzywodwe13w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1078139113677:android:60634f9979b45461b09984",
+        "android_client_info": {
+          "package_name": "com.example.customer_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD17XDbb-7wgDXrVvK_65CCFzywodwe13w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

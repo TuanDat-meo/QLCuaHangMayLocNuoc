@@ -1,126 +1,94 @@
-# 🌐 Admin Web - React + TypeScript
+# 🌐 Admin Web — React + TypeScript
 
-Dashboard quản lý toàn bộ hệ thống AquaCareSystem
+Dashboard quản lý toàn bộ hệ thống AquaCareSystem.
 
-## 🎯 Chức năng Phase 1
+## 🛠️ Tech Stack
 
-- ✅ Dashboard KPI
-- ✅ Quản lý sản phẩm
-- ✅ Quản lý kho hàng
-- ✅ Danh sách đơn hàng
-- ✅ Danh sách KTV
-- ✅ Phân công & lịch
-- ✅ Cài đặt & phân quyền
-- ✅ Audit log (Phase 2)
+- React 18 + TypeScript + Vite
+- Tailwind CSS (Material Design 3)
+- React Router v6
+- Zustand (state management)
+- TanStack Query (data fetching)
+- Recharts (biểu đồ)
+- Firebase Web SDK
 
-## 🚀 Quick Start
+## 🚀 Chạy development
 
 ```bash
 cd apps/admin_web
-
-# Install dependencies
 npm install
-
-# Development server
 npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-
-# Lint & format
-npm run lint
-npm run format
+# http://localhost:5173
 ```
 
-## 📂 Folder Structure
+Cần có Firebase Emulator chạy trước:
+```bash
+cd firebase && firebase emulators:start
+```
+
+## 🔐 Environment
+
+Tạo file `.env.local` (xem `.env.example`):
+```
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+```
+
+## 📂 Cấu trúc src/
 
 ```
 src/
-├── main.tsx               # Entry point
-├── App.tsx                # Root component
-├── index.css              # Global styles
-├── app/
-│   ├── routes.tsx         # Route config
-│   ├── firebase.config.ts
-│   └── theme.ts           # Design tokens
-├── models/                # TypeScript interfaces
-├── views/                 # Pages (1 page = 1 business module)
-│   ├── auth/
-│   ├── dashboard/
-│   ├── products/
-│   ├── inventory/
+├── app/                  # Config (routes, firebase, theme)
+├── components/
+│   └── layouts/          # MainLayout, Sidebar, Header
+├── pages/
+│   ├── auth/             # Login, ForgotPassword, ResetPassword
+│   ├── DashboardPage/
 │   ├── orders/
+│   ├── products/
 │   ├── technicians/
-│   ├── assignments/
 │   └── ...
-├── widgets/               # Reusable components
-├── utils/
-│   ├── services/          # API calls
-│   ├── hooks/             # Custom hooks
-│   └── store/             # Zustand state
-└── test/
+├── services/             # Firebase service calls
+├── store/                # Zustand stores
+├── hooks/                # Custom React hooks
+├── models/               # TypeScript interfaces
+└── index.css             # Design system utilities
 ```
 
-## 🔐 Environment Variables
+## 📋 Modules & Routes
 
-Tạo `.env.local`:
+| Route | Module | Phase |
+|-------|--------|-------|
+| `/login` | Authentication | P1 ✅ |
+| `/` | Dashboard KPI | P1 ✅ |
+| `/products` | Quản lý sản phẩm | P1 ✅ |
+| `/inventory` | Quản lý kho | P1-2 |
+| `/orders` | Đơn hàng | P1 ✅ |
+| `/technicians` | Kỹ thuật viên | P1 ✅ |
+| `/assignments` | Phân công | P1 ✅ |
+| `/devices` | Thiết bị | P2 |
+| `/warranty` | Bảo hành | P2 |
+| `/customers` | CRM Khách hàng | P2 |
+| `/reports` | Báo cáo | P3 |
+| `/settings` | Cài đặt | P1 ✅ |
 
-```
-VITE_FIREBASE_API_KEY=xxx
-VITE_FIREBASE_AUTH_DOMAIN=xxx
-VITE_FIREBASE_PROJECT_ID=xxx
-VITE_FIREBASE_STORAGE_BUCKET=xxx
-VITE_FIREBASE_MESSAGING_SENDER_ID=xxx
-VITE_FIREBASE_APP_ID=xxx
-```
+## 🎨 Design System
 
-## 📦 Dependencies
+- **Font**: Inter (Google Fonts)
+- **Primary color**: `#00459a` (Water Blue)
+- **Secondary**: `#00677d` (Teal)
+- Utilities: `.btn-primary`, `.btn-secondary`, `.btn-ghost`, `.card`, `.input-field`, `.badge-*`
+- Tokens defined in `tailwind.config.js` + `src/index.css`
 
-- `react`, `react-dom` v18
-- `react-router-dom` v6
-- `firebase` - Backend
-- `zustand` - State management
-- `@tanstack/react-query` - Data fetching
-- `recharts` - Charts & graphs
-- `react-hook-form` - Forms
-- `tailwindcss` - Styling
-
-## 🧪 Testing
+## Scripts
 
 ```bash
-npm run test
-npm run test:ui
+npm run dev       # Dev server
+npm run build     # Production build
+npm run preview   # Preview build
+npm run lint      # ESLint
 ```
-
-## 🌐 Modules (Pages)
-
-| Module | Path | Phase | Status |
-|--------|------|-------|--------|
-| 4.0 Auth | `/login` | P1 | TODO |
-| 4.1 Dashboard | `/` | P1 | TODO |
-| 4.2 Products | `/products` | P1 | TODO |
-| 4.3 Inventory | `/inventory` | P1-2 | TODO |
-| 4.4 Orders | `/orders` | P1 | TODO |
-| 4.5 Technicians | `/technicians` | P1 | TODO |
-| 4.6 Assignments | `/assignments` | P1 | TODO |
-| 4.7 Devices | `/devices` | P2 | TODO |
-| 4.8 Warranty | `/warranty` | P2 | TODO |
-| 4.9 Customers | `/customers` | P2 | TODO |
-| 4.10 Reports | `/reports` | P3-4 | TODO |
-| 4.11 Settings | `/settings` | P1 | TODO |
-| 4.12 Audit Log | `/audit-log` | P2-3 | TODO |
-
-## 📊 Dashboard KPI
-
-- Doanh thu hôm nay / tháng / năm
-- Số đơn hàng mới
-- Số KTV hoạt động
-- Đơn đang chờ phân công
-- Top sản phẩm bán chạy
-
----
-
-**Next Phase**: Advanced reports, Analytics, Chat

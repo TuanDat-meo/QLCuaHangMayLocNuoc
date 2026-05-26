@@ -1,207 +1,181 @@
 /**
- * Login Page Component
+ * Login Page - Admin Web
  */
-
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Loader, Eye, EyeOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Mail, Lock, Loader, Eye, EyeOff, UserPlus, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useLogin } from '@/hooks';
-import { validateLoginForm } from '@/utils/validation';
-import { ValidationError } from '@/types/auth';
+import { useLogin } from '../../hooks';
+import { validateLoginForm } from '../../utils/validation';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useLogin();
-
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  });
-
+  const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [rememberMe, setRememberMe] = useState(false);
+  const [generalError, setGeneralError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    // Clear error for this field
+    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Xóa lỗi khi người dùng sửa thông tin
     if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: '',
-      }));
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
     }
+    if (generalError) setGeneralError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+    setGeneralError(null);
 
-    // Validate form
-    const validationErrors = validateLoginForm(formData.email, formData.password);
-    if (validationErrors.length > 0) {
+    const valErrors = validateLoginForm(formData.email, formData.password);
+    if (valErrors.length > 0) {
       const errorMap: Record<string, string> = {};
-      validationErrors.forEach((error: ValidationError) => {
-        errorMap[error.field] = error.message;
+      valErrors.forEach((err) => {
+        errorMap[err.field] = err.message;
       });
       setErrors(errorMap);
       return;
     }
 
     try {
-      await login({
-        email: formData.email,
-        password: formData.password,
-      });
-
+      await login({ email: formData.email, password: formData.password });
       toast.success('Đăng nhập thành công!');
       navigate('/dashboard');
     } catch (error: any) {
-      toast.error(error.message);
+      // Chỉ lấy phần tin nhắn đã được dịch sang tiếng Việt từ authService
+      const msg = error.message || 'Đăng nhập không thành công';
+      // Nếu có lỗi "Firebase" bị lọt ra, ta sẽ ẩn đi
+      if (msg.includes('Firebase') || msg.includes('auth/')) {
+        setGeneralError('Email hoặc mật khẩu không chính xác.');
+      } else {
+        setGeneralError(msg);
+      }
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        {/* Logo/Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-indigo-600 rounded-lg mb-4">
-            <svg
-              className="w-6 h-6 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-              />
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-8 md:p-10 border border-slate-100 relative z-50">
+        <div className="text-center mb-10">
+          <div className="w-16 h-16 bg-[#00459a] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-100">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">AquaCare</h1>
-          <p className="text-gray-600 mt-2">Đăng nhập vào hệ thống</p>
+          <h1 className="text-2xl font-black text-[#0b1c30] tracking-tight">Aquacare Admin</h1>
+          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1 text-center">SOC Operations Center</p>
         </div>
 
-        {/* Login Form */}
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email Field */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  autoComplete="username"
-                  placeholder="your@email.com"
-                  className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition ${
-                    errors.email ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-              </div>
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-              )}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Email Field */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-black text-slate-500 uppercase ml-1">Tài khoản Email</label>
+            <div className={`relative flex items-center bg-slate-50 border-2 rounded-2xl transition-all ${
+              errors.email ? 'border-red-400 bg-red-50/30' : 'border-slate-50 focus-within:border-[#00459a] focus-within:bg-white'
+            }`}>
+              <Mail className={`absolute left-4 ${errors.email ? 'text-red-400' : 'text-slate-300'}`} size={18} />
+              <input
+                name="email"
+                type="text"
+                value={formData.email}
+                onChange={handleChange}
+                className="w-full pl-11 pr-4 py-4 bg-transparent outline-none font-semibold text-slate-700 placeholder:text-slate-300 text-sm"
+                placeholder="admin@aquacare.com"
+              />
+            </div>
+            {errors.email && (
+              <p className="text-[10px] text-red-500 font-bold ml-2 mt-1 italic animate-pulse">
+                * {errors.email}
+              </p>
+            )}
+          </div>
+
+          {/* Password Field */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-black text-slate-500 uppercase ml-1">Mật khẩu</label>
+            <div className={`relative flex items-center bg-slate-50 border-2 rounded-2xl transition-all ${
+              errors.password ? 'border-red-400 bg-red-50/30' : 'border-slate-50 focus-within:border-[#00459a] focus-within:bg-white'
+            }`}>
+              <Lock className={`absolute left-4 ${errors.password ? 'text-red-400' : 'text-slate-300'}`} size={18} />
+              <input
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                value={formData.password}
+                onChange={handleChange}
+                className="w-full pl-11 pr-12 py-4 bg-transparent outline-none font-semibold text-slate-700 placeholder:text-slate-300 text-sm"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 text-slate-300 hover:text-[#00459a] p-1"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
 
-            {/* Password Field */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Mật khẩu
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={handleChange}
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  className={`w-full pl-10 pr-12 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition ${
-                    errors.password ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 transition"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-              )}
-            </div>
-
-            {/* Remember Me & Forgot Password */}
-            <div className="flex items-center justify-between">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                />
-                <span className="ml-2 text-sm text-gray-600">Nhớ tôi</span>
-              </label>
-              <Link
-                to="/forgot-password"
-                className="text-sm text-indigo-600 hover:text-indigo-700 font-medium transition"
+            <div className="flex justify-end px-1">
+              <button
+                type="button"
+                onClick={() => navigate('/forgot-password')}
+                className="text-[10px] font-black text-[#00459a] hover:underline uppercase tracking-tighter"
               >
                 Quên mật khẩu?
-              </Link>
+              </button>
             </div>
 
-            {/* Submit Button */}
+            {errors.password && (
+              <p className="text-[10px] text-red-500 font-bold ml-2 mt-1 italic animate-pulse">
+                * {errors.password}
+              </p>
+            )}
+          </div>
+
+          {/* Hiển thị lỗi chung (Sai tài khoản, chưa duyệt, v.v.) */}
+          {generalError && (
+            <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3 animate-in fade-in zoom-in duration-300">
+              <AlertCircle className="text-red-500 flex-shrink-0" size={20} />
+              <p className="text-xs font-bold text-red-600 leading-tight">
+                {generalError}
+              </p>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex flex-col gap-3 pt-2">
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full bg-[#00459a] hover:bg-[#00367a] text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
             >
               {isLoading ? (
                 <>
-                  <Loader className="h-5 w-5 animate-spin" />
-                  Đang đăng nhập...
+                  <Loader className="animate-spin" size={18} />
+                  <span>Đang xử lý...</span>
                 </>
               ) : (
-                'Đăng nhập'
+                'Đăng nhập ngay'
               )}
             </button>
-          </form>
 
-          {/* Admin Note */}
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-700">
-              💡 <strong>Lưu ý:</strong> Tài khoản quản trị viên được tạo bởi hệ thống.
-            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/signup')}
+              className="w-full py-4 bg-blue-50 text-[#00459a] rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all flex items-center justify-center gap-2 active:scale-95"
+            >
+              <UserPlus size={18} /> Tạo tài khoản mới
+            </button>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-8 text-center text-sm text-gray-600">
-          <p>© 2024 AquaCare System. Bảo vệ quyền riêng tư của bạn.</p>
-        </div>
+        </form>
       </div>
     </div>
   );

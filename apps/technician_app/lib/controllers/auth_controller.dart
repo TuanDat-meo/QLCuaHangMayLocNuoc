@@ -15,7 +15,6 @@ class AuthController extends ChangeNotifier {
   AuthUser? get currentUser => _currentUser;
 
   /// Login with email and password
-  /// Also loads user profile from Firestore
   Future<bool> login(String email, String password) async {
     _isLoading = true;
     _error = null;
@@ -27,7 +26,6 @@ class AuthController extends ChangeNotifier {
         password: password,
       );
       
-      // Load full profile from Firestore
       final profile = await _firestoreService.getUserProfile(user.uid);
       _currentUser = profile ?? user;
       
@@ -47,8 +45,7 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  /// Signup new technician (role is always 'technician')
-  /// Saves user data to Firestore automatically via AuthService
+  /// Signup new technician
   Future<bool> signup(
     String email,
     String password,
@@ -60,16 +57,15 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final user = await _authService.signupWithEmail(
+      await _authService.signupWithEmail(
         email: email,
         password: password,
         displayName: displayName,
         phoneNumber: phoneNumber,
-        role: 'technician', // Always technician for this app
+        role: UserRoles.technician,
+        source: 'technician_app',
       );
       
-      // User data is already saved to Firestore by AuthService.signupWithEmail()
-      _currentUser = user;
       _isLoading = false;
       notifyListeners();
       return true;
@@ -112,10 +108,7 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _authService.confirmPasswordReset(
-        code: code,
-        newPassword: newPassword,
-      );
+      await _authService.resetPassword(code, newPassword);
       _isLoading = false;
       notifyListeners();
       return true;
@@ -142,97 +135,8 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  /// Clear error
   void clearError() {
     _error = null;
     notifyListeners();
   }
-
-  /// Update user profile in Firestore
-  Future<bool> updateProfile(Map<String, dynamic> updates) async {
-    if (_currentUser == null) {
-      _error = 'Không có người dùng đang đăng nhập';
-      return false;
-    }
-
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      await _firestoreService.updateUserProfile(_currentUser!.uid, updates);
-      
-      // Reload user profile
-      final updatedProfile = await _firestoreService.getUserProfile(_currentUser!.uid);
-      if (updatedProfile != null) {
-        _currentUser = updatedProfile;
-      }
-      
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = 'Lỗi cập nhật hồ sơ: $e';
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-  }
-
-  /// Update technician specialization
-  Future<bool> updateSpecialization(List<String> specializations) async {
-    if (_currentUser == null) {
-      _error = 'Không có người dùng đang đăng nhập';
-      return false;
-    }
-
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      await _firestoreService.updateSpecialization(
-        _currentUser!.uid,
-        specializations,
-      );
-      
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = 'Lỗi cập nhật chuyên môn: $e';
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-  }
-
-  /// Update availability status
-  Future<bool> updateAvailability(bool isAvailable) async {
-    if (_currentUser == null) {
-      _error = 'Không có người dùng đang đăng nhập';
-      return false;
-    }
-
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      await _firestoreService.updateAvailabilityStatus(
-        _currentUser!.uid,
-        isAvailable,
-      );
-      
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = 'Lỗi cập nhật trạng thái: $e';
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-  }
 }
-

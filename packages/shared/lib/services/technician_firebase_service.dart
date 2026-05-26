@@ -1,5 +1,6 @@
 /// Technician App Firebase Service
 /// Extends base service with technician-specific operations
+library;
 
 import 'package:shared/models/order.dart';
 import 'package:shared/constants/app_constants.dart';
