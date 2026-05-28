@@ -9,45 +9,49 @@ import {
   addDoc,
   serverTimestamp,
   limit,
-  Timestamp,
   getDocs
 } from 'firebase/firestore';
 import { getDb } from './authService';
-import { AppNotification, NotificationType } from '../types/notification';
+import { AppNotification } from '../types/notification';
 import { UserRole } from '../types/auth';
 
 const NOTIFICATION_COLLECTION = 'notifications';
 
 /**
- * Lấy danh sách thông báo theo thời gian thực cho một user hoặc role cụ thể
+ * Lấy danh sách thông báo theo thời gian thực
  */
 export const subscribeToNotifications = (
   userId: string,
   role: UserRole,
-  callback: (notifications: AppNotification[]) => void
+  callback: (notifications: AppNotification[]) => void,
+  onError?: (error: any) => void
 ) => {
-  const db = getDb();
-  const q = query(
-    collection(db, NOTIFICATION_COLLECTION),
-    where('recipient_role', 'array-contains', role),
-    orderBy('created_at', 'desc'),
-    limit(50)
-  );
+  try {
+    const db = getDb();
+    // Chú ý: Truy vấn này yêu cầu Composite Index trên Firebase Console
+    const q = query(
+      collection(db, NOTIFICATION_COLLECTION),
+      where('recipient_role', 'array-contains', role),
+      orderBy('created_at', 'desc'),
+      limit(50)
+    );
 
-  return onSnapshot(q, (snapshot) => {
-    const notifications = snapshot.docs.map(doc => ({
-      nid: doc.id,
-      ...doc.data()
-    })) as AppNotification[];
-    callback(notifications);
-  }, (error) => {
-    console.error("Error subscribing to notifications:", error);
-  });
+    return onSnapshot(q, (snapshot) => {
+      const notifications = snapshot.docs.map(doc => ({
+        nid: doc.id,
+        ...doc.data()
+      })) as AppNotification[];
+      callback(notifications);
+    }, (error) => {
+      console.warn("⚠️ Notification Subscription Warning:", error.message);
+      if (onError) onError(error);
+    });
+  } catch (error) {
+    console.error("❌ Notification Service Error:", error);
+    return () => {};
+  }
 };
 
-/**
- * Đánh dấu thông báo đã đọc
- */
 export const markNotificationAsRead = async (nid: string) => {
   try {
     const db = getDb();
@@ -62,9 +66,6 @@ export const markNotificationAsRead = async (nid: string) => {
   }
 };
 
-/**
- * Đánh dấu tất cả thông báo của một role là đã đọc
- */
 export const markAllAsRead = async (role: UserRole) => {
   try {
     const db = getDb();
@@ -83,9 +84,6 @@ export const markAllAsRead = async (role: UserRole) => {
   }
 };
 
-/**
- * Tạo thông báo mới (Thường gọi từ Cloud Functions, nhưng Admin cũng có thể tạo)
- */
 export const createNotification = async (notification: Omit<AppNotification, 'nid' | 'created_at' | 'is_read'>) => {
   try {
     const db = getDb();

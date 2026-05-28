@@ -10,6 +10,7 @@ import {
   updateDoc,
   serverTimestamp,
   orderBy,
+  where,
   DocumentData,
   QueryDocumentSnapshot
 } from 'firebase/firestore';
@@ -51,6 +52,25 @@ export const getAllUsers = async (): Promise<AuthUser[]> => {
     if (error.code === 'permission-denied') {
       console.error("❌ QUYỀN TRUY CẬP BỊ TỪ CHỐI: Kiểm tra role của bạn trong Firestore (Admin phải có role = 1).");
     }
+    throw error;
+  }
+};
+
+/**
+ * Lấy danh sách kỹ thuật viên (Role = 4)
+ */
+export const getTechnicians = async (): Promise<AuthUser[]> => {
+  try {
+    const db = getDb();
+    const q = query(
+      collection(db, 'nguoiDung'),
+      where('role', '==', UserRole.TECHNICIAN),
+      where('status', '==', 'active')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(mapUserDoc);
+  } catch (error) {
+    console.error("[UserService] Error fetching technicians:", error);
     throw error;
   }
 };

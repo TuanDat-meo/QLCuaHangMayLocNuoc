@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import './App.css';
 import { initializeFirebase, isFirebaseConfigured } from './services/authService';
 import { useAuth } from './hooks/useAuth';
+import { UserRole } from './types/auth';
 
 // Import Layouts
 import { MainLayout } from './components/layouts';
@@ -22,17 +23,22 @@ import ProfilePage from './pages/profile/ProfilePage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import ProductsPage from './pages/products/ProductsPage';
 import OrdersPage from './pages/orders/OrdersPage';
+import SettingsPage from './pages/settings/SettingsPage';
 
-// Protected Route Component
+// Protected Route Component với RBAC
 interface ProtectedRouteProps {
   isAuthenticated: boolean;
   isLoading: boolean;
+  userRole?: UserRole | null;
+  allowedRoles?: UserRole[];
   children: React.ReactNode;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   isAuthenticated,
   isLoading,
+  userRole,
+  allowedRoles,
   children,
 }) => {
   if (isLoading) {
@@ -40,7 +46,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       <div className="flex items-center justify-center min-h-screen bg-[#f3f6ff]">
         <div className="flex flex-col items-center">
           <div className="w-12 h-12 border-4 border-[#00459a] border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-4 text-[#00459a] font-black animate-pulse uppercase tracking-widest text-[10px]">ĐANG KHỞI TẠO HỆ THỐNG...</p>
+          <p className="mt-4 text-[#00459a] font-black animate-pulse uppercase tracking-widest text-[10px]">ĐANG KIỂM TRA QUYỀN TRUY CẬP...</p>
         </div>
       </div>
     );
@@ -48,6 +54,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Kiểm tra vai trò nếu có yêu cầu
+  if (allowedRoles && userRole !== null && userRole !== undefined && !allowedRoles.includes(userRole)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <MainLayout>{children}</MainLayout>;
@@ -58,19 +69,18 @@ const App: React.FC = () => {
     initializeFirebase();
   }, []);
 
+  const { isAuthenticated, isLoading, user } = useAuth();
+
   if (!isFirebaseConfigured()) {
     return <FirebaseSetupGuide />;
   }
 
-  const { isAuthenticated, isLoading } = useAuth();
-
-  // Xử lý Loading ở cấp cao nhất để App đợi trạng thái Auth từ Firebase tránh flicker
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#f3f6ff]">
         <div className="flex flex-col items-center">
           <div className="w-12 h-12 border-4 border-[#00459a] border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-4 text-[#00459a] font-black animate-pulse uppercase tracking-widest text-[10px]">ĐANG KHỞI TẠO HỆ THỐNG...</p>
+          <p className="mt-4 text-[#00459a] font-black animate-pulse uppercase tracking-widest text-[10px]">KHỞI TẠO HỆ THỐNG...</p>
         </div>
       </div>
     );
@@ -80,7 +90,6 @@ const App: React.FC = () => {
     <Router>
       <div className="app">
         <Routes>
-          {/* Chuyển hướng trang gốc về login để Auth luôn xuất hiện đầu tiên */}
           <Route path="/" element={<Navigate to="/login" replace />} />
 
           {/* Public Auth Routes */}
@@ -105,7 +114,7 @@ const App: React.FC = () => {
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading}>
+              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role}>
                 <DashboardPage />
               </ProtectedRoute>
             }
@@ -114,7 +123,12 @@ const App: React.FC = () => {
           <Route
             path="/users"
             element={
-              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading}>
+              <ProtectedRoute
+                isAuthenticated={isAuthenticated}
+                isLoading={isLoading}
+                userRole={user?.role}
+                allowedRoles={[UserRole.ADMIN, UserRole.MANAGER]} // Chỉ Admin & Manager được quản lý nhân sự
+              >
                 <UsersPage />
               </ProtectedRoute>
             }
@@ -123,7 +137,7 @@ const App: React.FC = () => {
           <Route
             path="/products"
             element={
-              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading}>
+              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role}>
                 <ProductsPage />
               </ProtectedRoute>
             }
@@ -132,7 +146,7 @@ const App: React.FC = () => {
           <Route
             path="/orders"
             element={
-              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading}>
+              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role}>
                 <OrdersPage />
               </ProtectedRoute>
             }
@@ -141,7 +155,7 @@ const App: React.FC = () => {
           <Route
             path="/profile"
             element={
-              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading}>
+              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role}>
                 <ProfilePage />
               </ProtectedRoute>
             }
@@ -150,13 +164,26 @@ const App: React.FC = () => {
           <Route
             path="/notifications"
             element={
-              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading}>
+              <ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role}>
                 <NotificationsPage />
               </ProtectedRoute>
             }
           />
 
-          {/* 404 Redirect */}
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute
+                isAuthenticated={isAuthenticated}
+                isLoading={isLoading}
+                userRole={user?.role}
+                allowedRoles={[UserRole.ADMIN]} // Chỉ Admin tuyệt đối được vào Cài đặt hệ thống
+              >
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
         <Toaster position="top-right" toastOptions={{ duration: 4000, style: { fontWeight: 'bold' } }} />
