@@ -1,6 +1,5 @@
 /**
  * Main Layout Component with Sidebar Navigation
- * Implements the design system from DESIGN.md
  */
 
 import React, { useState } from 'react';
@@ -26,29 +25,29 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       navigate('/login', { replace: true });
     } catch (error) {
       console.error('Logout error:', error);
-      // Even if logout fails, redirect to login
       navigate('/login', { replace: true });
     }
   };
 
   return (
-    <div className="flex h-screen bg-surface">
-      {/* Sidebar */}
-      <Sidebar isOpen={sidebarOpen} />
+    <div className="flex h-screen bg-[#f8fafc] dark:bg-[#0f172a] transition-colors duration-300">
+      {/* Sidebar - Now receives toggle function */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
+        {/* Header - Toggle removed as requested */}
         <Header 
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           user={user}
           onLogout={handleLogout}
         />
 
         {/* Main Content */}
-        <main className="flex-1 overflow-auto bg-surface">
-          <div className="container mx-auto px-container-margin py-lg">
+        <main className="flex-1 overflow-auto">
+          <div className="container mx-auto p-6 md:p-8">
             {children}
           </div>
         </main>

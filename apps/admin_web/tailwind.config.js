@@ -4,6 +4,7 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       fontFamily: {
@@ -55,8 +56,8 @@ export default {
         'on-tertiary-container': '#d4dde3',
         'tertiary-fixed': '#dbe4ea',
         'tertiary-fixed-dim': '#bfc8ce',
-        'on-tertiary-fixed': '#141d21',
-        'on-tertiary-fixed-variant': '#3f484d',
+        'on-primary-fixed': '#141d21',
+        'on-primary-fixed-variant': '#3f484d',
 
         // Error colors
         'error': '#ba1a1a',

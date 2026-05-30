@@ -2,44 +2,57 @@
   "indexes": [
     {
       "collectionGroup": "donHang",
-      "queryScope": "Collection",
+      "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "khachHangId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "created_at",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "trangThai", "order": "ASCENDING" },
+        { "fieldPath": "ngayTao", "order": "DESCENDING" }
       ]
     },
     {
       "collectionGroup": "donHang",
-      "queryScope": "Collection",
+      "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "technicianId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "created_at",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "trangThai", "order": "ASCENDING" },
+        { "fieldPath": "ngayTao", "order": "ASCENDING" }
       ]
     },
     {
-      "collectionGroup": "sanPham",
-      "queryScope": "Collection",
+      "collectionGroup": "donHang",
+      "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "trangThai",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "created_at",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "loaiDonHang", "order": "ASCENDING" },
+        { "fieldPath": "trangThai", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "donHang",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "trangThai", "order": "ASCENDING" },
+        { "fieldPath": "ngayTao", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "donHang",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "loaiDonHang", "order": "ASCENDING" },
+        { "fieldPath": "trangThai", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "nhatKyHoatDong",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ngayTao", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "recipient_role", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
       ]
     }
   ],

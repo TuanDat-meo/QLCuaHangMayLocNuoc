@@ -2,57 +2,47 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper: Lấy quyền của người dùng (dạng số)
-    // 1: Admin, 2: Manager, 3: Staff, 4: Technician, 5: Customer, 0: Pending
-    function getRole() {
-      return get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role;
-    }
-
-    // Kiểm tra Admin (Role 1)
+    // Hàm kiểm tra vai trò Admin (Role = 1)
     function isAdmin() {
-      return request.auth != null && getRole() == 1;
+      return request.auth != null &&
+             exists(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role == 1;
     }
 
-    // Kiểm tra Quản lý hoặc cao hơn (Role 1 hoặc 2)
-    function isManager() {
-      return request.auth != null && getRole() <= 2 && getRole() != 0;
+    // Quy tắc đọc: Cho phép tất cả người dùng đã đăng nhập đọc mọi dữ liệu
+    // Cần thiết để Dashboard, danh sách Nhân sự và Vai trò hoạt động
+    match /{document=**} {
+      allow read: if request.auth != null;
     }
 
-    function isOwner(uid) {
-      return request.auth != null && request.auth.uid == uid;
+    // Bộ sưu tập Vai trò (Roles)
+    match /roles/{roleId} {
+      allow write: if isAdmin();
     }
 
-    // ─────────────────────────────────────────────────────
-    // Collection: Người dùng (nguoiDung)
-    // ─────────────────────────────────────────────────────
+    // Người dùng (nguoiDung)
     match /nguoiDung/{uid} {
-      allow get: if isOwner(uid) || isManager();
-      allow list: if isManager();
-      
-      // Tạo tài khoản mới
-      allow create: if request.auth != null && request.auth.uid == uid;
-
-      // Cập nhật: Admin/Manager được sửa role/status, User chỉ sửa profile
-      allow update: if isManager() || (isOwner(uid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status']));
-
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && (request.auth.uid == uid || isAdmin());
       allow delete: if isAdmin();
     }
 
-    // ─────────────────────────────────────────────────────
-    // Các collection khác
-    // ─────────────────────────────────────────────────────
-    match /sanPham/{id} { allow read: if true; allow write: if isManager(); }
-    match /danhMuc/{id} { allow read: if true; allow write: if isManager(); }
-    match /banner/{id} { allow read: if true; allow write: if isManager(); }
-
-    match /donHang/{id} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if isManager() || request.auth.uid == resource.data.khachHangId || request.auth.uid == resource.data.kyThuatVienId;
+    // Đơn hàng & Sản phẩm
+    match /donHang/{document=**} {
+      allow write: if request.auth != null &&
+                   exists(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)) &&
+                   get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role <= 3;
     }
 
-    match /{document=**} {
-      allow read, write: if false;
+    match /sanPham/{document=**} {
+      allow write: if request.auth != null &&
+                   exists(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)) &&
+                   get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role <= 2;
+    }
+
+    // Nhật ký hoạt động
+    match /nhatKyHoatDong/{document=**} {
+      allow write: if request.auth != null;
     }
   }
 }

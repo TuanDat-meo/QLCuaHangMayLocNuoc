@@ -16,9 +16,9 @@ TUẦN 1: THIẾT LẬP BACKEND & ADMIN WEB (17/5 - 23/5)
 [ĐẠT] FIREBASE FUNCTIONS (Priority: CRITICAL)
 ────────────────────────────────────────────────────────────────────────────────
 T1.01 | Implement onStatusChanged Function
-      | Description: Khi trạng thái đơn hàng thay đổi (pending→confirmed→assigned...), 
+      | Description: Khi trạng thái đơn hàng thay đổi (pending→confirmed→assigned...),
       |              gửi FCM notification cho customer, technician, admin
-      | Scope: 
+      | Scope:
       |   - Lắng nghe orders/{orderId} update status
       |   - Xác định role của người nhận thông báo
       |   - Gửi FCM qua Firebase Admin SDK
@@ -53,7 +53,7 @@ T1.03 | Implement checkStockOnOrder Function
       | Deadline: 20/5 (1 ngày)
 
 T1.04 | Implement onStockBelowThreshold Function (BONUS Phase 2)
-      | Description: Khi stock sản phẩm dưới ngưỡng (5 cái), 
+      | Description: Khi stock sản phẩm dưới ngưỡng (5 cái),
       |              tạo alert notification cho warehouse/admin
       | Scope:
       |   - Trigger: products/{pid} update stock

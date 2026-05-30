@@ -14,121 +14,36 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Tự động thay đổi màu nền hệ thống khi chuyển Dark/Light */
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f8f9ff;
-  color: #0b1c30;
+  @apply bg-surface text-on-surface dark:bg-[#0f172a] dark:text-slate-200 transition-colors duration-300;
 }
 
 .app {
   min-height: 100vh;
-  background-color: #f8f9ff;
+  @apply bg-surface dark:bg-[#0f172a];
 }
 
-/* Typography Utilities */
-.h1 {
-  @apply text-h1 font-bold;
-}
-
-.h2 {
-  @apply text-h2 font-semibold;
-}
-
-.h3 {
-  @apply text-h3 font-semibold;
-}
-
-.body-lg {
-  @apply text-body-lg font-normal;
-}
-
-.body-md {
-  @apply text-body-md font-normal;
-}
-
-.label-sm {
-  @apply text-label-sm font-medium uppercase tracking-wider;
-}
-
-.mono-data {
-  @apply text-mono-data font-bold;
-}
-
-/* Form Components */
-.input-field {
-  @apply w-full px-4 py-2 border border-outline rounded-md text-body-md transition-all duration-200;
-}
-
-.input-field:focus {
-  @apply outline-none ring-2 ring-primary ring-opacity-50 border-primary;
-}
-
-.input-field:disabled {
-  @apply bg-surface-container cursor-not-allowed opacity-60;
-}
-
-/* Button Components */
-.btn-primary {
-  @apply px-6 py-2 bg-primary text-on-primary rounded-md text-body-md font-semibold transition-all duration-200 hover:shadow-ambient-md active:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed;
-}
-
-.btn-secondary {
-  @apply px-6 py-2 bg-secondary text-on-secondary rounded-md text-body-md font-semibold transition-all duration-200 hover:shadow-ambient-md active:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed;
-}
-
-.btn-ghost {
-  @apply px-6 py-2 border-2 border-primary text-primary rounded-md text-body-md font-semibold transition-all duration-200 hover:bg-primary-fixed active:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed;
-}
-
-/* Card Component */
+/* Card Component - Tối ưu cho Dark Mode */
 .card {
-  @apply bg-surface-container-lowest rounded-lg shadow-ambient-sm border border-outline-variant border-opacity-30 p-md transition-all duration-200;
+  @apply bg-surface-container-lowest dark:bg-[#1e293b] rounded-lg shadow-ambient-sm border border-outline-variant border-opacity-30 dark:border-slate-800 p-md transition-all duration-200;
 }
 
 .card:hover {
-  @apply shadow-ambient-md;
+  @apply shadow-ambient-md dark:shadow-blue-500/5 dark:border-blue-500/20;
 }
 
-/* Status Badge */
-.badge {
-  @apply inline-block px-md py-xs rounded-full text-label-sm font-medium;
-}
+/* Typography Utilities */
+.h1 { @apply text-h1 font-bold dark:text-white uppercase tracking-tight; }
+.h2 { @apply text-h2 font-semibold dark:text-white; }
+.h3 { @apply text-h3 font-semibold dark:text-slate-100; }
+.body-md { @apply text-body-md font-normal dark:text-slate-400; }
 
-.badge-new {
-  @apply bg-blue-100 text-blue-700;
-}
-
-.badge-processing {
-  @apply bg-amber-100 text-amber-700;
-}
-
-.badge-completed {
-  @apply bg-emerald-100 text-emerald-700;
-}
-
-.badge-cancelled {
-  @apply bg-red-100 text-red-700;
-}
-
-/* Custom Scrollbar */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 10px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+.label-sm {
+  @apply text-label-sm font-medium uppercase tracking-wider dark:text-slate-500;
 }
