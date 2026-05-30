@@ -45,27 +45,29 @@ export const subscribeToOrders = (
   const q = query(collection(db, COLLECTION_NAME), ...constraints);
 
   return onSnapshot(q, (snapshot) => {
-    const orders = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        customerName: data.tenKhachHang,
-        productName: data.tenSanPham,
-        totalAmount: data.tongTien,
-        status: data.trangThai,
-        orderType: data.loaiDonHang,
-        address: data.diaChiGiaoHang,
-        street: data.street,
-        provinceCode: data.provinceCode,
-        districtCode: data.districtCode,
-        wardCode: data.wardCode,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        createdAt: data.ngayTao,
-        nextMaintenanceDate: data.ngayBaoTriTiepTheo,
-      } as unknown as Order;
-    });
+    const orders = snapshot.docs
+      .map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          customerName: data.tenKhachHang,
+          productName: data.tenSanPham,
+          totalAmount: data.tongTien,
+          status: data.trangThai,
+          orderType: data.loaiDonHang,
+          address: data.diaChiGiaoHang,
+          street: data.street,
+          provinceCode: data.provinceCode,
+          districtCode: data.districtCode,
+          wardCode: data.wardCode,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          createdAt: data.ngayTao,
+          nextMaintenanceDate: data.ngayBaoTriTiepTheo,
+        } as unknown as Order;
+      })
+      .filter(order => order.status !== 'deleted'); // Lọc bỏ đơn hàng đã xóa khỏi UI
     callback(orders);
   });
 };
@@ -125,11 +127,21 @@ export const updateOrder = async (orderId: string, orderData: Partial<Order>) =>
 };
 
 /**
- * Xóa đơn hàng
+ * Xóa đơn hàng:
+ * - Nếu là 'pending' thì xóa hẳn
+ * - Ngược lại thì chuyển trạng thái sang 'deleted'
  */
-export const deleteOrder = async (orderId: string) => {
+export const deleteOrder = async (order: Order) => {
   const db = getDb();
-  return deleteDoc(doc(db, COLLECTION_NAME, orderId));
+  if (order.status === 'pending') {
+    return deleteDoc(doc(db, COLLECTION_NAME, order.id));
+  } else {
+    const orderRef = doc(db, COLLECTION_NAME, order.id);
+    return updateDoc(orderRef, {
+      trangThai: 'deleted',
+      updatedAt: serverTimestamp()
+    });
+  }
 };
 
 /**
@@ -204,18 +216,20 @@ export const getMaintenanceDueOrders = async (): Promise<Order[]> => {
   );
 
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      customerName: data.tenKhachHang,
-      phoneNumber: data.phoneNumber,
-      productName: data.tenSanPham,
-      nextMaintenanceDate: data.ngayBaoTriTiepTheo,
-      status: data.trangThai,
-      address: data.diaChiGiaoHang,
-      latitude: data.latitude,
-      longitude: data.longitude,
-    } as unknown as Order;
-  });
+  return querySnapshot.docs
+    .map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        customerName: data.tenKhachHang,
+        phoneNumber: data.phoneNumber,
+        productName: data.tenSanPham,
+        nextMaintenanceDate: data.ngayBaoTriTiepTheo,
+        status: data.trangThai,
+        address: data.diaChiGiaoHang,
+        latitude: data.latitude,
+        longitude: data.longitude,
+      } as unknown as Order;
+    })
+    .filter(order => order.status !== 'deleted');
 };

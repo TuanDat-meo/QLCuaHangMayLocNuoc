@@ -1,39 +1,43 @@
 /**
- * Role & Permission Types
+ * Role & Permission Types - Aligned with AquaCare Business Requirements
  */
 
 export interface Permission {
   id: string;
   name: string;
   description: string;
-  module: string; // e.g., 'users', 'products', 'orders', 'roles'
-  action: 'read' | 'create' | 'update' | 'delete' | 'manage';
+  module: string;
+  action: 'read' | 'create' | 'update' | 'delete' | 'manage' | 'approve' | 'finance';
 }
 
 export interface Role {
-  id: string; // Usually the numeric role value as string or a slug
+  id: string;
   name: string;
   description: string;
-  permissions: string[]; // Array of permission IDs
-  roleValue: number;    // Maps to UserRole enum
+  permissions: string[];
+  roleValue: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export const APP_PERMISSIONS: Permission[] = [
-  // User Management
-  { id: 'users_view', name: 'Xem người dùng', description: 'Cho phép xem danh sách người dùng', module: 'users', action: 'read' },
-  { id: 'users_manage', name: 'Quản lý người dùng', description: 'Cho phép thêm, sửa, xóa người dùng', module: 'users', action: 'manage' },
+  // HỆ THỐNG & NHÂN SỰ (Admin)
+  { id: 'users_manage', name: 'Quản lý nhân sự', description: 'Thêm, sửa, khóa tài khoản nhân viên', module: 'Nhân sự', action: 'manage' },
+  { id: 'roles_manage', name: 'Phân quyền hệ thống', description: 'Cấu hình vai trò và bộ quyền hạn', module: 'Nhân sự', action: 'manage' },
+  { id: 'audit_view', name: 'Xem nhật ký hệ thống', description: 'Đối soát lịch sử thao tác của nhân viên', module: 'Hệ thống', action: 'read' },
+  { id: 'settings_manage', name: 'Cài đặt hệ thống', description: 'Cấu hình giá, danh mục và tham số chung', module: 'Hệ thống', action: 'manage' },
 
-  // Role Management
-  { id: 'roles_view', name: 'Xem vai trò', description: 'Cho phép xem danh sách vai trò', module: 'roles', action: 'read' },
-  { id: 'roles_manage', name: 'Quản lý vai trò', description: 'Cho phép thêm, sửa, xóa vai trò và phân quyền', module: 'roles', action: 'manage' },
+  // ĐIỀU PHỐI (Coordinator)
+  { id: 'orders_manage', name: 'Tiếp nhận đơn hàng', description: 'Xác nhận đơn hàng và cập nhật thông tin khách', module: 'Điều phối', action: 'manage' },
+  { id: 'orders_dispatch', name: 'Điều phối KTV', description: 'Sắp xếp lịch làm việc và giao việc cho KTV', module: 'Điều phối', action: 'manage' },
+  { id: 'schedule_view', name: 'Xem lịch làm việc', description: 'Theo dõi lịch trình di chuyển của KTV', module: 'Điều phối', action: 'read' },
 
-  // Product Management
-  { id: 'products_view', name: 'Xem sản phẩm', description: 'Cho phép xem danh sách sản phẩm', module: 'products', action: 'read' },
-  { id: 'products_manage', name: 'Quản lý sản phẩm', description: 'Cho phép thêm, sửa, xóa sản phẩm', module: 'products', action: 'manage' },
+  // KẾ TOÁN (Accountant)
+  { id: 'finance_cod', name: 'Tất toán COD', description: 'Xác nhận dòng tiền COD do KTV nộp về', module: 'Tài chính', action: 'finance' },
+  { id: 'finance_reports', name: 'Báo cáo doanh thu', description: 'Xem biểu đồ doanh thu và báo cáo tài chính', module: 'Tài chính', action: 'read' },
+  { id: 'inventory_manage', name: 'Quản lý kho', description: 'Kiểm soát nhập xuất và tồn kho sản phẩm', module: 'Sản phẩm', action: 'manage' },
 
-  // Order Management
-  { id: 'orders_view', name: 'Xem đơn hàng', description: 'Cho phép xem danh sách đơn hàng', module: 'orders', action: 'read' },
-  { id: 'orders_manage', name: 'Quản lý đơn hàng', description: 'Cho phép cập nhật trạng thái đơn hàng', module: 'orders', action: 'manage' },
+  // KỸ THUẬT (Technician)
+  { id: 'task_execute', name: 'Thực hiện nhiệm vụ', description: 'Cập nhật tiến độ tại hiện trường qua App KTV', module: 'Kỹ thuật', action: 'update' },
+  { id: 'warranty_approve', name: 'Phê duyệt bảo hành', description: 'Duyệt các khiếu nại hoặc yêu cầu bảo hành đặc biệt', module: 'Kỹ thuật', action: 'approve' },
 ];

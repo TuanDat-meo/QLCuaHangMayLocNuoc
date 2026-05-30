@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Search, Calendar, Clock, ChevronRight, User, MapPin,
   CheckCircle, XCircle, UserPlus, Plus, Trash2, Edit,
-  Info, Bell, AlertTriangle, ArrowRight, Map as MapIcon, Navigation
+  Info, Bell, AlertTriangle, ArrowRight, Map as MapIcon, Navigation,
+  Package, LayoutGrid, DollarSign, FileText, Activity, ShoppingCart, Minus,
+  AlertOctagon, CreditCard, Briefcase, UserCheck, ShieldCheck, History
 } from 'lucide-react';
-import { Order, OrderStatus, OrderType } from '../../types/order';
+import { Order, OrderStatus, OrderType, OrderItem } from '../../types/order';
 import {
   subscribeToOrders,
   updateOrderStatus,
@@ -15,80 +17,208 @@ import {
   getMaintenanceDueOrders
 } from '../../services/orderService';
 import { getTechnicians } from '../../services/userService';
-import { AuthUser } from '../../types/auth';
+import { getProducts, Product } from '../../services/productService';
+import { AuthUser, UserRole } from '../../types/auth';
 import { toast, Toaster } from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { logActivity } from '../../services/auditService';
+import { useAuth } from '../../hooks/useAuth';
 
 interface Province { code: number; name: string; }
 interface District { code: number; name: string; }
 interface Ward { code: number; name: string; }
 
+function getStatusColor(status: OrderStatus) {
+  switch (status) {
+    case 'pending': return 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400';
+    case 'assigned': return 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:text-blue-400';
+    case 'processing': return 'bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400';
+    case 'completed': return 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400';
+    case 'paid': return 'bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-900/20 dark:text-purple-400';
+    case 'incident': return 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/20 dark:text-rose-400';
+    case 'cancelled': return 'bg-slate-50 text-slate-400 border-slate-100 dark:bg-slate-800 dark:text-slate-500';
+    case 'deleted': return 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-500';
+    default: return 'bg-slate-50 text-slate-600 border-slate-100 dark:bg-slate-800 dark:text-slate-400';
+  }
+}
+
+function getStatusText(status: OrderStatus) {
+  const map: Record<string, string> = {
+    pending: 'Chờ duyệt',
+    assigned: 'Đã phân công',
+    processing: 'Đang xử lý',
+    completed: 'Đã hoàn thành',
+    paid: 'Đã tất toán',
+    incident: 'Sự cố',
+    cancelled: 'Đã hủy',
+    deleted: 'Đã xóa'
+  };
+  return map[status] || status;
+}
+
+function formatDate(date: any) {
+  if (!date) return '---';
+  const d = date instanceof Date ? date : date.toDate?.() || new Date(date);
+  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 const OrdersPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const orderIdFromUrl = searchParams.get('id');
+  const { user } = useAuth();
+
+  // Quyền truy cập theo vai trò AquaCare
+  const isAdmin = user?.role === UserRole.ADMIN;
+  const isCoordinator = user?.role === UserRole.COORDINATOR || isAdmin;
+  const isAccountant = user?.role === UserRole.ACCOUNTANT || isAdmin;
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeTab, setActiveTab] = useState('Tất cả');
   const [searchTerm, setSearchTerm] = useState('');
   const [technicians, setTechnicians] = useState<AuthUser[]>([]);
-  const [maintenanceDue, setMaintenanceDue] = useState<Order[]>([]);
-  const [showMaintenanceList, setShowMaintenanceList] = useState(false);
+  const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [showProductSuggestions, setShowProductSuggestions] = useState(false);
+  const productInputRef = useRef<HTMLDivElement>(null);
 
-  // Administrative data states
+  const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
+  const [manualTotalAmount, setManualTotalAmount] = useState<number | null>(null);
+
   const [provinces, setProvinces] = useState<Province[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
   const [wards, setWards] = useState<Ward[]>([]);
 
-  // Modal states
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [formDataState, setFormDataState] = useState({
+    customerName: '',
+    phoneNumber: '',
+    provinceCode: '',
+    districtCode: '',
+    wardCode: '',
+    street: '',
+    orderType: 'installation' as OrderType,
+    status: 'pending' as OrderStatus,
+    note: ''
+  });
+
   const [showAssignModal, setShowAssignModal] = useState<{orderId: string, visible: boolean}>({ orderId: '', visible: false });
   const [showOrderModal, setShowOrderModal] = useState<{type: 'add' | 'edit' | 'detail', order?: Order, visible: boolean}>({ type: 'add', visible: false });
 
-  const tabs = ['Tất cả', 'Chờ duyệt', 'Đã phân công', 'Đang xử lý', 'Hoàn tất', 'Đã hủy'];
+  const tabs = ['Tất cả', 'Chờ duyệt', 'Đã phân công', 'Đang xử lý', 'Hoàn tất', 'Sự cố', 'Đã tất toán'];
 
   useEffect(() => {
-    const unsubscribe = subscribeToOrders((data) => {
-      setOrders(data);
-    }, activeTab);
+    const unsubscribe = subscribeToOrders((data) => setOrders(data), activeTab);
     return () => unsubscribe();
   }, [activeTab]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [techData, dueData, provinceRes] = await Promise.all([
-          getTechnicians(),
-          getMaintenanceDueOrders(),
-          fetch('https://provinces.open-api.vn/api/p/').then(res => res.json())
-        ]);
-        setTechnicians(techData);
-        setMaintenanceDue(dueData);
-        setProvinces(provinceRes);
-      } catch (error) {
-        console.error("Error fetching initial data:", error);
+    if (orderIdFromUrl && orders.length > 0) {
+      const order = orders.find(o => o.id === orderIdFromUrl);
+      if (order) setShowOrderModal({ type: 'detail', order, visible: true });
+    }
+  }, [orderIdFromUrl, orders]);
+
+  const fetchInitialData = async () => {
+    try {
+      const [techData, provinceRes, productsData] = await Promise.all([
+        getTechnicians(),
+        fetch('https://provinces.open-api.vn/api/p/').then(res => res.json()),
+        getProducts()
+      ]);
+      setTechnicians(techData);
+      setProvinces(provinceRes);
+      setAvailableProducts(productsData);
+    } catch (error) { console.error("Error fetching initial data:", error); }
+  };
+
+  useEffect(() => { fetchInitialData(); }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (productInputRef.current && !productInputRef.current.contains(event.target as Node)) {
+        setShowProductSuggestions(false);
       }
     };
-    fetchData();
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
-    const loadAddrData = async () => {
+    const loadModalData = async () => {
+      setErrors({});
       if ((showOrderModal.type === 'edit' || showOrderModal.type === 'detail') && showOrderModal.order) {
         const order = showOrderModal.order;
+        setFormDataState({
+          customerName: order.customerName || '',
+          phoneNumber: order.phoneNumber || '',
+          provinceCode: order.provinceCode ? String(order.provinceCode) : '',
+          districtCode: order.districtCode ? String(order.districtCode) : '',
+          wardCode: order.wardCode ? String(order.wardCode) : '',
+          street: order.street || '',
+          orderType: order.orderType || 'installation',
+          status: order.status || 'pending',
+          note: order.note || ''
+        });
+
         if (order.provinceCode) {
           const resP = await fetch(`https://provinces.open-api.vn/api/p/${order.provinceCode}?depth=2`);
           const dataP = await resP.json();
           setDistricts(dataP.districts || []);
-
           if (order.districtCode) {
             const resD = await fetch(`https://provinces.open-api.vn/api/d/${order.districtCode}?depth=2`);
             const dataD = await resD.json();
             setWards(dataD.wards || []);
           }
         }
+
+        if (order.items && order.items.length > 0) setSelectedItems(order.items);
+        else if (order.productName) setSelectedItems([{ id: 'legacy', name: order.productName, price: order.totalAmount, quantity: 1 }]);
+        else setSelectedItems([]);
+
+        setManualTotalAmount(order.totalAmount);
+      } else {
+        setFormDataState({
+          customerName: '', phoneNumber: '', provinceCode: '', districtCode: '', wardCode: '',
+          street: '', orderType: 'installation', status: 'pending', note: ''
+        });
+        setSelectedItems([]);
+        setManualTotalAmount(null);
+        setDistricts([]);
+        setWards([]);
       }
+      setProductSearch('');
     };
-    if (showOrderModal.visible) loadAddrData();
+    if (showOrderModal.visible) loadModalData();
   }, [showOrderModal.visible, showOrderModal.order, showOrderModal.type]);
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormDataState(prev => ({ ...prev, [name]: value }));
+  };
+
+  const calculateTotal = () => {
+    if (manualTotalAmount !== null && selectedItems.length === 1 && selectedItems[0].id === 'legacy') return manualTotalAmount;
+    return selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  };
+
+  const handleAddProduct = (product: Product) => {
+    const stock = Number(product.tonKho || 0);
+    if (stock <= 0) { toast.error("Sản phẩm đã hết hàng!"); return; }
+    const existing = selectedItems.find(item => item.id === product.id);
+    if (existing) {
+      if (existing.quantity >= stock) { toast.error("Số lượng trong kho không đủ!"); return; }
+      setSelectedItems(selectedItems.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item));
+    } else {
+      setSelectedItems([...selectedItems, { id: product.id, name: product.tenSanPham, price: product.giaBan, quantity: 1 }]);
+    }
+    setProductSearch('');
+    setShowProductSuggestions(false);
+  };
+
   const handleProvinceChange = async (code: string) => {
+    setFormDataState(prev => ({ ...prev, provinceCode: code, districtCode: '', wardCode: '' }));
     if (!code) { setDistricts([]); setWards([]); return; }
     const res = await fetch(`https://provinces.open-api.vn/api/p/${code}?depth=2`);
     const data = await res.json();
@@ -97,267 +227,178 @@ const OrdersPage: React.FC = () => {
   };
 
   const handleDistrictChange = async (code: string) => {
+    setFormDataState(prev => ({ ...prev, districtCode: code, wardCode: '' }));
     if (!code) { setWards([]); return; }
     const res = await fetch(`https://provinces.open-api.vn/api/d/${code}?depth=2`);
     const data = await res.json();
     setWards(data.wards || []);
   };
 
-  const handleAssign = async (techId: string, techName: string) => {
-    if (!showAssignModal.orderId) return;
-    try {
-      await assignTechnician(showAssignModal.orderId, techId, techName);
-      setShowAssignModal({ orderId: '', visible: false });
-      toast.success(`Đã phân công cho ${techName}`);
-    } catch (error) {
-      toast.error("Phân công thất bại!");
-    }
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    if (!formDataState.customerName.trim()) newErrors.customerName = "Vui lòng nhập tên khách hàng";
+    const phone = formDataState.phoneNumber.trim().replace(/\s/g, '');
+    if (!phone) newErrors.phoneNumber = "Vui lòng nhập số điện thoại";
+    else if (!/^(0|84|\+84)[0-9]{9,10}$/.test(phone)) newErrors.phoneNumber = "Số điện thoại không hợp lệ";
+    if (!formDataState.provinceCode) newErrors.provinceCode = "Vui lòng chọn Tỉnh/Thành";
+    if (!formDataState.districtCode) newErrors.districtCode = "Vui lòng chọn Quận/Huyện";
+    if (!formDataState.wardCode) newErrors.wardCode = "Vui lòng chọn Phường/Xã";
+    if (!formDataState.street.trim()) newErrors.street = "Vui lòng nhập địa chỉ chi tiết";
+    if (selectedItems.length === 0) newErrors.products = "Vui lòng chọn ít nhất một sản phẩm";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  const handleDeleteOrder = async (id: string) => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa đơn hàng này?")) {
-      try {
-        await deleteOrder(id);
-        toast.success("Đã xóa đơn hàng");
-      } catch (error) {
-        toast.error("Xóa thất bại!");
-      }
-    }
-  };
-
-  const handleSubmitOrder = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const street = formData.get('street') as string;
-    const pCode = Number(formData.get('provinceCode'));
-    const dCode = Number(formData.get('districtCode'));
-    const wCode = Number(formData.get('wardCode'));
+    if (!validateForm()) { toast.error("Vui lòng kiểm tra lại thông tin!"); return; }
+    const pCode = Number(formDataState.provinceCode);
+    const dCode = Number(formDataState.districtCode);
+    const wCode = Number(formDataState.wardCode);
+    const pName = provinces.find(p => p.code === pCode)?.name;
+    const dName = districts.find(d => d.code === dCode)?.name;
+    const wName = wards.find(w => w.code === wCode)?.name;
 
-    const provinceName = provinces.find(p => p.code === pCode)?.name || '';
-    const districtName = districts.find(d => d.code === dCode)?.name || '';
-    const wardName = wards.find(w => w.code === wCode)?.name || '';
-    const fullAddress = `${street}${wardName ? ', ' + wardName : ''}${districtName ? ', ' + districtName : ''}${provinceName ? ', ' + provinceName : ''}`;
-
-    const data = {
-      customerName: formData.get('customerName') as string,
-      phoneNumber: formData.get('phoneNumber') as string,
-      address: fullAddress,
-      street,
-      provinceCode: pCode,
-      districtCode: dCode,
-      wardCode: wCode,
-      productName: formData.get('productName') as string,
-      totalAmount: formData.get('totalAmount') ? Number(formData.get('totalAmount')) : 0,
-      orderType: formData.get('orderType') as OrderType,
-      status: (formData.get('status') as OrderStatus) || 'pending',
-      note: formData.get('note') as string,
+    const data: any = {
+      ...formDataState,
+      provinceCode: pCode, districtCode: dCode, wardCode: wCode,
+      address: `${formDataState.street}, ${wName}, ${dName}, ${pName}`,
+      productName: selectedItems.map(item => item.quantity > 1 ? `${item.name} (x${item.quantity})` : item.name).join(', '),
+      items: selectedItems,
+      totalAmount: manualTotalAmount !== null ? manualTotalAmount : calculateTotal(),
+      updatedBy: user?.uid,
+      updatedByName: user?.displayName,
     };
 
     try {
       if (showOrderModal.type === 'add') {
-        await addOrder(data as any);
-        toast.success("Thêm đơn hàng thành công");
+        data.createdBy = user?.uid;
+        data.createdByName = user?.displayName;
+        await addOrder(data);
+        await logActivity("Tạo đơn hàng mới", "Đơn hàng", "Mới", { client: data.customerName, amount: data.totalAmount });
+        toast.success("Tạo đơn hàng thành công!");
       } else if (showOrderModal.type === 'edit' && showOrderModal.order) {
         await updateOrder(showOrderModal.order.id, data);
+        await logActivity("Cập nhật đơn hàng", "Đơn hàng", showOrderModal.order.id, { before: showOrderModal.order, after: data });
         toast.success("Cập nhật thành công");
       }
       setShowOrderModal({ ...showOrderModal, visible: false });
-    } catch (error) {
-      toast.error("Thao tác thất bại!");
-    }
+    } catch (error) { toast.error("Thao tác thất bại!"); }
   };
 
-  const getStatusColor = (status: OrderStatus) => {
-    switch (status) {
-      case 'pending': return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50';
-      case 'assigned': return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800/50';
-      case 'processing': return 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-800/50';
-      case 'completed': return 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50';
-      case 'cancelled': return 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800/50';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
-    }
+  const handleUpdateStatus = async (orderId: string, currentStatus: OrderStatus, newStatus: OrderStatus) => {
+    try {
+      await updateOrderStatus(orderId, newStatus);
+      const actionText = newStatus === 'paid' ? "Xác nhận COD" : `Chuyển sang: ${getStatusText(newStatus)}`;
+      await logActivity(actionText, "Đơn hàng", orderId, { from: currentStatus, to: newStatus });
+      toast.success(`Đã chuyển sang: ${getStatusText(newStatus)}`);
+    } catch (error) { toast.error("Thao tác thất bại!"); }
   };
 
-  const getStatusText = (status: OrderStatus) => {
-    switch (status) {
-      case 'pending': return 'Chờ duyệt';
-      case 'assigned': return 'Đã phân công';
-      case 'processing': return 'Đang xử lý';
-      case 'completed': return 'Hoàn tất';
-      case 'cancelled': return 'Đã hủy';
-      default: return status;
-    }
+  const handleAssign = async (techId: string, techName: string) => {
+    try {
+      await assignTechnician(showAssignModal.orderId, techId, techName);
+      await logActivity("Phân công kỹ thuật viên", "Đơn hàng", showAssignModal.orderId, { technician: techName });
+      toast.success(`Đã phân công cho ${techName}`);
+      setShowAssignModal({ orderId: '', visible: false });
+    } catch (error) { toast.error("Phân công thất bại!"); }
   };
 
-  const formatDate = (date: any) => {
-    if (!date) return '---';
-    const d = date instanceof Date ? date : date.toDate?.() || new Date(date);
-    return d.toLocaleDateString('vi-VN');
+  const getValidNextStatusesForModal = (currentStatus: OrderStatus): OrderStatus[] => {
+    const allStatuses: OrderStatus[] = ['pending', 'assigned', 'processing', 'completed', 'incident', 'paid', 'cancelled'];
+    if (isAdmin) return allStatuses;
+    return allStatuses.filter(s => s !== 'deleted');
   };
 
-  const filteredOrders = orders.filter(o =>
-    o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.phoneNumber?.includes(searchTerm)
-  );
+  const filteredProducts = availableProducts.filter(p => p.tenSanPham.toLowerCase().includes(productSearch.toLowerCase()));
 
   return (
-    <div className="h-screen p-8 bg-[#f8fafc] dark:bg-[#0f172a] flex flex-col overflow-hidden transition-colors duration-300 font-sans">
+    <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-[#0f172a] transition-colors duration-300 font-sans p-4 md:p-6 overflow-hidden">
       <Toaster position="top-right" />
 
-      {/* Header section (fixed) */}
-      <div className="flex justify-between items-start mb-8 shrink-0">
+      {/* Header section */}
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6 shrink-0 text-left">
         <div>
-          <h1 className="text-2xl font-black text-[#0b1c30] dark:text-white tracking-tight uppercase">Hệ thống Đơn hàng</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Quản lý lắp đặt & bảo trì máy lọc nước</p>
+          <h1 className="text-xl md:text-2xl font-black text-[#0b1c30] dark:text-white uppercase tracking-tight flex items-center gap-3">
+             <div className="p-2.5 bg-white dark:bg-[#1e293b] rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+                <ShoppingCart className="text-[#00459a]" size={24} />
+             </div>
+             Trung tâm Đơn hàng
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 text-[11px] font-medium uppercase tracking-wider mt-1">Điều phối nhân sự & Nghiệp vụ tài chính AquaCare</p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Maintenance Notification Bell */}
-          <div className="relative">
-            <button
-              onClick={() => setShowMaintenanceList(!showMaintenanceList)}
-              className={`p-3 rounded-2xl transition-all relative ${maintenanceDue.length > 0 ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100' : 'bg-white dark:bg-slate-800 text-slate-400 border border-slate-100 dark:border-slate-700'}`}
-            >
-              <Bell size={20} />
-              {maintenanceDue.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-[#f8fafc] dark:border-[#0f172a]">
-                  {maintenanceDue.length}
-                </span>
-              )}
-            </button>
-
-            {showMaintenanceList && (
-              <div className="absolute right-0 mt-3 w-80 bg-white dark:bg-[#1e293b] rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="p-4 border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-                  <h3 className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <AlertTriangle size={14} className="text-orange-500" /> Sắp đến hạn bảo trì
-                  </h3>
-                </div>
-                <div className="max-h-80 overflow-y-auto custom-scrollbar">
-                  {maintenanceDue.length > 0 ? (
-                    maintenanceDue.map(order => (
-                      <div key={order.id} onClick={() => navigate('/warranty')} className="p-4 border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
-                        <p className="font-bold text-sm text-slate-700 dark:text-slate-300 mb-1">{order.customerName}</p>
-                        <div className="flex justify-between items-center">
-                          <span className="text-[10px] text-slate-400 font-bold uppercase">{order.productName}</span>
-                          <span className="text-[10px] text-orange-600 font-black">Hạn: {formatDate(order.nextMaintenanceDate)}</span>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-8 text-center text-slate-400 text-xs font-medium">Không có đơn hàng nào sắp đến hạn</div>
-                  )}
-                </div>
-                <button onClick={() => navigate('/warranty')} className="w-full p-3 text-[10px] font-black text-[#00459a] dark:text-blue-400 uppercase tracking-widest hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center justify-center gap-2">
-                  Xem tất cả bảo hành <ArrowRight size={14} />
-                </button>
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={() => setShowOrderModal({ type: 'add', visible: true })}
-            className="flex items-center gap-2 bg-[#00459a] dark:bg-blue-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
-          >
-            <Plus size={18} /> Tạo đơn hàng
-          </button>
-        </div>
+        {isCoordinator && (
+          <button onClick={() => setShowOrderModal({ type: 'add', visible: true })} className="flex items-center gap-2 bg-[#00459a] text-white px-6 py-3 rounded-2xl font-black text-[11px] uppercase shadow-lg shadow-blue-500/20 hover:brightness-110 active:scale-95 transition-all"><Plus size={18} /> Tạo đơn hàng mới</button>
+        )}
       </div>
 
-      {/* Tabs (fixed) */}
-      <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2 shrink-0 scrollbar-hide">
+      {/* Tabs section */}
+      <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1 shrink-0 scrollbar-hide text-left">
         {tabs.map((status) => (
-          <button
-            key={status}
-            onClick={() => setActiveTab(status)}
-            className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
-              activeTab === status ? 'bg-[#0b1c30] text-white border-[#0b1c30] dark:bg-white dark:text-[#0b1c30] shadow-lg' : 'bg-white text-slate-400 border-slate-100 dark:bg-slate-900 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
-          >
-            {status}
-          </button>
+          <button key={status} onClick={() => setActiveTab(status)} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${activeTab === status ? 'bg-[#0b1c30] text-white border-[#0b1c30] shadow-md' : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-100 dark:border-slate-700'}`}>{status}</button>
         ))}
       </div>
 
-      {/* Main Order List Section (flexible & scrollable) */}
-      <div className="flex-1 min-h-0 bg-white dark:bg-[#1e293b] rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden transition-colors flex flex-col">
-        {/* Search Bar (fixed within card) */}
-        <div className="p-6 border-b border-slate-50 dark:border-slate-800 shrink-0">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600" size={18} />
-            <input
-              type="text"
-              placeholder="Tìm theo Mã đơn, tên khách hàng..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900/50 border-none rounded-2xl outline-none font-semibold text-sm dark:text-white"
-            />
+      {/* Main Order List Section */}
+      <div className="flex-1 min-h-0 bg-white dark:bg-[#1e293b] rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col transition-colors">
+        <div className="p-4 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/30 dark:bg-slate-900/20">
+          <div className="relative max-w-md w-full text-left">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
+            <input type="text" placeholder="Tìm đơn hàng, khách hàng..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-xl outline-none text-xs dark:text-white shadow-sm font-bold uppercase" />
+          </div>
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-400">
+             <Activity size={14} className="text-blue-500" /> Real-time Sync
           </div>
         </div>
 
-        {/* Scrollable Table Area */}
         <div className="flex-1 overflow-auto custom-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
-            <thead className="sticky top-0 z-10 bg-white dark:bg-[#1e293b]">
-              <tr className="bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md">
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Mã đơn & Ngày tạo</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Khách hàng</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Địa chỉ</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Kỹ thuật viên</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Tổng tiền</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Trạng thái</th>
+          <table className="w-full text-left border-collapse min-w-[1100px]">
+            <thead className="sticky top-0 z-10 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md">
+              <tr className="border-b border-slate-100 dark:border-slate-800 text-left">
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Đơn hàng</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Khách hàng</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Điều phối</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Thanh toán (COD)</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Trạng thái</th>
                 <th className="px-6 py-4"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-              {filteredOrders.map((order) => (
+            <tbody className="divide-y divide-slate-50 dark:divide-slate-800 text-left">
+              {orders.filter(o => o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) || o.id.includes(searchTerm)).map((order) => (
                 <tr key={order.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
-                  <td className="px-6 py-5">
-                    <div className="flex flex-col">
-                      <span className="font-black text-[#0b1c30] dark:text-white text-sm mb-1">{order.id.slice(0, 8).toUpperCase()}</span>
-                      <span className="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">
-                        <Clock size={12} /> {formatDate(order.createdAt)}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{order.customerName}</span>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold tracking-wider">{order.phoneNumber}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400 truncate max-w-[200px] block" title={order.address}>{order.address}</span>
-                  </td>
-                  <td className="px-6 py-5">
+                  <td className="px-6 py-4"><span className="font-black text-slate-800 dark:text-white block text-xs uppercase tracking-tight">{order.id.slice(-8).toUpperCase()}</span><span className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-1 font-bold uppercase"><Clock size={12} className="text-blue-500/50" /> {formatDate(order.createdAt)}</span></td>
+                  <td className="px-6 py-4"><span className="font-black text-slate-700 dark:text-slate-200 block text-xs uppercase">{order.customerName}</span><span className="text-[10px] text-slate-400 font-bold tracking-widest">{order.phoneNumber}</span></td>
+                  <td className="px-6 py-4">
                     {order.technicianName ? (
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">
-                          {order.technicianName.charAt(0)}
-                        </div>
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{order.technicianName}</span>
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-[10px] font-black text-blue-500 border border-blue-100/50 uppercase">{order.technicianName.charAt(0)}</div>
+                        <span className="font-black text-slate-600 dark:text-slate-400 text-[10px] uppercase truncate max-w-[120px]">{order.technicianName}</span>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => setShowAssignModal({ orderId: order.id, visible: true })}
-                        className="flex items-center gap-1.5 text-[10px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-tight hover:underline"
-                      >
-                        <UserPlus size={14} /> Phân công
-                      </button>
+                      isCoordinator && <button onClick={() => setShowAssignModal({ orderId: order.id, visible: true })} className="flex items-center gap-1.5 text-[9px] font-black uppercase text-blue-500 hover:text-blue-600 border border-blue-100 rounded-lg px-2 py-1 w-fit"><Briefcase size={12}/> Phân công</button>
                     )}
                   </td>
-                  <td className="px-6 py-5 font-black text-[#00459a] dark:text-blue-400 text-sm">
-                    {order.totalAmount > 0 ? `${order.totalAmount?.toLocaleString('vi-VN')}đ` : <span className="text-slate-400 dark:text-slate-600 text-[10px] font-bold italic uppercase">Chờ báo giá...</span>}
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                       <span className="font-black text-slate-900 dark:text-blue-400 text-xs">{order.totalAmount?.toLocaleString('vi-VN')}đ</span>
+                       {order.status === 'completed' && isAccountant && (
+                         <button onClick={() => handleUpdateStatus(order.id, order.status, 'paid')} className="flex items-center gap-1 text-[9px] font-black text-emerald-500 hover:underline uppercase mt-1"><CreditCard size={10}/> Xác nhận COD</button>
+                       )}
+                       {order.status === 'paid' && <span className="flex items-center gap-1 text-[8px] font-black text-emerald-500 uppercase mt-1"><ShieldCheck size={10}/> Đã tất toán</span>}
+                    </div>
                   </td>
-                  <td className="px-6 py-5">
-                    <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border ${getStatusColor(order.status)}`}>{getStatusText(order.status)}</span>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-sm ${getStatusColor(order.status)}`}>{getStatusText(order.status)}</span>
+                      {order.status === 'incident' && <AlertOctagon size={14} className="text-rose-500 animate-pulse" />}
+                    </div>
                   </td>
-                  <td className="px-6 py-5 text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.address)}`} target="_blank" rel="noreferrer" className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-500 rounded-lg transition-colors" title="Xem vị trí"><Navigation size={16} /></a>
-                      <button onClick={() => setShowOrderModal({ type: 'detail', order, visible: true })} className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-500 rounded-lg transition-colors" title="Chi tiết"><Info size={16} /></button>
-                      <button onClick={() => setShowOrderModal({ type: 'edit', order, visible: true })} className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-indigo-500 rounded-lg transition-colors" title="Sửa"><Edit size={16} /></button>
-                      <button onClick={() => handleDeleteOrder(order.id)} className="p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 text-rose-500 rounded-lg transition-colors" title="Xóa"><Trash2 size={16} /></button>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => { if(!order.address) return; window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.address)}`, '_blank'); }} className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-xl text-blue-500 shadow-sm transition-all hover:scale-110" title="Bản đồ"><Navigation size={16} /></button>
+                      <button onClick={() => setShowOrderModal({ type: 'detail', order, visible: true })} className="p-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-slate-500 shadow-sm transition-all hover:scale-110" title="Chi tiết"><Info size={16} /></button>
+                      {isCoordinator && <button onClick={() => setShowOrderModal({ type: 'edit', order, visible: true })} className="p-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-slate-500 shadow-sm transition-all hover:scale-110" title="Sửa"><Edit size={16} /></button>}
+                      {isAdmin && <button onClick={() => { if(window.confirm('Xóa đơn hàng này?')) deleteOrder(order); }} className="p-2 bg-rose-50 text-rose-400 rounded-xl shadow-sm transition-all hover:scale-110" title="Xóa"><Trash2 size={16} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -367,103 +408,129 @@ const OrdersPage: React.FC = () => {
         </div>
       </div>
 
+      {/* --- ORDER MODAL (ADD/EDIT/DETAIL) --- */}
       {showOrderModal.visible && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#1e293b] rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden animate-in zoom-in duration-200">
-            <div className="p-6 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-              <h3 className="font-black text-[#0b1c30] dark:text-white uppercase tracking-wider text-xs">
-                {showOrderModal.type === 'add' ? 'Tạo đơn hàng mới' : showOrderModal.type === 'edit' ? 'Cập nhật đơn hàng' : 'Chi tiết đơn hàng'}
-              </h3>
-              <button onClick={() => setShowOrderModal({ ...showOrderModal, visible: false })} className="text-slate-400 dark:text-slate-500 hover:text-rose-500 transition-colors"><XCircle size={24} /></button>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-2 sm:p-4 text-left">
+          <div className="bg-white dark:bg-[#1e293b] rounded-[2rem] shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-100 dark:border-slate-800 animate-in zoom-in duration-200">
+            <div className="px-8 py-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900 shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-[#0b1c30] text-white rounded-2xl shadow-lg"><ShoppingCart size={24} /></div>
+                <div><h3 className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-sm">{showOrderModal.type === 'add' ? 'Khởi tạo đơn hàng' : showOrderModal.type === 'edit' ? 'Cập nhật thông tin' : 'Chi tiết đơn hàng'}</h3><p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Xử lý nghiệp vụ bởi: {user?.displayName}</p></div>
+              </div>
+              <button onClick={() => setShowOrderModal({ ...showOrderModal, visible: false })} className="text-slate-300 hover:text-rose-500 transition-colors transform hover:rotate-90 duration-200"><XCircle size={32} /></button>
             </div>
 
-            <form onSubmit={handleSubmitOrder} className="p-8 max-h-[85vh] overflow-y-auto custom-scrollbar">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <div className="space-y-6">
-                  <div className="p-5 bg-slate-50/50 dark:bg-slate-900/30 rounded-3xl space-y-4 border border-slate-100 dark:border-slate-800">
-                    <h4 className="text-[10px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-[0.2em] flex items-center gap-2"><User size={14} /> Thông tin khách hàng</h4>
-                    <input name="customerName" placeholder="Họ và tên" defaultValue={showOrderModal.order?.customerName} readOnly={showOrderModal.type === 'detail'} className="w-full px-5 py-3.5 bg-white dark:bg-slate-800 border-none rounded-2xl outline-none focus:ring-2 ring-blue-100 dark:ring-blue-900/30 font-bold text-sm dark:text-white transition-all" required />
-                    <input name="phoneNumber" placeholder="Số điện thoại" defaultValue={showOrderModal.order?.phoneNumber} readOnly={showOrderModal.type === 'detail'} className="w-full px-5 py-3.5 bg-white dark:bg-slate-800 border-none rounded-2xl outline-none focus:ring-2 ring-blue-100 dark:ring-blue-900/30 font-bold text-sm dark:text-white transition-all" required />
+            <form onSubmit={handleSubmitOrder} className="p-6 md:p-10 overflow-y-auto custom-scrollbar flex-1">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div className="space-y-8">
+                  <div className="p-6 bg-slate-50/30 dark:bg-slate-900/30 rounded-3xl border border-slate-100 dark:border-slate-700 space-y-5 shadow-inner text-left">
+                    <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] flex items-center gap-2"><User size={14} /> Khách hàng</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Họ tên</label>
+                        <input name="customerName" value={formDataState.customerName} readOnly={showOrderModal.type === 'detail'} onChange={handleInputChange} className="w-full px-4 py-3 bg-white dark:bg-slate-800 border-none rounded-xl outline-none font-bold text-xs uppercase" placeholder="NHẬP TÊN..." />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Số điện thoại</label>
+                        <input name="phoneNumber" value={formDataState.phoneNumber} readOnly={showOrderModal.type === 'detail'} onChange={handleInputChange} className="w-full px-4 py-3 bg-white dark:bg-slate-800 border-none rounded-xl outline-none font-bold text-xs" placeholder="0987xxxxxx" />
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="p-5 bg-blue-50/30 dark:bg-blue-900/10 rounded-3xl space-y-4 border border-blue-100/50 dark:border-blue-900/20">
-                    <h4 className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] flex items-center gap-2"><MapIcon size={14} /> Địa chỉ lắp đặt</h4>
-                    <select name="provinceCode" defaultValue={showOrderModal.order?.provinceCode || ""} disabled={showOrderModal.type === 'detail'} onChange={(e) => handleProvinceChange(e.target.value)} className="w-full px-5 py-3 bg-white dark:bg-slate-800 border-none rounded-xl text-xs font-bold dark:text-white outline-none ring-1 ring-slate-100 dark:ring-slate-700" required>
-                      <option value="">-- Tỉnh/Thành --</option>
-                      {provinces.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
-                    </select>
-                    <div className="grid grid-cols-2 gap-3">
-                      <select name="districtCode" defaultValue={showOrderModal.order?.districtCode || ""} onChange={(e) => handleDistrictChange(e.target.value)} disabled={showOrderModal.type === 'detail' || districts.length === 0} className="px-5 py-3 bg-white dark:bg-slate-800 border-none rounded-xl text-xs font-bold dark:text-white ring-1 ring-slate-100 dark:ring-slate-700" required>
-                        <option value="">-- Quận/Huyện --</option>
-                        {districts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
+                  <div className="p-6 bg-slate-50/30 dark:bg-slate-900/30 rounded-3xl border border-slate-100 dark:border-slate-700 space-y-5 shadow-inner text-left">
+                    <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] flex items-center gap-2"><MapPin size={14} /> Địa chỉ</h4>
+                    <div className="space-y-4 text-left">
+                      <select name="provinceCode" value={formDataState.provinceCode} disabled={showOrderModal.type === 'detail'} onChange={(e) => handleProvinceChange(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-800 border-none rounded-xl text-xs font-black shadow-inner">
+                        <option value="">-- CHỌN TỈNH/THÀNH --</option>
+                        {provinces.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
                       </select>
-                      <select name="wardCode" defaultValue={showOrderModal.order?.wardCode || ""} disabled={showOrderModal.type === 'detail' || wards.length === 0} className="px-5 py-3 bg-white dark:bg-slate-800 border-none rounded-xl text-xs font-bold dark:text-white ring-1 ring-slate-100 dark:ring-slate-700" required>
-                        <option value="">-- Phường/Xã --</option>
-                        {wards.map(w => <option key={w.code} value={w.code}>{w.name}</option>)}
-                      </select>
+                      <div className="grid grid-cols-2 gap-4">
+                        <select name="districtCode" value={formDataState.districtCode} onChange={(e) => handleDistrictChange(e.target.value)} disabled={showOrderModal.type === 'detail' || districts.length === 0} className="w-full px-4 py-3 bg-white dark:bg-slate-800 border-none rounded-xl text-xs font-black">
+                           <option value="">-- QUẬN/HUYỆN --</option>
+                           {districts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
+                        </select>
+                        <select name="wardCode" value={formDataState.wardCode} onChange={handleInputChange} disabled={showOrderModal.type === 'detail' || wards.length === 0} className="w-full px-4 py-3 bg-white dark:bg-slate-800 border-none rounded-xl text-xs font-black">
+                           <option value="">-- PHƯỜNG/XÃ --</option>
+                           {wards.map(w => <option key={w.code} value={w.code}>{w.name}</option>)}
+                        </select>
+                      </div>
+                      <input name="street" value={formDataState.street} readOnly={showOrderModal.type === 'detail'} onChange={handleInputChange} className="w-full px-4 py-3 bg-white dark:bg-slate-800 border-none rounded-xl outline-none font-bold text-xs uppercase shadow-inner" placeholder="SỐ NHÀ, TÊN ĐƯỜNG..." />
                     </div>
-                    <input name="street" placeholder="Số nhà, tên đường (Cũ/Mới)" defaultValue={showOrderModal.order?.street} readOnly={showOrderModal.type === 'detail'} className="w-full px-5 py-3 bg-white dark:bg-slate-800 border-none rounded-xl text-xs font-bold dark:text-white ring-1 ring-slate-100 dark:ring-slate-700" required />
                   </div>
                 </div>
 
-                <div className="space-y-6">
-                  <div className="p-5 bg-amber-50/30 dark:bg-amber-900/10 rounded-3xl space-y-4 border border-amber-100/50 dark:border-amber-900/20">
-                    <h4 className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-[0.2em]">Thông tin đơn hàng</h4>
-                    <input name="productName" placeholder="Tên máy/linh kiện" defaultValue={showOrderModal.order?.productName} readOnly={showOrderModal.type === 'detail'} className="w-full px-5 py-3.5 bg-white dark:bg-slate-800 border-none rounded-2xl outline-none focus:ring-2 ring-amber-100 dark:ring-amber-900/30 font-bold text-sm dark:text-white transition-all" required />
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">Báo giá (đ)</label>
-                        <input name="totalAmount" type="number" placeholder="KTV sẽ nhập..." defaultValue={showOrderModal.order?.totalAmount || 0} readOnly={showOrderModal.type === 'detail'} className="w-full px-5 py-3 bg-white dark:bg-slate-800 border-none rounded-xl text-sm font-bold dark:text-white" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">Loại yêu cầu</label>
-                        <select name="orderType" defaultValue={showOrderModal.order?.orderType} disabled={showOrderModal.type === 'detail'} className="w-full px-5 py-3 bg-white dark:bg-slate-800 border-none rounded-xl text-sm font-bold dark:text-white">
-                          <option value="installation">Lắp đặt</option>
-                          <option value="maintenance">Bảo trì</option>
-                          <option value="repair">Sửa chữa</option>
-                        </select>
-                      </div>
+                <div className="space-y-8 text-left">
+                  <div className="p-6 bg-slate-50/30 dark:bg-slate-900/30 rounded-3xl border border-slate-100 dark:border-slate-700 flex flex-col space-y-5 h-full shadow-inner">
+                    <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] flex items-center gap-2"><Package size={14} /> Danh sách sản phẩm</h4>
+
+                    <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2 min-h-[150px]">
+                       {selectedItems.map(item => (
+                         <div key={item.id} className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-50 dark:border-slate-700 flex items-center justify-between shadow-sm">
+                            <div className="text-left">
+                               <p className="text-[11px] font-black uppercase text-slate-700 dark:text-slate-200 truncate">{item.name}</p>
+                               <p className="text-[9px] font-bold text-slate-400">{item.price.toLocaleString('vi-VN')}đ</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                               <span className="text-[11px] font-black bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-lg text-blue-600">x{item.quantity}</span>
+                               {showOrderModal.type !== 'detail' && (
+                                 <button type="button" onClick={() => setSelectedItems(selectedItems.filter(i => i.id !== item.id))} className="text-rose-400 hover:text-rose-600 transition-colors"><Trash2 size={16}/></button>
+                               )}
+                            </div>
+                         </div>
+                       ))}
+                       {showOrderModal.type !== 'detail' && (
+                         <div className="relative text-left" ref={productInputRef}>
+                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
+                           <input type="text" placeholder="Thêm sản phẩm..." value={productSearch} onChange={(e) => { setProductSearch(e.target.value); setShowProductSuggestions(true); }} className="w-full pl-9 pr-4 py-3 bg-white dark:bg-slate-800 border-2 border-blue-50 dark:border-slate-700 rounded-xl outline-none font-black text-[10px] uppercase shadow-sm" />
+                           {showProductSuggestions && filteredProducts.length > 0 && (
+                             <div className="absolute z-50 left-0 right-0 mt-2 bg-white dark:bg-[#1e293b] rounded-xl shadow-2xl border border-slate-100 max-h-48 overflow-y-auto custom-scrollbar">
+                               {filteredProducts.map(product => (
+                                 <button key={product.id} type="button" onClick={() => handleAddProduct(product)} className="w-full px-4 py-3 text-left hover:bg-blue-50 dark:hover:bg-blue-900/20 border-b border-slate-50 dark:border-slate-800 last:border-0 flex justify-between items-center text-left"><p className="font-black text-[10px] uppercase">{product.tenSanPham}</p><span className="text-[9px] font-bold text-blue-500">{product.giaBan.toLocaleString('vi-VN')}đ</span></button>
+                               ))}
+                             </div>
+                           )}
+                         </div>
+                       )}
                     </div>
-                  </div>
-                  <div className="p-5 bg-slate-50/50 dark:bg-slate-900/30 rounded-3xl space-y-4 border border-slate-100 dark:border-slate-800">
-                    <h4 className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Ghi chú cho KTV</h4>
-                    <textarea name="note" placeholder="Mô tả cụ thể vị trí hoặc tình trạng máy..." defaultValue={showOrderModal.order?.note} readOnly={showOrderModal.type === 'detail'} rows={6} className="w-full px-5 py-3.5 bg-white dark:bg-slate-800 border-none rounded-2xl outline-none focus:ring-2 ring-slate-100 dark:ring-slate-700 font-bold text-sm dark:text-white" />
+
+                    <div className="pt-6 border-t border-dashed border-slate-200 dark:border-slate-700 text-left">
+                       <div className="flex justify-between items-center mb-5">
+                          <span className="text-[10px] font-black text-slate-400 uppercase">Trạng thái xử lý</span>
+                          <select name="status" value={formDataState.status} disabled={showOrderModal.type === 'detail'} onChange={handleInputChange} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase outline-none shadow-sm ${getStatusColor(formDataState.status)}`}>
+                            {['pending', 'assigned', 'processing', 'completed', 'paid', 'incident', 'cancelled'].map(st => (
+                              <option key={st} value={st}>{getStatusText(st as any)}</option>
+                            ))}
+                          </select>
+                       </div>
+                       <div className="flex justify-between items-center p-6 bg-[#0b1c30] rounded-3xl text-white shadow-xl">
+                          <div className="text-left">
+                             <p className="text-[10px] font-black uppercase opacity-60">Tổng tất toán (COD)</p>
+                             <p className="text-xl font-black">{manualTotalAmount !== null ? manualTotalAmount?.toLocaleString('vi-VN') : calculateTotal().toLocaleString('vi-VN')}đ</p>
+                          </div>
+                          <CreditCard size={28} className="opacity-30" />
+                       </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {showOrderModal.type !== 'detail' ? (
-                <div className="mt-10 flex gap-4">
-                  <button type="button" onClick={() => setShowOrderModal({ ...showOrderModal, visible: false })} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-[1.25rem] font-black text-xs uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">Hủy bỏ</button>
-                  <button type="submit" className="flex-1 py-4 bg-[#00459a] dark:bg-blue-600 text-white rounded-[1.25rem] font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:scale-[1.02] active:scale-95 transition-all">
-                    {showOrderModal.type === 'add' ? 'Tạo đơn hàng' : 'Lưu thay đổi'}
-                  </button>
+                <div className="mt-10 flex gap-5">
+                   <button type="button" onClick={() => setShowOrderModal({ ...showOrderModal, visible: false })} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest transition-all">Hủy bỏ</button>
+                   <button type="submit" className="flex-[2] py-4 bg-[#00459a] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-[0.98] transition-all">Xác nhận cập nhật</button>
                 </div>
               ) : (
-                <div className="mt-10 pt-6 border-t border-slate-50 dark:border-slate-800">
-                  <div className="p-5 bg-blue-50 dark:bg-blue-900/10 rounded-3xl flex items-center justify-between border border-blue-100 dark:border-blue-900/30">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-[#00459a] dark:bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-900/20">
-                         <User size={24} />
-                      </div>
+                <div className="mt-10 p-6 bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 flex items-center justify-between text-left">
+                   <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-400 shadow-sm"><History size={24} /></div>
                       <div>
-                        <p className="text-[10px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-[0.2em] mb-1">Kỹ thuật viên phụ trách</p>
-                        <p className="font-black text-[#0b1c30] dark:text-white text-base leading-none">{showOrderModal.order?.technicianName || 'Chưa phân công'}</p>
+                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dữ liệu nghiệp vụ</p>
+                         <p className="text-xs font-black text-[#0b1c30] dark:text-white uppercase mt-1">KTV đảm nhận: {showOrderModal.order?.technicianName || 'Chưa phân công'}</p>
                       </div>
-                    </div>
-                    {showOrderModal.order?.status === 'pending' && (
-                       <button
-                        type="button"
-                        onClick={() => {
-                          setShowAssignModal({ orderId: showOrderModal.order!.id, visible: true });
-                          setShowOrderModal({ ...showOrderModal, visible: false });
-                        }}
-                        className="bg-white dark:bg-slate-800 text-[#00459a] dark:text-blue-400 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-blue-100 dark:border-slate-700 shadow-sm hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors"
-                       >
-                         Phân công ngay
-                       </button>
-                    )}
-                  </div>
+                   </div>
+                   {isCoordinator && showOrderModal.order?.status === 'pending' && (
+                      <button type="button" onClick={() => { setShowAssignModal({ orderId: showOrderModal.order!.id, visible: true }); setShowOrderModal({ ...showOrderModal, visible: false }); }} className="bg-[#0b1c30] text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all">Phân công ngay</button>
+                   )}
                 </div>
               )}
             </form>
@@ -471,28 +538,28 @@ const OrdersPage: React.FC = () => {
         </div>
       )}
 
-      {/* Assign Technician Modal */}
+      {/* --- ASSIGN MODAL (ĐIỀU PHỐI) --- */}
       {showAssignModal.visible && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#1e293b] rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
-            <div className="p-6 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-              <h3 className="font-black text-[#0b1c30] dark:text-white uppercase tracking-wider text-xs">Phân công kỹ thuật viên</h3>
-              <button onClick={() => setShowAssignModal({ orderId: '', visible: false })} className="text-slate-400 dark:text-slate-500 hover:text-rose-500 transition-colors">
-                <XCircle size={24} />
-              </button>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4 text-left">
+          <div className="bg-white dark:bg-[#1e293b] rounded-[3rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in duration-200">
+            <div className="px-8 py-6 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900 shrink-0">
+               <div className="text-left">
+                  <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-xs">Điều phối kỹ thuật</h3>
+                  <p className="text-[8px] font-black text-blue-500 uppercase mt-1">Giao việc cho nhân sự hiện trường</p>
+               </div>
+               <button onClick={() => setShowAssignModal({ orderId: '', visible: false })} className="text-slate-300 hover:text-rose-500 transition-colors"><XCircle size={24} /></button>
             </div>
-            <div className="p-4 max-h-[450px] overflow-y-auto custom-scrollbar">
-              {technicians.map(tech => (
-                <button
-                  key={tech.uid}
-                  onClick={() => handleAssign(tech.uid, tech.displayName)}
-                  className="w-full flex items-center gap-5 p-5 rounded-[1.75rem] hover:bg-blue-50/50 dark:hover:bg-slate-800 transition-all text-left group mb-2 border border-transparent hover:border-blue-100 dark:hover:border-blue-900/30"
-                >
-                  <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-black text-lg uppercase group-hover:scale-110 transition-transform">{tech.displayName.charAt(0)}</div>
-                  <div>
-                    <p className="font-black text-slate-800 dark:text-white text-sm uppercase">{tech.displayName}</p>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">{tech.phoneNumber}</p>
-                  </div>
+            <div className="p-4 max-h-[450px] overflow-y-auto custom-scrollbar space-y-2">
+              {technicians.map(t => (
+                <button key={t.uid} onClick={() => handleAssign(t.uid, t.displayName)} className="w-full flex items-center gap-4 p-4 rounded-[1.5rem] hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-left border-2 border-transparent hover:border-blue-100 group shadow-sm">
+                   <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-[#00459a] dark:text-blue-400 flex items-center justify-center font-black text-lg shadow-inner group-hover:scale-105 transition-transform">{t.displayName.charAt(0)}</div>
+                   <div className="flex-1 min-w-0">
+                      <p className="font-black text-slate-800 dark:text-white text-xs uppercase truncate">{t.displayName}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">{t.phoneNumber}</p>
+                   </div>
+                   <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-300 group-hover:text-blue-500 transition-colors">
+                      <ChevronRight size={16} />
+                   </div>
                 </button>
               ))}
             </div>

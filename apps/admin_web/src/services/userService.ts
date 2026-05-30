@@ -11,6 +11,7 @@ import {
   serverTimestamp,
   orderBy,
   where,
+  onSnapshot,
   DocumentData,
   QueryDocumentSnapshot
 } from 'firebase/firestore';
@@ -40,64 +41,86 @@ const mapUserDoc = (doc: QueryDocumentSnapshot<DocumentData>): AuthUser => {
 };
 
 /**
- * Lấy tất cả người dùng
+ * Lấy tất cả người dùng (Nhân viên & Admin)
  */
 export const getAllUsers = async (): Promise<AuthUser[]> => {
-  try {
-    const db = getDb();
-    const q = query(collection(db, 'nguoiDung'), orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(mapUserDoc);
-  } catch (error: any) {
-    if (error.code === 'permission-denied') {
-      console.error("❌ QUYỀN TRUY CẬP BỊ TỪ CHỐI: Kiểm tra role của bạn trong Firestore (Admin phải có role = 1).");
-    }
-    throw error;
-  }
+  const db = getDb();
+  // Lấy tất cả trừ Customer (Role 5) để tối ưu cho trang nhân sự
+  const q = query(
+    collection(db, 'nguoiDung'),
+    orderBy('createdAt', 'desc')
+  );
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(mapUserDoc);
 };
 
 /**
- * Lấy danh sách kỹ thuật viên (Role = 4)
+ * Theo dõi danh sách Kỹ thuật viên (Real-time)
+ */
+export const subscribeToTechnicians = (callback: (techs: AuthUser[]) => void) => {
+  const db = getDb();
+  const q = query(
+    collection(db, 'nguoiDung'),
+    where('role', '==', UserRole.TECHNICIAN)
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const techs = snapshot.docs.map(mapUserDoc);
+    callback(techs);
+  });
+};
+
+/**
+ * Cập nhật trạng thái người dùng (Hoạt động / Khóa)
+ */
+export const updateUserStatus = async (uid: string, status: 'active' | 'blocked' | 'pending') => {
+  const db = getDb();
+  const userRef = doc(db, 'nguoiDung', uid);
+  return await updateDoc(userRef, {
+    status,
+    updatedAt: serverTimestamp()
+  });
+};
+
+/**
+ * Lấy danh sách nhân sự theo vai trò cụ thể
+ */
+export const getUsersByRole = async (role: UserRole): Promise<AuthUser[]> => {
+  const db = getDb();
+  const q = query(
+    collection(db, 'nguoiDung'),
+    where('role', '==', role),
+    where('status', '==', 'active')
+  );
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(mapUserDoc);
+};
+
+/**
+ * Lấy danh sách kỹ thuật viên (Sử dụng cho phân công đơn hàng)
  */
 export const getTechnicians = async (): Promise<AuthUser[]> => {
-  try {
-    const db = getDb();
-    const q = query(
-      collection(db, 'nguoiDung'),
-      where('role', '==', UserRole.TECHNICIAN),
-      where('status', '==', 'active')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(mapUserDoc);
-  } catch (error) {
-    console.error("[UserService] Error fetching technicians:", error);
-    throw error;
-  }
+  return getUsersByRole(UserRole.TECHNICIAN);
 };
 
 /**
- * Duyệt tài khoản và cấp quyền (Numeric Role)
+ * Duyệt tài khoản và cấp quyền
  */
 export const approveUser = async (uid: string, role: UserRole): Promise<void> => {
-  try {
-    const db = getDb();
-    const userRef = doc(db, 'nguoiDung', uid);
+  const db = getDb();
+  const userRef = doc(db, 'nguoiDung', uid);
 
-    await updateDoc(userRef, {
-      role: role,
-      status: 'active',
-      updatedAt: serverTimestamp()
-    });
-  } catch (error) {
-    console.error("[UserService] Error approving user:", error);
-    throw error;
-  }
+  await updateDoc(userRef, {
+    role: role,
+    status: 'active',
+    updatedAt: serverTimestamp()
+  });
 };
 
 /**
- * CRUD Operations via Cloud Functions (To handle Password & Auth changes)
+ * --- CLOUD FUNCTIONS INTERFACE ---
+ * Các hàm này gọi Firebase Functions để quản lý Firebase Auth (Tạo/Xóa user từ Admin)
  */
-
 export const adminCreateUser = async (userData: any) => {
   const functions = getFunctions();
   const createUser = httpsCallable(functions, 'adminCreateUser');
