@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
@@ -17,17 +19,22 @@ class NavigationViewScreen extends StatefulWidget {
 
 class _NavigationViewScreenState extends State<NavigationViewScreen>
     with TickerProviderStateMixin {
-  final Completer<GoogleMapController> _mapController = Completer();
+  final MapController _mapController = MapController();
 
-  // Vị trí mặc định - Hà Nội (sẽ bị ghi đè bởi GPS thật)
   static const LatLng _defaultHanoi = LatLng(21.0285, 105.8542);
 
   LatLng? _currentPosition;
+  LatLng _destPosition = _defaultHanoi;
   bool _isLoadingLocation = true;
   bool _locationPermissionDenied = false;
+  bool _isSatellite = false;
+  bool _mapReady = false;
 
-  Set<Marker> _markers = {};
-  MapType _mapType = MapType.normal;
+  // ── Tracking liên tục ────────────────────────────────────────────────
+  StreamSubscription<Position>? _positionStream;
+  bool _followMode = true;   // camera tự bám theo KTV
+  double? _distanceToDestM;  // khoảng cách (mét) tới điểm đến
+  double _headingDeg = 0;    // hướng di chuyển (độ)
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -39,7 +46,7 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _pulseAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -50,12 +57,11 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
   @override
   void dispose() {
     _pulseController.dispose();
+    _positionStream?.cancel();
     super.dispose();
   }
 
-  // ─── Địa chỉ → Tọa độ giả lập ───────────────────────────────────────────
-  // Trong thực tế bạn có thể gọi Google Geocoding API.
-  // Hiện tại dùng một bảng tra nhanh cho mock data demo.
+  // ─── Tra tọa độ xấp xỉ từ địa chỉ (mock data) ───────────────────────────
   LatLng _guessLatLngFromAddress(String address) {
     final lower = address.toLowerCase();
     if (lower.contains('mỹ đình') || lower.contains('phạm hùng')) {
@@ -72,17 +78,33 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
     } else if (lower.contains('thụy khuê') || lower.contains('tây hồ')) {
       return const LatLng(21.0465, 105.8323);
     }
-    return _defaultHanoi; // fallback
+    return _defaultHanoi;
   }
 
   Future<void> _initLocationAndMap() async {
     final jobController = context.read<JobController>();
-    final jobIndex = jobController.jobs.indexWhere((j) => j.id == widget.jobId);
+    final jobIndex =
+        jobController.jobs.indexWhere((j) => j.id == widget.jobId);
     if (jobIndex == -1) return;
     final job = jobController.jobs[jobIndex];
     final destLatLng = _guessLatLngFromAddress(job.address);
 
-    // Xin quyền vị trí
+    if (mounted) setState(() => _destPosition = destLatLng);
+
+    // ── Web: chỉ hiển thị điểm đến (không cần GPS) ───────────────────────
+    if (kIsWeb) {
+      // Web: hiển thị điểm đến ngay, map tự center qua initialCenter
+      if (mounted) {
+        setState(() {
+          _isLoadingLocation = false;
+          _currentPosition = null;
+        });
+      }
+      // Không cần gọi _mapController.move() – đã dùng initialCenter
+      return;
+    }
+
+    // ── Mobile: xin quyền GPS ─────────────────────────────────────────────
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -94,20 +116,15 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
         setState(() {
           _locationPermissionDenied = true;
           _isLoadingLocation = false;
-          _currentPosition = _defaultHanoi;
-          _markers = _buildMarkers(
-            currentPos: _defaultHanoi,
-            destPos: destLatLng,
-            customerName: job.customerName,
-          );
+          _currentPosition = null;
         });
       }
-      _moveCameraTo(destLatLng);
+      // Map đã center vào destPosition qua initialCenter
       return;
     }
 
-    // Lấy vị trí GPS hiện tại
     try {
+      // Lấy vị trí lần đầu
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
@@ -119,110 +136,97 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
         setState(() {
           _currentPosition = currentPos;
           _isLoadingLocation = false;
-          _markers = _buildMarkers(
-            currentPos: currentPos,
-            destPos: destLatLng,
-            customerName: job.customerName,
-          );
+          _distanceToDestM = _calcDistance(currentPos, destLatLng);
+          _headingDeg = pos.heading;
         });
       }
-      _moveCameraToFitBoth(currentPos, destLatLng);
-    } catch (e) {
-      // Fallback nếu GPS timeout
+      if (_mapReady) _fitBothPoints(currentPos, destLatLng);
+
+      // Bắt đầu stream vị trí liên tục
+      _startPositionStream(destLatLng);
+    } catch (_) {
       if (mounted) {
         setState(() {
-          _currentPosition = _defaultHanoi;
+          _currentPosition = null;
           _isLoadingLocation = false;
-          _markers = _buildMarkers(
-            currentPos: _defaultHanoi,
-            destPos: destLatLng,
-            customerName: job.customerName,
-          );
         });
       }
-      _moveCameraTo(destLatLng);
     }
   }
 
-  Set<Marker> _buildMarkers({
-    required LatLng currentPos,
-    required LatLng destPos,
-    required String customerName,
-  }) {
-    return {
-      Marker(
-        markerId: const MarkerId('my_location'),
-        position: currentPos,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-        infoWindow: const InfoWindow(title: 'Vị trí của bạn'),
+  // ─── Stream GPS liên tục ──────────────────────────────────────────────
+  void _startPositionStream(LatLng dest) {
+    _positionStream?.cancel();
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5, // cập nhật mỗi khi di chuyển >= 5m
       ),
-      Marker(
-        markerId: const MarkerId('destination'),
-        position: destPos,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: InfoWindow(title: customerName, snippet: 'Điểm đến'),
-      ),
-    };
+    ).listen((Position pos) {
+      if (!mounted) return;
+      final newPos = LatLng(pos.latitude, pos.longitude);
+      setState(() {
+        _currentPosition = newPos;
+        _distanceToDestM = _calcDistance(newPos, dest);
+        _headingDeg = pos.heading;
+      });
+      // Nếu Follow Mode đang bật → camera bám theo KTV
+      if (_followMode && _mapReady) {
+        _mapController.move(newPos, _mapController.camera.zoom);
+      }
+    });
   }
 
-  Future<void> _moveCameraTo(LatLng target) async {
-    final controller = await _mapController.future;
-    controller.animateCamera(CameraUpdate.newLatLngZoom(target, 15));
+  // ─── Tính khoảng cách 2 điểm (mét) ──────────────────────────────────
+  double _calcDistance(LatLng a, LatLng b) {
+    return Geolocator.distanceBetween(
+      a.latitude, a.longitude,
+      b.latitude, b.longitude,
+    );
   }
 
-  Future<void> _moveCameraToFitBoth(LatLng a, LatLng b) async {
-    final controller = await _mapController.future;
-    final bounds = LatLngBounds(
-      southwest: LatLng(
-        a.latitude < b.latitude ? a.latitude : b.latitude,
-        a.longitude < b.longitude ? a.longitude : b.longitude,
-      ),
-      northeast: LatLng(
-        a.latitude > b.latitude ? a.latitude : b.latitude,
-        a.longitude > b.longitude ? a.longitude : b.longitude,
+  // ─── Format khoảng cách hiển thị ─────────────────────────────────────
+  String _formatDistance(double meters) {
+    if (meters < 1000) return '${meters.toStringAsFixed(0)} m';
+    return '${(meters / 1000).toStringAsFixed(1)} km';
+  }
+
+  void _fitBothPoints(LatLng a, LatLng b) {
+    final bounds = LatLngBounds(a, b);
+    _mapController.fitCamera(
+      CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.fromLTRB(48, 100, 48, 280),
       ),
     );
-    controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
   }
 
-  // ─── Mở Google Maps bên ngoài để dẫn đường turn-by-turn ─────────────────
+  // ─── Mở Google Maps bên ngoài ──────────────────────────────────────────
   Future<void> _openGoogleMapsExternal(String address) async {
-    final jobController = context.read<JobController>();
-    final jobIndex = jobController.jobs.indexWhere((j) => j.id == widget.jobId);
-    if (jobIndex == -1) return;
-    final destLatLng = _guessLatLngFromAddress(
-      jobController.jobs[jobIndex].address,
-    );
-
-    // Ưu tiên mở bằng tọa độ thật cho chính xác hơn
-    final geoUri = Uri.parse(
+    final encoded = Uri.encodeComponent(address);
+    final uri = Uri.parse(
       'https://www.google.com/maps/dir/?api=1'
-      '&destination=${destLatLng.latitude},${destLatLng.longitude}'
+      '&destination=$encoded'
       '&travelmode=driving',
     );
-
-    if (await canLaunchUrl(geoUri)) {
-      await launchUrl(geoUri, mode: LaunchMode.externalApplication);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(
+        uri,
+        mode: kIsWeb
+            ? LaunchMode.platformDefault
+            : LaunchMode.externalApplication,
+      );
     } else {
-      // Fallback: mở bằng địa chỉ văn bản
-      final encoded = Uri.encodeComponent(address);
-      final fallbackUri = Uri.parse('https://maps.google.com/?q=$encoded');
-      await launchUrl(fallbackUri, mode: LaunchMode.externalApplication);
+      final fallback = Uri.parse('https://maps.google.com/?q=$encoded');
+      await launchUrl(fallback, mode: LaunchMode.platformDefault);
     }
-  }
-
-  void _toggleMapType() {
-    setState(() {
-      _mapType = _mapType == MapType.normal
-          ? MapType.satellite
-          : MapType.normal;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     final jobController = context.watch<JobController>();
-    final jobIndex = jobController.jobs.indexWhere((j) => j.id == widget.jobId);
+    final jobIndex =
+        jobController.jobs.indexWhere((j) => j.id == widget.jobId);
 
     if (jobIndex == -1) {
       return Scaffold(
@@ -239,22 +243,29 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
       appBar: _buildAppBar(),
       body: Stack(
         children: [
-          // ── Bản đồ Google Maps ──────────────────────────────────────────
-          _buildGoogleMap(job),
-
-          // ── Overlay khi đang tải GPS ────────────────────────────────────
+          _buildFlutterMap(job),
           if (_isLoadingLocation) _buildLoadingOverlay(),
-
-          // ── Cảnh báo nếu bị từ chối quyền vị trí ───────────────────────
           if (_locationPermissionDenied) _buildPermissionBanner(),
 
-          // ── Nút chuyển loại bản đồ (Vệ tinh / Thường) ──────────────────
+          // ── Chip khoảng cách còn lại ──────────────────────────────────
+          if (_distanceToDestM != null && !_isLoadingLocation && !kIsWeb)
+            Positioned(
+              top: 110,
+              left: 0,
+              right: 72,
+              child: Center(child: _buildDistanceChip()),
+            ),
+
+          // ── Nút vệ tinh / bản đồ ──────────────────────────────────────
           Positioned(top: 110, right: 16, child: _buildMapTypeButton()),
 
-          // ── Nút định vị lại vị trí của tôi ─────────────────────────────
-          Positioned(top: 166, right: 16, child: _buildMyLocationButton(job)),
+          // ── Nút Follow Mode (bám theo KTV) ────────────────────────────
+          Positioned(top: 166, right: 16, child: _buildFollowButton()),
 
-          // ── Dashboard dưới cùng ─────────────────────────────────────────
+          // ── Nút xem toàn cảnh ─────────────────────────────────────────
+          Positioned(top: 222, right: 16, child: _buildRecenterButton()),
+
+          // ── Dashboard dưới cùng ───────────────────────────────────────
           Positioned(
             left: 16,
             right: 16,
@@ -266,6 +277,7 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
     );
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -300,29 +312,125 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
     );
   }
 
-  Widget _buildGoogleMap(JobModel job) {
-    final destLatLng = _guessLatLngFromAddress(job.address);
-    return GoogleMap(
-      mapType: _mapType,
-      style: _darkMapStyle,
-      initialCameraPosition: CameraPosition(
-        target: _currentPosition ?? destLatLng,
-        zoom: 14,
+  Widget _buildFlutterMap(JobModel job) {
+    final destLatLng = _destPosition;
+
+    // Tile URLs – không cần API key, hoạt động ngay
+    final tileUrl = _isSatellite
+        ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+
+    final markers = <Marker>[
+      // Marker điểm đến (nhà khách hàng)
+      Marker(
+        point: destLatLng,
+        width: 120,
+        height: 58,
+        alignment: Alignment.topCenter,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xffef4444),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 6,
+                  ),
+                ],
+              ),
+              child: Text(
+                job.customerName,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+            const Icon(
+              Icons.location_on,
+              color: Color(0xffef4444),
+              size: 30,
+            ),
+          ],
+        ),
       ),
-      markers: _markers,
-      myLocationEnabled: !_locationPermissionDenied,
-      myLocationButtonEnabled: false,
-      zoomControlsEnabled: false,
-      compassEnabled: true,
-      onMapCreated: (GoogleMapController controller) {
-        _mapController.complete(controller);
-      },
+    ];
+
+    // Marker vị trí kỹ thuật viên (chỉ trên mobile có GPS)
+    if (_currentPosition != null) {
+      markers.add(
+        Marker(
+          point: _currentPosition!,
+          width: 44,
+          height: 44,
+          child: Transform.rotate(
+            // Xoay marker theo hướng di chuyển (heading)
+            angle: _headingDeg * (3.14159265 / 180),
+            child: Container(
+              decoration: BoxDecoration(
+                color: _followMode ? AppColors.primary : const Color(0xff0ea5e9),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.6),
+                    blurRadius: 12,
+                    spreadRadius: 3,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.navigation,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return FlutterMap(
+      mapController: _mapController,
+      options: MapOptions(
+        initialCenter: destLatLng,
+        initialZoom: 14,
+        onMapReady: () {
+          setState(() => _mapReady = true);
+          if (_currentPosition != null) {
+            _fitBothPoints(_currentPosition!, _destPosition);
+          }
+        },
+        // Tắt follow mode khi user tự kéo bản đồ
+        onPositionChanged: (_, hasGesture) {
+          if (hasGesture && _followMode) {
+            setState(() => _followMode = false);
+          }
+        },
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: tileUrl,
+          subdomains: _isSatellite ? const [] : const ['a', 'b', 'c'],
+          userAgentPackageName: 'com.aquacare.technician',
+          maxZoom: 19,
+        ),
+        MarkerLayer(markers: markers),
+      ],
     );
   }
 
   Widget _buildLoadingOverlay() {
     return Container(
-      color: const Color(0xff0f172a).withValues(alpha: 0.7),
+      color: const Color(0xff0f172a).withValues(alpha: 0.75),
       child: const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -359,7 +467,7 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
             SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Chưa cấp quyền vị trí. Đang hiển thị bản đồ tổng quan.',
+                'Chưa cấp quyền vị trí. Hiển thị bản đồ điểm đến.',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 11,
@@ -373,19 +481,87 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
     );
   }
 
+  // ─── Chip khoảng cách ─────────────────────────────────────
+  Widget _buildDistanceChip() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 400),
+      child: Container(
+        key: ValueKey(_distanceToDestM),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xff0f172a).withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.6)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.route, color: AppColors.primary, size: 15),
+            const SizedBox(width: 6),
+            Text(
+              'Còn ${_formatDistance(_distanceToDestM!)}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Nút Follow Mode ─────────────────────────────────────
+  Widget _buildFollowButton() {
+    return Tooltip(
+      message: _followMode ? 'Camera đang bám theo bạn' : 'Bật bám theo vị trí',
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _followMode = !_followMode);
+          // Bật lại follow → move camera tới KTV ngay
+          if (_followMode && _currentPosition != null && _mapReady) {
+            _mapController.move(
+              _currentPosition!, _mapController.camera.zoom,
+            );
+          }
+        },
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: _followMode
+                ? AppColors.primary.withValues(alpha: 0.9)
+                : const Color(0xff1e293b).withValues(alpha: 0.95),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: _followMode ? AppColors.primary : const Color(0xff334155),
+              width: 2,
+            ),
+          ),
+          child: Icon(
+            _followMode ? Icons.gps_fixed : Icons.gps_not_fixed,
+            color: Colors.white,
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMapTypeButton() {
     return GestureDetector(
-      onTap: _toggleMapType,
+      onTap: () => setState(() => _isSatellite = !_isSatellite),
       child: Container(
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: const Color(0xff1e293b).withValues(alpha: 0.9),
+          color: const Color(0xff1e293b).withValues(alpha: 0.95),
           shape: BoxShape.circle,
           border: Border.all(color: const Color(0xff334155)),
         ),
         child: Icon(
-          _mapType == MapType.normal ? Icons.satellite_alt : Icons.map,
+          _isSatellite ? Icons.map_outlined : Icons.satellite_alt,
           color: Colors.white,
           size: 20,
         ),
@@ -393,19 +569,20 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
     );
   }
 
-  Widget _buildMyLocationButton(JobModel job) {
+  Widget _buildRecenterButton() {
     return GestureDetector(
       onTap: () {
         if (_currentPosition != null) {
-          final destLatLng = _guessLatLngFromAddress(job.address);
-          _moveCameraToFitBoth(_currentPosition!, destLatLng);
+          _fitBothPoints(_currentPosition!, _destPosition);
+        } else {
+          _mapController.move(_destPosition, 14);
         }
       },
       child: Container(
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: const Color(0xff1e293b).withValues(alpha: 0.9),
+          color: const Color(0xff1e293b).withValues(alpha: 0.95),
           shape: BoxShape.circle,
           border: Border.all(color: const Color(0xff334155)),
         ),
@@ -437,7 +614,7 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Header: tên khách hàng & địa chỉ ───────────────────────────
+          // ── Header: tên + địa chỉ ─────────────────────────────────────
           Row(
             children: [
               AnimatedBuilder(
@@ -493,18 +670,17 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
           const Divider(height: 1, color: Color(0xff334155)),
           const SizedBox(height: 16),
 
-          // ── 2 nút CTA ───────────────────────────────────────────────────
+          // ── 2 nút CTA ────────────────────────────────────────────────
           Row(
             children: [
-              // Nút 1: Xem trên bản đồ trong app (di chuyển camera)
+              // Nút 1: Xem toàn cảnh bản đồ
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    final destLatLng = _guessLatLngFromAddress(job.address);
                     if (_currentPosition != null) {
-                      _moveCameraToFitBoth(_currentPosition!, destLatLng);
+                      _fitBothPoints(_currentPosition!, _destPosition);
                     } else {
-                      _moveCameraTo(destLatLng);
+                      _mapController.move(_destPosition, 14);
                     }
                   },
                   icon: const Icon(Icons.zoom_out_map, size: 16),
@@ -529,7 +705,7 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
               ),
               const SizedBox(width: 12),
 
-              // Nút 2: Mở Google Maps bên ngoài – dẫn đường turn-by-turn
+              // Nút 2: Mở Google Maps ngoài (turn-by-turn navigation)
               Expanded(
                 flex: 2,
                 child: ElevatedButton.icon(
@@ -557,7 +733,7 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
 
           const SizedBox(height: 12),
 
-          // ── Gợi ý: nút cập nhật trạng thái "đang di chuyển" ────────────
+          // ── Cập nhật trạng thái "Đang di chuyển" ─────────────────────
           SizedBox(
             width: double.infinity,
             child: TextButton.icon(
@@ -570,14 +746,17 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
                   ctrl.updateJobStatus(widget.jobId, JobStatus.onTheWay);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('✅ Đã cập nhật trạng thái: Đang di chuyển'),
+                      content:
+                          Text('✅ Đã cập nhật: Đang di chuyển đến khách hàng'),
                       backgroundColor: Color(0xff0284c7),
                     ),
                   );
                 }
               },
               icon: const Icon(Icons.local_shipping_outlined, size: 16),
-              label: const Text('Đánh dấu "Đang di chuyển" đến khách hàng'),
+              label: const Text(
+                'Đánh dấu "Đang di chuyển" đến khách hàng',
+              ),
               style: TextButton.styleFrom(
                 foregroundColor: const Color(0xff0284c7),
                 textStyle: const TextStyle(
@@ -592,31 +771,3 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
     );
   }
 }
-
-// ─── Dark Style cho Google Map ─────────────────────────────────────────────
-// Tạo tại: https://mapstyle.withgoogle.com/
-const String _darkMapStyle = '''
-[
-  {"elementType":"geometry","stylers":[{"color":"#212121"}]},
-  {"elementType":"labels.icon","stylers":[{"visibility":"off"}]},
-  {"elementType":"labels.text.fill","stylers":[{"color":"#757575"}]},
-  {"elementType":"labels.text.stroke","stylers":[{"color":"#212121"}]},
-  {"featureType":"administrative","elementType":"geometry","stylers":[{"color":"#757575"}]},
-  {"featureType":"administrative.country","elementType":"labels.text.fill","stylers":[{"color":"#9e9e9e"}]},
-  {"featureType":"administrative.land_parcel","stylers":[{"visibility":"off"}]},
-  {"featureType":"administrative.locality","elementType":"labels.text.fill","stylers":[{"color":"#bdbdbd"}]},
-  {"featureType":"poi","elementType":"labels.text.fill","stylers":[{"color":"#757575"}]},
-  {"featureType":"poi.park","elementType":"geometry","stylers":[{"color":"#181818"}]},
-  {"featureType":"poi.park","elementType":"labels.text.fill","stylers":[{"color":"#616161"}]},
-  {"featureType":"poi.park","elementType":"labels.text.stroke","stylers":[{"color":"#1b1b1b"}]},
-  {"featureType":"road","elementType":"geometry.fill","stylers":[{"color":"#2c2c2c"}]},
-  {"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#8a8a8a"}]},
-  {"featureType":"road.arterial","elementType":"geometry","stylers":[{"color":"#373737"}]},
-  {"featureType":"road.highway","elementType":"geometry","stylers":[{"color":"#3c3c3c"}]},
-  {"featureType":"road.highway.controlled_access","elementType":"geometry","stylers":[{"color":"#4e4e4e"}]},
-  {"featureType":"road.local","elementType":"labels.text.fill","stylers":[{"color":"#616161"}]},
-  {"featureType":"transit","elementType":"labels.text.fill","stylers":[{"color":"#757575"}]},
-  {"featureType":"water","elementType":"geometry","stylers":[{"color":"#000000"}]},
-  {"featureType":"water","elementType":"labels.text.fill","stylers":[{"color":"#3d3d3d"}]}
-]
-''';

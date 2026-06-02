@@ -7,6 +7,28 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:730710129450:android:de1ce9071480e922b47c53",
+        "android_client_info": {
+          "package_name": "com.example.technical_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDBEmLrjXBA9pq92n40wUQsyLb0YVz0Ucg"
+        },
+        {
+          "current_key": "AIzaSyAmcJQSJZEQ_Tou0sW9sWNzxHLe0nplZ0w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:730710129450:android:06d5ee9c3426659cb47c53",
         "android_client_info": {
           "package_name": "com.yourcompany.aquacare.customer"
@@ -14,6 +36,9 @@
       },
       "oauth_client": [],
       "api_key": [
+        {
+          "current_key": "AIzaSyDBEmLrjXBA9pq92n40wUQsyLb0YVz0Ucg"
+        },
         {
           "current_key": "AIzaSyAmcJQSJZEQ_Tou0sW9sWNzxHLe0nplZ0w"
         }
@@ -33,6 +58,9 @@
       },
       "oauth_client": [],
       "api_key": [
+        {
+          "current_key": "AIzaSyDBEmLrjXBA9pq92n40wUQsyLb0YVz0Ucg"
+        },
         {
           "current_key": "AIzaSyAmcJQSJZEQ_Tou0sW9sWNzxHLe0nplZ0w"
         }
