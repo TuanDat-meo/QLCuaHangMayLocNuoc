@@ -1,67 +1,21 @@
 /**
- * Custom Authentication Hooks - Fixed Redirect Logic
+ * Custom Authentication Hooks - Using AuthContext for global stability
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useContext } from 'react';
 import {
-  getAuthInstance,
   loginWithEmail,
   signupWithEmail,
   sendPasswordReset,
   resetPasswordWithCode,
   logout,
-  getCurrentUser,
 } from '../services/authService';
-import { AuthUser, LoginCredentials, SignupCredentials } from '../types/auth';
+import { LoginCredentials, SignupCredentials } from '../types/auth';
+import { useAuth as useAuthContext } from '../context/AuthContext';
 
+// Hook chính để lấy thông tin user từ Context
 export const useAuth = () => {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    let unsubscribe: (() => void) | null = null;
-
-    const setupAuth = async () => {
-      try {
-        const authInstance = getAuthInstance();
-        unsubscribe = authInstance.onAuthStateChanged(async (firebaseUser) => {
-          if (!mounted) return;
-
-          if (firebaseUser) {
-            try {
-              const currentUser = await getCurrentUser();
-              if (mounted) {
-                setUser(currentUser);
-              }
-            } catch (err) {
-              if (mounted) setUser(null);
-            }
-          } else {
-            if (mounted) setUser(null);
-          }
-          if (mounted) setIsLoading(false);
-        });
-      } catch (err) {
-        if (mounted) setIsLoading(false);
-      }
-    };
-
-    setupAuth();
-    return () => {
-      mounted = false;
-      if (unsubscribe) unsubscribe();
-    };
-  }, []);
-
-  return {
-    user,
-    isLoading,
-    error,
-    // QUAN TRỌNG: Chỉ isAuthenticated khi user đã active
-    isAuthenticated: user !== null && user.isVerified === true,
-  };
+  return useAuthContext();
 };
 
 export const useLogin = () => {

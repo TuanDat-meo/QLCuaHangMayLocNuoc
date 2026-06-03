@@ -1,13 +1,13 @@
 /**
- * Header Component - Integrated with Notifications and Quick Settings (Light/Dark Toggle)
+ * Header Component - Refined (Removed redundant search and toggle)
  */
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Menu, Bell, User, LogOut, ChevronDown, Search,
+  Bell, User, LogOut, ChevronDown,
   Settings as SettingsIcon, Package, Zap, Calendar,
-  Info, Moon, Sun, Palette, Globe, BellOff, ShieldCheck, ArrowRight
+  Info, Moon, Sun, Palette, ShieldCheck, ArrowRight
 } from 'lucide-react';
 import { useNotifications } from '../../hooks';
 import { useTheme } from '../../context/ThemeContext';
@@ -20,15 +20,11 @@ interface UserInfo {
 }
 
 interface HeaderProps {
-  sidebarOpen: boolean;
-  onToggleSidebar: () => void;
   user?: UserInfo | null;
   onLogout: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
-  sidebarOpen,
-  onToggleSidebar,
   user,
   onLogout,
 }) => {
@@ -71,30 +67,13 @@ const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-800 shadow-sm sticky top-0 z-50 transition-colors duration-300">
-      <div className="flex items-center justify-between h-20 px-6 gap-4">
+      <div className="flex items-center justify-between h-20 px-8 gap-4">
 
-        {/* Left Section */}
+        {/* Left Section - Breadcrumbs or Page Info could go here */}
         <div className="flex items-center gap-4">
-          <button
-            onClick={onToggleSidebar}
-            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-400"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
           <div className="hidden md:block">
-            <h2 className="text-lg font-black text-[#0b1c30] dark:text-white tracking-tight uppercase">AquaCare Admin</h2>
-          </div>
-        </div>
-
-        {/* Search Bar */}
-        <div className="flex-1 max-w-xl hidden sm:block">
-          <div className="relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-600 group-focus-within:text-[#00459a]" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm nhanh..."
-              className="w-full pl-12 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:border-[#00459a] focus:bg-white dark:focus:bg-slate-800 transition-all dark:text-white"
-            />
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Hệ thống quản trị</p>
+            <h2 className="text-sm font-black text-[#0b1c30] dark:text-white tracking-tight uppercase">AquaCare Admin Professional</h2>
           </div>
         </div>
 
