@@ -142,7 +142,7 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
     IconData emptyIcon,
   ) {
     return RefreshIndicator(
-      onRefresh: () => controller.refreshJobs(),
+      onRefresh: () => Future.value(),
       color: AppColors.primary,
       child: jobList.isEmpty
           ? _buildEmptyState(emptyText, emptyIcon)

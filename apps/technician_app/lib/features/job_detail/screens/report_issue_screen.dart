@@ -79,7 +79,6 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
       jobId: widget.jobId,
       reason: _selectedReason!,
       description: _descriptionController.text,
-      localPhotos: _issuePhotos,
     );
 
     if (mounted) {

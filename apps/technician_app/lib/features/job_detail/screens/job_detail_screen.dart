@@ -619,26 +619,51 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   Widget _buildBottomStickyArea(JobModel job) {
     if (job.status == JobStatus.completed) {
       return Container(
-        color: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        child: SizedBox(
-          width: double.infinity,
-          height: 60,
-          child: ElevatedButton(
-            onPressed: null,
-            style: ElevatedButton.styleFrom(
-              disabledBackgroundColor: const Color(0xffe2e8f0),
-              disabledForegroundColor: const Color(0xff94a3b8),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(color: Color(0x14000000), blurRadius: 20, offset: Offset(0, -4)),
+          ],
+        ),
+        padding: const EdgeInsets.only(left: 16, right: 16, top: 12, bottom: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Nút xem hóa đơn
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: () =>
+                    Navigator.pushNamed(context, '/invoice', arguments: job.id),
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('XEM HÓA ĐƠN KHÁCH HÀNG'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                ),
+              ),
             ),
-            child: const Row(
+            const SizedBox(height: 8),
+            // Badge đã hoàn tất
+            Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.verified),
-                SizedBox(width: 8),
-                Text('ĐÃ HOÀN TẤT LẮP ĐẶT'),
+                const Icon(Icons.verified, color: Color(0xff10b981), size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  'Đã hoàn tất lắp đặt',
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
-          ),
+          ],
         ),
       );
     }
@@ -673,44 +698,81 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
           ),
         ],
       ),
-      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 24),
-      child: Row(
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 14, bottom: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (job.status == JobStatus.installing || job.status == JobStatus.onTheWay || job.status == JobStatus.arrived) ...[
-            SizedBox(
-              height: 60,
-              width: 60,
-              child: OutlinedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/report-issue', arguments: job.id);
-                },
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.redAccent, width: 2),
-                  foregroundColor: Colors.redAccent,
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          // ── Hàng chính: báo lỗi (trái nhỏ) + nút hành động (phải lớn) ──
+          Row(
+            children: [
+              // Nút báo lỗi (chỉ hiện khi onTheWay, arrived, installing)
+              if (job.status == JobStatus.onTheWay ||
+                  job.status == JobStatus.arrived ||
+                  job.status == JobStatus.installing) ...[
+                SizedBox(
+                  width: 52,
+                  height: 56,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pushNamed(
+                        context, '/report-issue', arguments: job.id),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.redAccent, width: 2),
+                      foregroundColor: Colors.redAccent,
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: const Icon(Icons.error_outline, size: 22),
+                  ),
                 ),
-                child: const Icon(Icons.error_outline, size: 24),
-              ),
-            ),
-            const SizedBox(width: 12),
-          ],
-          Expanded(
-            child: SizedBox(
-              height: 60,
-              child: ElevatedButton(
-                onPressed: () => _handlePrimaryAction(job.status),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: buttonColor,
-                  shadowColor: buttonColor.withAlpha(75),
-                  elevation: 8,
+                const SizedBox(width: 10),
+              ],
+              // Nút hành động chính
+              Expanded(
+                child: SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: () => _handlePrimaryAction(job.status),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: buttonColor,
+                      shadowColor: buttonColor.withAlpha(75),
+                      elevation: 8,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: Text(actionText,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 15)),
+                  ),
                 ),
-                child: Text(actionText),
               ),
-            ),
+            ],
           ),
+          // ── Hàng phụ: Vật tư / Hóa đơn (chỉ khi đang lắp đặt) ──
+          if (job.status == JobStatus.installing) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.pushNamed(
+                    context, '/parts-request', arguments: job.id),
+                icon: const Icon(Icons.build_outlined, size: 17),
+                label: const Text('Vật tư phát sinh / Xem hóa đơn'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xffea580c),
+                  side: const BorderSide(color: Color(0xffea580c)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  textStyle: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
+

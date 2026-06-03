@@ -1,7 +1,32 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared/theme/app_colors.dart';
 import '../../../controllers/job_controller.dart';
+import '../../../core/services/image_upload_service.dart';
+
+/// Formatter tự động thêm dấu chấm ngàn khi người dùng gõ số
+class _ThousandsSeparatorFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll('.', '');
+    if (digits.isEmpty) return newValue.copyWith(text: '');
+    final n = int.tryParse(digits);
+    if (n == null) return oldValue;
+    final formatted = NumberFormat('#,###', 'vi_VN')
+        .format(n)
+        .replaceAll(',', '.');
+    return newValue.copyWith(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
 
 class CompleteInstallationScreen extends StatefulWidget {
   final String jobId;
@@ -16,9 +41,12 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
   late final TextEditingController _collectedAmountController;
   late final TextEditingController _tipController;
   late final TextEditingController _notesController;
+  final _currFmt = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ', decimalDigits: 0);
 
-  final List<String> _uploadedPhotos = [];
+  final List<XFile> _pickedFiles = [];   // ảnh đã chọn, chưa upload
+  final List<String> _uploadedUrls = [];  // URL sau khi upload Storage
   bool _isSubmitting = false;
+  bool _isUploading = false;
 
   @override
   void initState() {
@@ -26,10 +54,17 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
     _notesController = TextEditingController();
     _tipController = TextEditingController(text: '0');
     
-    // Tìm đơn hàng để lấy số tiền COD ban đầu
+    // Tìm đơn hàng để lấy số tiền
     final jobController = context.read<JobController>();
     final job = jobController.jobs.firstWhere((j) => j.id == widget.jobId);
-    _collectedAmountController = TextEditingController(text: job.codAmount.toInt().toString());
+    // Tổng cộng = COD + vật tư phát sinh
+    final tongVatTu = job.vatTuPhatSinh.fold<double>(
+        0, (s, item) => s + ((item['thanhTien'] as num?)?.toDouble() ?? 0));
+    final tongCong = job.codAmount + tongVatTu;
+    final initAmount = NumberFormat('#,###', 'vi_VN')
+        .format(tongCong.toInt())
+        .replaceAll(',', '.');
+    _collectedAmountController = TextEditingController(text: initAmount);
   }
 
   @override
@@ -40,77 +75,76 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
     super.dispose();
   }
 
-  void _requestCameraPermission() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: const Row(
-            children: [
-              Icon(Icons.camera_alt, color: AppColors.primary),
-              SizedBox(width: 10),
-              Text(
-                'Quyền truy cập Camera',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          content: const Text(
-            'AquaCare cần quyền truy cập máy ảnh để chụp ảnh biên bản nghiệm thu và mác máy lắp đặt thực tế.',
-            style: TextStyle(height: 1.4),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('TỪ CHỐI', style: TextStyle(color: Color(0xff94a3b8), fontWeight: FontWeight.bold)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _simulateTakePhoto();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('MỞ CAMERA'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _simulateTakePhoto() {
-    if (_uploadedPhotos.length >= 5) {
+  // Hiển thị bottom sheet chọn nguồn ảnh
+  void _showPickerOptions() {
+    final total = _pickedFiles.length + _uploadedUrls.length;
+    if (total >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Chỉ được tải lên tối đa 5 hình ảnh!')),
+        const SnackBar(content: Text('Tối đa 5 ảnh!')),
       );
       return;
     }
-
-    setState(() {
-      final index = _uploadedPhotos.length + 1;
-      _uploadedPhotos.add(
-        'https://dummyimage.com/600x400/00459a/fff.png&text=Anh+Nghiem+Thu+$index',
-      );
-    });
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(width: 40, height: 4,
+              decoration: BoxDecoration(color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            if (!kIsWeb)
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: AppColors.primary),
+                title: const Text('Chụp ảnh bằng camera',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined,
+                  color: AppColors.primary),
+              title: const Text('Chọn từ thư viện',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
-  void _removePhoto(int index) {
-    setState(() {
-      _uploadedPhotos.removeAt(index);
-    });
+  Future<void> _pickImage(ImageSource source) async {
+    final files = await ImageUploadService.pickImages(
+      source: source,
+      maxImages: 5 - _pickedFiles.length - _uploadedUrls.length,
+    );
+    if (files.isNotEmpty) setState(() => _pickedFiles.addAll(files));
   }
+
+  void _removePickedFile(int index) =>
+      setState(() => _pickedFiles.removeAt(index));
+
+  void _removeUploadedUrl(int index) =>
+      setState(() => _uploadedUrls.removeAt(index));
 
   void _handleSubmit() {
     if (!_formKey.currentState!.validate()) return;
-    if (_uploadedPhotos.isEmpty) {
+    if (_pickedFiles.isEmpty && _uploadedUrls.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Vui lòng chụp ít nhất 1 ảnh nghiệm thu thực tế!'),
+          content: Text('Vui lòng chụp ít nhất 1 ảnh nghiệm thu!'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -135,17 +169,31 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
             ElevatedButton(
               onPressed: () async {
                 Navigator.pop(context);
-                setState(() => _isSubmitting = true);
-                
+                setState(() { _isSubmitting = true; _isUploading = _pickedFiles.isNotEmpty; });
+
+                // Upload ảnh mới lên Firebase Storage
+                List<String> newUrls = [];
+                if (_pickedFiles.isNotEmpty) {
+                  newUrls = await ImageUploadService.uploadImages(
+                    files: _pickedFiles,
+                    jobId: widget.jobId,
+                    folder: 'after',
+                  );
+                }
+                if (mounted) setState(() => _isUploading = false);
+
+                final allPhotos = [..._uploadedUrls, ...newUrls];
                 final controller = context.read<JobController>();
-                final cod = double.tryParse(_collectedAmountController.text) ?? 0.0;
-                final tip = double.tryParse(_tipController.text) ?? 0.0;
-                
+                final cod = double.tryParse(
+                    _collectedAmountController.text.replaceAll('.', '')) ?? 0.0;
+                final tip = double.tryParse(
+                    _tipController.text.replaceAll('.', '')) ?? 0.0;
+
                 final success = await controller.completeJob(
                   jobId: widget.jobId,
                   codCollected: cod,
                   tipAmount: tip,
-                  photos: _uploadedPhotos,
+                  photos: allPhotos,
                   notes: _notesController.text,
                 );
 
@@ -211,28 +259,62 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
             ),
           ),
 
-          // Nút gửi báo cáo (Sticky bottom)
+          // Bottom buttons: xem hóa đơn + hoàn thành
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
             child: Container(
-              color: Colors.white,
-              padding: const EdgeInsets.all(16),
-              child: SizedBox(
-                width: double.infinity,
-                height: 60,
-                child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _handleSubmit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xff10b981),
-                    shadowColor: const Color(0xff10b981).withOpacity(0.3),
-                    elevation: 8,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, -4)),
+                ],
+              ),
+              padding: const EdgeInsets.only(left: 16, right: 16, top: 12, bottom: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Nút xem hóa đơn
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pushNamed(
+                        context, '/invoice', arguments: widget.jobId),
+                      icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                      label: const Text('XEM HÓA ĐƠN KHÁCH HÀNG'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        textStyle: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 13),
+                      ),
+                    ),
                   ),
-                  child: _isSubmitting
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('HOÀN THÀNH LẮP ĐẶT'),
-                ),
+                  const SizedBox(height: 8),
+                  // Nút hoàn thành
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting ? null : _handleSubmit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xff10b981),
+                        shadowColor: const Color(0xff10b981).withValues(alpha: 0.3),
+                        elevation: 8,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: _isSubmitting
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('HOÀN THÀNH LẮP ĐẶT',
+                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -267,7 +349,14 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
           ),
           const SizedBox(height: 16),
           
-          // Image upload grid
+          // Upload progress
+          if (_isUploading)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: LinearProgressIndicator(color: AppColors.primary),
+            ),
+
+          // Grid ảnh: uploaded URLs + local picked files + nút thêm
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -277,27 +366,32 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
               mainAxisSpacing: 12,
               childAspectRatio: 1,
             ),
-            itemCount: _uploadedPhotos.length < 5 ? _uploadedPhotos.length + 1 : 5,
+            itemCount: () {
+              final total = _uploadedUrls.length + _pickedFiles.length;
+              return total < 5 ? total + 1 : 5;
+            }(),
             itemBuilder: (context, index) {
-              if (index == _uploadedPhotos.length && _uploadedPhotos.length < 5) {
+              final totalPhotos = _uploadedUrls.length + _pickedFiles.length;
+
+              // Nút thêm ảnh
+              if (index == totalPhotos && totalPhotos < 5) {
                 return InkWell(
-                  onTap: _requestCameraPermission,
+                  onTap: _showPickerOptions,
+                  borderRadius: BorderRadius.circular(16),
                   child: Container(
                     decoration: BoxDecoration(
                       color: const Color(0xfff8fafc),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xffcbd5e1), width: 1.5, style: BorderStyle.none), // custom dashed borders can be simulated
+                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 1.5),
                     ),
-                    child: Center(
+                    child: const Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.add_a_photo_outlined, color: AppColors.primary.withOpacity(0.8), size: 28),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Chụp ảnh',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.primary),
-                          ),
+                          Icon(Icons.add_a_photo_outlined, color: AppColors.primary, size: 28),
+                          SizedBox(height: 6),
+                          Text('Chụp ảnh',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.primary)),
                         ],
                       ),
                     ),
@@ -305,33 +399,33 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
                 );
               }
 
-              return Stack(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      image: DecorationImage(
-                        image: NetworkImage(_uploadedPhotos[index]),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 4,
-                    top: 4,
-                    child: GestureDetector(
-                      onTap: () => _removePhoto(index),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Colors.redAccent,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.close, color: Colors.white, size: 14),
-                      ),
-                    ),
-                  ),
-                ],
+              // Ảnh đã upload lên Storage (URL)
+              if (index < _uploadedUrls.length) {
+                return _buildPhotoTile(
+                  child: Image.network(_uploadedUrls[index], fit: BoxFit.cover),
+                  onRemove: () => _removeUploadedUrl(index),
+                  uploaded: true,
+                );
+              }
+
+              // Ảnh local chưa upload
+              final fileIndex = index - _uploadedUrls.length;
+              final file = _pickedFiles[fileIndex];
+              return _buildPhotoTile(
+                child: FutureBuilder<Uint8List>(
+                  future: file.readAsBytes(),
+                  builder: (_, snap) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snap.hasData && snap.data != null) {
+                      return Image.memory(snap.data!, fit: BoxFit.cover);
+                    }
+                    return const Center(child: Icon(Icons.broken_image, color: Colors.grey));
+                  },
+                ),
+                onRemove: () => _removePickedFile(fileIndex),
+                uploaded: false,
               );
             },
           ),
@@ -341,6 +435,10 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
   }
 
   Widget _buildPaymentFieldsCard(JobModel job) {
+    final tongVatTu = job.vatTuPhatSinh.fold<double>(
+      0, (s, item) => s + ((item['thanhTien'] as num?)?.toDouble() ?? 0));
+    final tongCong = job.codAmount + tongVatTu;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -356,44 +454,78 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
             style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xff94a3b8), letterSpacing: 1.0),
           ),
           const SizedBox(height: 16),
-          
-          // COD hiển thị số tiền yêu cầu
+
+          // COD gốc
+          _payRow(
+            label: 'Phí dịch vụ (COD):',
+            value: job.codAmount == 0
+                ? 'Đã thanh toán trước'
+                : _currFmt.format(job.codAmount),
+            valueColor: job.codAmount == 0
+                ? const Color(0xff10b981)
+                : const Color(0xffea580c),
+          ),
+
+          // Vật tư phát sinh (nếu có)
+          if (tongVatTu > 0) ...[
+            const SizedBox(height: 8),
+            _payRow(
+              label: 'Vật tư phát sinh (${job.vatTuPhatSinh.length} mục):',
+              value: _currFmt.format(tongVatTu),
+              valueColor: const Color(0xff7c3aed),
+            ),
+          ],
+
+          // Tổng cộng
+          const Divider(height: 20, color: Color(0xffe2e8f0)),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Số tiền COD phải thu:',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xff64748b)),
+                'TỔNG CỘNG PHẢI THU:',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.onSurface,
+                ),
               ),
               Text(
-                job.codAmount == 0 ? 'Đã thanh toán trước' : '${job.codAmount.toInt()}đ',
-                style: TextStyle(
-                  fontSize: 16,
+                _currFmt.format(tongCong),
+                style: const TextStyle(
+                  fontSize: 18,
                   fontWeight: FontWeight.w900,
-                  color: job.codAmount == 0 ? const Color(0xff10b981) : const Color(0xffea580c),
+                  color: Color(0xff0052cc),
                 ),
               ),
             ],
           ),
-          const Divider(height: 32, color: Color(0xfff1f5f9)),
+
+          const Divider(height: 28, color: Color(0xfff1f5f9)),
 
           // Ô nhập số tiền thực thu COD
           const Text(
-            'SỐ TIỀN THỰC THU COD (VND)',
+            'TỔNG TIỀN THỰC THU (VND)',
             style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xff64748b), letterSpacing: 0.5),
           ),
           const SizedBox(height: 6),
           TextFormField(
             controller: _collectedAmountController,
             keyboardType: TextInputType.number,
+            inputFormatters: [_ThousandsSeparatorFormatter()],
+            onTap: () => _collectedAmountController.selection = TextSelection(
+              baseOffset: 0,
+              extentOffset: _collectedAmountController.text.length,
+            ),
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             decoration: const InputDecoration(
-              hintText: 'Nhập số tiền COD thực tế đã thu',
+              hintText: 'Nhập số tiền thực tế đã thu',
               prefixIcon: Icon(Icons.payments_outlined),
+              suffixText: 'đ',
+              suffixStyle: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xff64748b)),
             ),
             validator: (value) {
               if (value == null || value.isEmpty) return 'Vui lòng điền số tiền thực tế';
-              if (double.tryParse(value) == null) return 'Số tiền không hợp lệ';
+              if (double.tryParse(value.replaceAll('.', '')) == null) return 'Số tiền không hợp lệ';
               return null;
             },
           ),
@@ -408,19 +540,41 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
           TextFormField(
             controller: _tipController,
             keyboardType: TextInputType.number,
+            inputFormatters: [_ThousandsSeparatorFormatter()],
+            onTap: () => _tipController.selection = TextSelection(
+              baseOffset: 0,
+              extentOffset: _tipController.text.length,
+            ),
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xff10b981)),
             decoration: const InputDecoration(
               hintText: 'Nhập số tiền tip nhận thêm từ khách hàng',
               prefixIcon: Icon(Icons.favorite_outline, color: Color(0xff10b981)),
+              suffixText: 'đ',
+              suffixStyle: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xff10b981)),
             ),
             validator: (value) {
               if (value == null || value.isEmpty) return 'Điền 0 nếu không có';
-              if (double.tryParse(value) == null) return 'Số tiền không hợp lệ';
+              if (double.tryParse(value.replaceAll('.', '')) == null) return 'Số tiền không hợp lệ';
               return null;
             },
           ),
         ],
       ),
+    );
+  }
+
+  Widget _payRow({required String label, required String value, required Color valueColor}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Flexible(
+          child: Text(label,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xff64748b))),
+        ),
+        const SizedBox(width: 8),
+        Text(value,
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: valueColor)),
+      ],
     );
   }
 
@@ -451,5 +605,61 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
         ],
       ),
     );
+  }
+
+  Widget _buildPhotoTile({
+    required Widget child,
+    required VoidCallback onRemove,
+    required bool uploaded,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          child,
+          if (!uploaded)
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                color: Colors.orange.withValues(alpha: 0.85),
+                child: const Text('Chưa lưu',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontSize: 9,
+                    fontWeight: FontWeight.w800)),
+              ),
+            ),
+          Positioned(
+            right: 4, top: 4,
+            child: GestureDetector(
+              onTap: onRemove,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: Colors.redAccent, shape: BoxShape.circle),
+                child: const Icon(Icons.close, color: Colors.white, size: 14),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Base64 encode đơn giản cho web preview local image
+  String _b64(List<int> bytes) {
+    const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    final o = StringBuffer();
+    for (int i = 0; i < bytes.length; i += 3) {
+      final b0 = bytes[i];
+      final b1 = i + 1 < bytes.length ? bytes[i + 1] : 0;
+      final b2 = i + 2 < bytes.length ? bytes[i + 2] : 0;
+      o.write(c[(b0 >> 2) & 63]);
+      o.write(c[((b0 << 4) | (b1 >> 4)) & 63]);
+      o.write(i + 1 < bytes.length ? c[((b1 << 2) | (b2 >> 6)) & 63] : '=');
+      o.write(i + 2 < bytes.length ? c[b2 & 63] : '=');
+    }
+    return o.toString();
   }
 }
