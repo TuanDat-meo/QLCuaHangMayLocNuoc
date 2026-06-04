@@ -22,6 +22,7 @@ export interface Product {
   moTa?: string;
   imageUrl?: string;
   sku?: string;
+  thoiGianBaoHanh: number; // Thời gian bảo hành tính theo tháng
   createdAt?: any;
   updatedAt?: any;
 }
@@ -42,6 +43,7 @@ export const addProduct = async (product: Omit<Product, 'id'>) => {
   const db = getDb();
   return await addDoc(collection(db, COLLECTION_NAME), {
     ...product,
+    thoiGianBaoHanh: Number(product.thoiGianBaoHanh) || 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   });
@@ -50,10 +52,11 @@ export const addProduct = async (product: Omit<Product, 'id'>) => {
 export const updateProduct = async (id: string, product: Partial<Product>) => {
   const db = getDb();
   const productRef = doc(db, COLLECTION_NAME, id);
-  return await updateDoc(productRef, {
-    ...product,
-    updatedAt: serverTimestamp()
-  });
+  const updateData = { ...product, updatedAt: serverTimestamp() };
+  if (product.thoiGianBaoHanh !== undefined) {
+    updateData.thoiGianBaoHanh = Number(product.thoiGianBaoHanh);
+  }
+  return await updateDoc(productRef, updateData);
 };
 
 export const deleteProduct = async (id: string) => {

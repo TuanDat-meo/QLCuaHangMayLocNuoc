@@ -39,15 +39,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header - Toggle removed as requested */}
+        {/* Header */}
         <Header 
           user={user}
           onLogout={handleLogout}
         />
 
-        {/* Main Content */}
+        {/* Main Content - Removed container class to allow full width */}
         <main className="flex-1 overflow-auto">
-          <div className="container mx-auto p-6 md:p-8">
+          <div className="p-4 md:p-6 lg:p-8 w-full max-w-full">
             {children}
           </div>
         </main>

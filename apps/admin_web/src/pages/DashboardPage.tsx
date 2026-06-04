@@ -3,7 +3,7 @@
  * Aligned with Material Design 3 and responsive principles
  */
 
-import React from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   ShoppingCart,
   DollarSign,
@@ -13,29 +13,134 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   MoreVertical,
-  Filter,
   Download,
   Calendar,
+  Users,
+  Activity,
 } from 'lucide-react';
+import {
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+} from 'recharts';
+import {
+  subscribeDashboardStats,
+  subscribeRevenueTrend,
+  subscribePendingOrders,
+  subscribeTopProducts,
+  subscribeMaintenanceTasks,
+  updateOrderStatus,
+  exportDashboardToCSV,
+  DashboardStats,
+  RevenueRange
+} from '../services/dashboardService';
+import toast from 'react-hot-toast';
 
 const DashboardPage: React.FC = () => {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [revenueTrend, setRevenueTrend] = useState<any[]>([]);
+  const [revenueRange, setRevenueRange] = useState<RevenueRange>('week');
+  const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [pendingOrders, setPendingOrders] = useState<any[]>([]);
+  const [maintenanceTasks, setMaintenanceTasks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubStats = subscribeDashboardStats((data) => {
+      setStats(data);
+      setLoading(false);
+    });
+    const unsubPending = subscribePendingOrders(setPendingOrders);
+    const unsubTop = subscribeTopProducts(setTopProducts);
+    const unsubMaintenance = subscribeMaintenanceTasks(setMaintenanceTasks);
+
+    return () => {
+      unsubStats();
+      unsubPending();
+      unsubTop();
+      unsubMaintenance();
+    };
+  }, []);
+
+  useEffect(() => {
+    const unsubTrend = subscribeRevenueTrend(revenueRange, (data) => {
+      setRevenueTrend(data);
+    });
+    return () => unsubTrend();
+  }, [revenueRange]);
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+  };
+
+  const formatCompactNumber = (number: number) => {
+    if (number >= 1000000) {
+      return (number / 1000000).toFixed(1) + 'M';
+    }
+    if (number >= 1000) {
+      return (number / 1000).toFixed(0) + 'K';
+    }
+    return number.toString();
+  };
+
+  const handleConfirmOrder = async (id: string) => {
+    try {
+      await updateOrderStatus(id, 'confirmed');
+      toast.success('Đã xác nhận đơn hàng');
+    } catch (error) {
+      toast.error('Lỗi khi xác nhận đơn hàng');
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      await exportDashboardToCSV();
+      toast.success('Đã xuất báo cáo CSV');
+    } catch (error) {
+      toast.error('Lỗi khi xuất báo cáo');
+    }
+  };
+
+  const maxSales = useMemo(() => {
+    return topProducts.length > 0 ? Math.max(...topProducts.map(p => p.sales)) : 1;
+  }, [topProducts]);
+
+  if (loading && !stats) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-on-surface-variant font-bold animate-pulse">ĐANG TẢI DỮ LIỆU...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-lg pb-xl">
+    <div className="space-y-lg pb-xl animate-in fade-in duration-700">
       {/* Welcome Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-md">
         <div>
-          <h1 className="h1 text-on-surface">Tổng quan hệ thống</h1>
+          <h1 className="h1 text-on-surface font-black tracking-tight">Tổng quan hệ thống</h1>
           <p className="body-md text-on-surface-variant mt-xs">
-            Chào mừng trở lại! Đây là những gì đang diễn ra với Aquacare hôm nay.
+            Dữ liệu thời gian thực từ hệ thống quản trị AquaCare.
           </p>
         </div>
         <div className="flex items-center gap-sm">
-          <button className="flex items-center gap-xs px-md py-sm bg-surface-container-high text-on-surface font-semibold rounded-xl hover:bg-surface-container-highest transition-all">
-            <Calendar className="w-4 h-4" />
-            <span>01/01/2026 - Hôm nay</span>
-          </button>
-          <button className="p-sm bg-primary text-on-primary rounded-xl hover:shadow-ambient-md transition-all">
-            <Download className="w-5 h-5" />
+          <div className="hidden sm:flex items-center gap-xs px-md py-sm bg-surface-container-high text-on-surface font-bold rounded-2xl border border-outline-variant/30">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            <span>Trực tuyến</span>
+          </div>
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 px-md py-sm bg-primary text-on-primary rounded-2xl font-bold shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all"
+          >
+            <Download className="w-4 h-4" />
+            <span>Báo cáo</span>
           </button>
         </div>
       </div>
@@ -48,19 +153,14 @@ const DashboardPage: React.FC = () => {
             <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-all duration-300">
               <ShoppingCart className="w-6 h-6" />
             </div>
-            <div className="flex items-center gap-xs text-emerald-600 bg-emerald-50 px-xs py-1 rounded-full">
-              <ArrowUpRight className="w-3 h-3" />
-              <span className="text-[10px] font-bold">+12.5%</span>
+            <div className={`flex items-center gap-xs px-xs py-1 rounded-full ${stats && stats.orderGrowth >= 0 ? 'text-emerald-600 bg-emerald-50' : 'text-error bg-error/5'}`}>
+              {stats && stats.orderGrowth >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+              <span className="text-[10px] font-black">{stats ? Math.abs(stats.orderGrowth).toFixed(1) : 0}%</span>
             </div>
           </div>
           <div className="mt-md">
-            <h3 className="text-3xl font-bold text-on-surface tracking-tight">128</h3>
-            <p className="label-sm text-on-surface-variant font-semibold mt-xs">ĐƠN HÀNG MỚI</p>
-          </div>
-          <div className="mt-md pt-md border-t border-outline-variant/20">
-            <div className="w-full bg-surface-container rounded-full h-1.5 overflow-hidden">
-              <div className="bg-primary h-full rounded-full" style={{ width: '65%' }}></div>
-            </div>
+            <h3 className="text-4xl font-black text-on-surface tracking-tighter">{stats?.newOrders || 0}</h3>
+            <p className="label-sm text-on-surface-variant font-bold uppercase tracking-widest mt-xs">Đơn hàng mới</p>
           </div>
         </div>
 
@@ -70,152 +170,167 @@ const DashboardPage: React.FC = () => {
             <div className="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary group-hover:bg-secondary group-hover:text-on-secondary transition-all duration-300">
               <DollarSign className="w-6 h-6" />
             </div>
-            <div className="flex items-center gap-xs text-emerald-600 bg-emerald-50 px-xs py-1 rounded-full">
-              <ArrowUpRight className="w-3 h-3" />
-              <span className="text-[10px] font-bold">+8.2%</span>
+            <div className={`flex items-center gap-xs px-xs py-1 rounded-full ${stats && stats.revenueGrowth >= 0 ? 'text-emerald-600 bg-emerald-50' : 'text-error bg-error/5'}`}>
+              {stats && stats.revenueGrowth >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+              <span className="text-[10px] font-black">{stats ? Math.abs(stats.revenueGrowth).toFixed(1) : 0}%</span>
             </div>
           </div>
           <div className="mt-md">
-            <h3 className="text-3xl font-bold text-on-surface tracking-tight">45.8M</h3>
-            <p className="label-sm text-on-surface-variant font-semibold mt-xs">DOANH THU (VND)</p>
-          </div>
-          <div className="mt-md pt-md border-t border-outline-variant/20">
-             <div className="w-full bg-surface-container rounded-full h-1.5 overflow-hidden">
-              <div className="bg-secondary h-full rounded-full" style={{ width: '42%' }}></div>
-            </div>
+            <h3 className="text-2xl font-black text-on-surface tracking-tight truncate">
+              {stats ? formatCurrency(stats.totalRevenue) : '0 ₫'}
+            </h3>
+            <p className="label-sm text-on-surface-variant font-bold uppercase tracking-widest mt-xs">Doanh thu tổng</p>
           </div>
         </div>
 
-        {/* STAT: ACTIVE TECHS */}
+        {/* STAT: CUSTOMERS */}
         <div className="card group hover:border-tertiary/30 transition-all duration-300">
           <div className="flex justify-between items-start">
             <div className="w-12 h-12 rounded-2xl bg-tertiary/10 flex items-center justify-center text-tertiary group-hover:bg-tertiary group-hover:text-on-tertiary transition-all duration-300">
-              <Zap className="w-6 h-6" />
+              <Users className="w-6 h-6" />
             </div>
-            <div className="text-[10px] font-bold text-on-surface-variant bg-surface-container px-xs py-1 rounded-full">
-              ONLINE
-            </div>
+            <div className="text-[10px] font-black text-on-surface-variant bg-surface-container px-2 py-1 rounded-full uppercase">Cá nhân</div>
           </div>
           <div className="mt-md">
-            <h3 className="text-3xl font-bold text-on-surface tracking-tight">8/10</h3>
-            <p className="label-sm text-on-surface-variant font-semibold mt-xs">KỸ THUẬT VIÊN</p>
-          </div>
-          <div className="mt-md pt-md border-t border-outline-variant/20">
-            <div className="flex -space-x-2">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="w-6 h-6 rounded-full border-2 border-surface-container-lowest bg-primary-fixed flex items-center justify-center text-[8px] font-bold">
-                  KT
-                </div>
-              ))}
-              <div className="w-6 h-6 rounded-full border-2 border-surface-container-lowest bg-surface-container flex items-center justify-center text-[8px] font-bold">
-                +4
-              </div>
-            </div>
+            <h3 className="text-4xl font-black text-on-surface tracking-tighter">{stats?.totalCustomers || 0}</h3>
+            <p className="label-sm text-on-surface-variant font-bold uppercase tracking-widest mt-xs">Khách hàng</p>
           </div>
         </div>
 
         {/* STAT: MAINTENANCE */}
-        <div className="card group hover:border-error/30 transition-all duration-300">
+        <div className="card group border-l-4 border-l-error">
           <div className="flex justify-between items-start">
-            <div className="w-12 h-12 rounded-2xl bg-error/10 flex items-center justify-center text-error group-hover:bg-error group-hover:text-on-error transition-all duration-300">
+            <div className="w-12 h-12 rounded-2xl bg-error/10 flex items-center justify-center text-error">
               <Clock className="w-6 h-6" />
             </div>
-            <div className="flex items-center gap-xs text-error bg-error/5 px-xs py-1 rounded-full">
-              <ArrowDownRight className="w-3 h-3" />
-              <span className="text-[10px] font-bold">-2%</span>
+            <div className="flex items-center gap-1 text-error animate-pulse">
+               <Activity className="w-3 h-3" />
+               <span className="text-[10px] font-black uppercase">Live</span>
             </div>
           </div>
           <div className="mt-md">
-            <h3 className="text-3xl font-bold text-on-surface tracking-tight">15</h3>
-            <p className="label-sm text-on-surface-variant font-semibold mt-xs">LỊCH BẢO TRÌ SẮP TỚI</p>
-          </div>
-          <div className="mt-md pt-md border-t border-outline-variant/20">
-             <p className="text-[10px] text-error font-bold flex items-center gap-1">
-               <AlertTriangle className="w-3 h-3" /> 3 lịch bị quá hạn
-             </p>
+            <h3 className="text-4xl font-black text-on-surface tracking-tighter">{stats?.maintenanceCount || 0}</h3>
+            <p className="label-sm text-on-surface-variant font-bold uppercase tracking-widest mt-xs">Phiếu bảo trì</p>
           </div>
         </div>
-      </div>
-
-      {/* Warning Banner */}
-      <div className="bg-error-container text-on-error-container p-md rounded-2xl flex items-center justify-between border border-error/20 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
-        <div className="flex items-center gap-md">
-          <div className="w-10 h-10 bg-on-error-container/10 rounded-full flex items-center justify-center">
-            <AlertTriangle className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="font-bold text-body-md">Cảnh báo hệ thống</p>
-            <p className="text-sm opacity-80">Có 3 sản phẩm trong kho sắp hết hàng. Vui lòng nhập thêm hàng sớm.</p>
-          </div>
-        </div>
-        <button className="px-md py-xs bg-on-error-container text-error-container rounded-xl text-xs font-bold hover:opacity-90 transition-all">
-          Xử lý ngay
-        </button>
       </div>
 
       {/* Main Charts & Lists Section */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-md">
-
-        {/* Revenue Trend - Takes 2 columns on XL */}
+        {/* Revenue Trend - AreaChart with Filter */}
         <div className="xl:col-span-2 card">
-          <div className="flex items-center justify-between mb-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-lg gap-md">
             <div>
-              <h2 className="h3 text-on-surface">Xu hướng doanh thu</h2>
-              <p className="text-xs text-on-surface-variant">Thống kê chi tiết theo tuần</p>
+              <h2 className="h3 text-on-surface font-black">Xu hướng doanh thu</h2>
+              <p className="text-xs text-on-surface-variant font-medium">Theo dõi tăng trưởng theo thời gian</p>
             </div>
-            <div className="flex bg-surface-container rounded-xl p-1">
-              <button className="px-md py-xs bg-surface-container-lowest text-primary shadow-sm rounded-lg text-xs font-bold">Tuần</button>
-              <button className="px-md py-xs text-on-surface-variant text-xs font-bold">Tháng</button>
+            <div className="flex bg-surface-container rounded-xl p-1 border border-outline-variant/30 self-start">
+              {[
+                { id: 'week', label: 'Tuần' },
+                { id: 'month', label: 'Tháng' },
+                { id: 'year', label: 'Năm' }
+              ].map((range) => (
+                <button
+                  key={range.id}
+                  onClick={() => setRevenueRange(range.id as RevenueRange)}
+                  className={`px-md py-xs rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${revenueRange === range.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-surface-container-highest'}`}
+                >
+                  {range.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="h-64 bg-surface-container-low rounded-2xl border border-dashed border-outline-variant/50 flex flex-col items-center justify-center gap-md">
-             <div className="flex items-end gap-sm h-32">
-                {[40, 70, 45, 90, 65, 80, 55].map((h, i) => (
-                  <div key={i} className="w-8 bg-primary/20 rounded-t-lg relative group">
-                    <div
-                      className="absolute bottom-0 left-0 right-0 bg-primary rounded-t-lg transition-all duration-1000 group-hover:bg-primary-container"
-                      style={{ height: `${h}%` }}
-                    />
-                  </div>
-                ))}
-             </div>
-             <p className="text-xs text-on-surface-variant font-medium">[ Biểu đồ tương tác sẽ hiển thị tại đây ]</p>
+          <div className="h-80 w-full mt-4">
+            {revenueTrend.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={revenueTrend} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#00459a" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#00459a" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }}
+                    dy={10}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
+                    tickFormatter={formatCompactNumber}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="bg-on-surface text-surface p-3 rounded-2xl shadow-2xl border border-white/10 backdrop-blur-md">
+                            <p className="text-[10px] font-black opacity-70 uppercase tracking-tighter mb-1">
+                              {payload[0].payload.label}
+                            </p>
+                            <p className="text-sm font-black text-primary-container">
+                              {formatCurrency(payload[0].value as number)}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="amount"
+                    stroke="#00459a"
+                    strokeWidth={4}
+                    fillOpacity={1}
+                    fill="url(#colorRev)"
+                    animationDuration={1500}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center bg-surface-container-low rounded-2xl border border-dashed border-outline-variant/50">
+                <p className="text-xs text-on-surface-variant font-medium">Đang tải dữ liệu biểu đồ...</p>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Top Products - Takes 1 column */}
         <div className="card">
           <div className="flex items-center justify-between mb-lg">
-            <h2 className="h3 text-on-surface">Top sản phẩm</h2>
+            <h2 className="h3 text-on-surface font-black">Top sản phẩm</h2>
             <button className="p-1 hover:bg-surface-container rounded-lg"><MoreVertical className="w-4 h-4 text-on-surface-variant" /></button>
           </div>
 
           <div className="space-y-lg">
-            {[
-              { name: 'AquaPro RO-7 Plus', price: '4.5M', sales: 42, color: 'bg-primary' },
-              { name: 'EcoFilter UV Max', price: '3.2M', sales: 28, color: 'bg-secondary' },
-              { name: 'Basic Inline 3-Step', price: '0.8M', sales: 16, color: 'bg-tertiary' },
-            ].map((p, i) => (
-              <div key={i} className="flex items-center gap-md">
-                <div className={`w-12 h-12 ${p.color}/10 rounded-xl flex items-center justify-center font-bold text-xs ${p.color.replace('bg-', 'text-')}`}>
+            {topProducts.length > 0 ? topProducts.map((p, i) => (
+              <div key={p.id} className="flex items-center gap-md">
+                <div className={`w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center font-bold text-xs text-primary`}>
                   #{i+1}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-on-surface truncate">{p.name}</p>
-                  <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest">{p.price} • {p.sales} Đơn</p>
+                  <p className="text-sm font-bold text-on-surface truncate uppercase tracking-tight">{p.name}</p>
+                  <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest">{formatCurrency(p.price)} • {p.sales} Đơn</p>
                 </div>
                 <div className="text-right">
-                   <p className="text-sm font-bold text-on-surface">{p.sales}%</p>
+                   <p className="text-sm font-black text-on-surface">{p.sales}</p>
                    <div className="w-16 bg-surface-container rounded-full h-1 mt-1 overflow-hidden">
-                      <div className={`${p.color} h-full`} style={{ width: `${p.sales}%` }} />
+                      <div className={`bg-primary h-full transition-all duration-1000`} style={{ width: `${(p.sales / maxSales) * 100}%` }} />
                    </div>
                 </div>
               </div>
-            ))}
+            )) : (
+              <p className="text-xs text-on-surface-variant text-center py-xl">Chưa có dữ liệu sản phẩm</p>
+            )}
           </div>
 
-          <button className="w-full mt-xl py-sm border border-outline-variant/30 rounded-xl text-xs font-bold text-primary hover:bg-primary/5 transition-colors">
+          <button className="w-full mt-xl py-4 border-2 border-outline-variant/30 rounded-2xl text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-on-primary hover:border-primary transition-all">
             Xem tất cả báo cáo
           </button>
         </div>
@@ -226,67 +341,74 @@ const DashboardPage: React.FC = () => {
         {/* Orders to process */}
         <div className="card overflow-hidden">
           <div className="flex items-center justify-between mb-lg">
-            <h2 className="h3 text-on-surface">Đơn hàng cần xử lý</h2>
-            <span className="px-xs py-1 bg-primary/10 text-primary rounded-lg text-[10px] font-bold">5 ĐANG CHỜ</span>
+            <h2 className="h3 text-on-surface font-black">Đơn hàng cần xử lý</h2>
+            <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-[10px] font-black uppercase tracking-widest">{pendingOrders.length} ĐANG CHỜ</span>
           </div>
 
           <div className="divide-y divide-outline-variant/20">
-            {[1, 2].map((id) => (
-              <div key={id} className="py-md first:pt-0 last:pb-0 group">
+            {pendingOrders.length > 0 ? pendingOrders.map((order) => (
+              <div key={order.id} className="py-md first:pt-0 last:pb-0 group">
                 <div className="flex items-start justify-between gap-md">
                   <div className="flex-1">
                     <div className="flex items-center gap-xs mb-1">
-                      <span className="text-xs font-bold text-on-surface">ORD-2023-890{id}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 bg-surface-container-highest rounded text-on-surface-variant font-medium">MÁY LỌC NƯỚC</span>
+                      <span className="text-xs font-black text-on-surface uppercase tracking-tighter">ORD-{order.id.slice(-6).toUpperCase()}</span>
+                      <span className="text-[9px] px-2 py-0.5 bg-surface-container-highest rounded-lg text-on-surface-variant font-black uppercase tracking-widest">{order.productName || 'SẢN PHẨM'}</span>
                     </div>
-                    <p className="text-sm font-medium text-on-surface-variant mb-xs">Khách hàng: Nguyễn Văn {id === 1 ? 'A' : 'B'}</p>
-                    <p className="text-[10px] text-on-surface-variant flex items-center gap-1">
-                      📍 Quận {id === 1 ? '1' : '7'}, TP. Hồ Chí Minh
+                    <p className="text-sm font-bold text-on-surface-variant mb-xs">{order.customerName}</p>
+                    <p className="text-[10px] text-on-surface-variant flex items-center gap-1 opacity-70">
+                      📍 {order.address || 'Địa chỉ không xác định'}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-sm">
-                     <span className="text-sm font-bold text-primary">4.500.000đ</span>
-                     <button className="px-md py-1.5 bg-primary text-on-primary rounded-xl text-[10px] font-bold shadow-sm hover:shadow-ambient-md active:scale-95 transition-all">
-                       Xác nhận ngay
+                     <span className="text-sm font-black text-primary">{formatCurrency(order.total)}</span>
+                     <button
+                        onClick={() => handleConfirmOrder(order.id)}
+                        className="px-md py-1.5 bg-primary text-on-primary rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:brightness-110 active:scale-95 transition-all"
+                     >
+                       Xác nhận
                      </button>
                   </div>
                 </div>
               </div>
-            ))}
+            )) : (
+              <p className="text-xs text-on-surface-variant text-center py-xl">Không có đơn hàng chờ xử lý</p>
+            )}
           </div>
         </div>
 
         {/* Maintenance */}
         <div className="card">
           <div className="flex items-center justify-between mb-lg">
-            <h2 className="h3 text-on-surface">Bảo trì trong ngày</h2>
+            <h2 className="h3 text-on-surface font-black">Bảo trì cần xử lý</h2>
             <div className="flex items-center gap-xs">
               <div className="w-2 h-2 bg-error rounded-full animate-pulse" />
-              <span className="text-[10px] font-bold text-error">3 KHẨN CẤP</span>
+              <span className="text-[10px] font-black text-error uppercase tracking-widest">{maintenanceTasks.length} NHIỆM VỤ</span>
             </div>
           </div>
 
           <div className="space-y-md">
-            {[1, 2].map((id) => (
-              <div key={id} className={`p-md rounded-2xl border transition-all ${id === 1 ? 'bg-error/5 border-error/20 ring-1 ring-error/10' : 'bg-surface-container-low border-transparent hover:border-outline-variant/30'}`}>
+            {maintenanceTasks.length > 0 ? maintenanceTasks.map((task) => (
+              <div key={task.id} className={`p-md rounded-[2rem] border-2 transition-all bg-surface-container-low border-transparent hover:border-primary/10 hover:bg-white`}>
                 <div className="flex gap-md">
-                  <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0 ${id === 1 ? 'bg-error text-on-error' : 'bg-surface-container-highest text-on-surface'}`}>
-                    <span className="text-xs font-bold">JAN</span>
-                    <span className="text-lg font-bold leading-none">14</span>
+                  <div className={`w-12 h-12 rounded-2xl flex flex-col items-center justify-center flex-shrink-0 bg-surface-container-highest text-on-surface border border-outline-variant/30 shadow-inner`}>
+                    <span className="text-[9px] font-black opacity-50 uppercase tracking-tighter leading-none">ID</span>
+                    <span className="text-lg font-black leading-none">{task.id.slice(-2)}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-bold text-on-surface truncate">Thay lõi lọc định kỳ - DEV-4558</h4>
-                    <p className="text-xs text-on-surface-variant mt-1">Lê Văn C • TP. Thủ Đức</p>
+                    <h4 className="text-sm font-black text-on-surface truncate uppercase tracking-tight">{task.type}</h4>
+                    <p className="text-xs text-on-surface-variant font-medium mt-1">{task.client} • {task.time}</p>
                     <div className="flex items-center gap-md mt-lg">
-                       <span className={`text-[10px] font-bold px-md py-1 rounded-lg ${id === 1 ? 'bg-error/20 text-error' : 'bg-secondary/20 text-secondary'}`}>
-                         {id === 1 ? 'ƯU TIÊN CAO' : 'BÌNH THƯỜNG'}
+                       <span className={`text-[9px] font-black px-3 py-1 rounded-full bg-secondary/10 text-secondary uppercase tracking-widest`}>
+                         Bình thường
                        </span>
-                       <button className="text-[10px] font-bold text-primary hover:underline">Phân công KV</button>
+                       <button className="text-[10px] font-black text-primary hover:underline uppercase tracking-widest">Phân công</button>
                     </div>
                   </div>
                 </div>
               </div>
-            ))}
+            )) : (
+              <p className="text-xs text-on-surface-variant text-center py-xl">Không có lịch bảo trì cần xử lý</p>
+            )}
           </div>
         </div>
       </div>

@@ -20,7 +20,6 @@ const LoginPage: React.FC = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
 
-    // Xóa lỗi khi người dùng sửa thông tin
     if (errors[name]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
@@ -51,9 +50,7 @@ const LoginPage: React.FC = () => {
       toast.success('Đăng nhập thành công!');
       navigate('/dashboard');
     } catch (error: any) {
-      // Chỉ lấy phần tin nhắn đã được dịch sang tiếng Việt từ authService
       const msg = error.message || 'Đăng nhập không thành công';
-      // Nếu có lỗi "Firebase" bị lọt ra, ta sẽ ẩn đi
       if (msg.includes('Firebase') || msg.includes('auth/')) {
         setGeneralError('Email hoặc mật khẩu không chính xác.');
       } else {
@@ -76,7 +73,6 @@ const LoginPage: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Email Field */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-black text-slate-500 uppercase ml-1">Tài khoản Email</label>
             <div className={`relative flex items-center bg-slate-50 border-2 rounded-2xl transition-all ${
@@ -85,21 +81,17 @@ const LoginPage: React.FC = () => {
               <Mail className={`absolute left-4 ${errors.email ? 'text-red-400' : 'text-slate-300'}`} size={18} />
               <input
                 name="email"
-                type="text"
+                type="email"
+                autoComplete="username"
                 value={formData.email}
                 onChange={handleChange}
                 className="w-full pl-11 pr-4 py-4 bg-transparent outline-none font-semibold text-slate-700 placeholder:text-slate-300 text-sm"
                 placeholder="admin@aquacare.com"
               />
             </div>
-            {errors.email && (
-              <p className="text-[10px] text-red-500 font-bold ml-2 mt-1 italic animate-pulse">
-                * {errors.email}
-              </p>
-            )}
+            {errors.email && <p className="text-[10px] text-red-500 font-bold ml-2 mt-1 italic italic animate-pulse">* {errors.email}</p>}
           </div>
 
-          {/* Password Field */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-black text-slate-500 uppercase ml-1">Mật khẩu</label>
             <div className={`relative flex items-center bg-slate-50 border-2 rounded-2xl transition-all ${
@@ -109,6 +101,7 @@ const LoginPage: React.FC = () => {
               <input
                 name="password"
                 type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
                 value={formData.password}
                 onChange={handleChange}
                 className="w-full pl-11 pr-12 py-4 bg-transparent outline-none font-semibold text-slate-700 placeholder:text-slate-300 text-sm"
@@ -122,56 +115,28 @@ const LoginPage: React.FC = () => {
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
-
             <div className="flex justify-end px-1">
-              <button
-                type="button"
-                onClick={() => navigate('/forgot-password')}
-                className="text-[10px] font-black text-[#00459a] hover:underline uppercase tracking-tighter"
-              >
-                Quên mật khẩu?
-              </button>
+              <button type="button" onClick={() => navigate('/forgot-password')} className="text-[10px] font-black text-[#00459a] hover:underline uppercase tracking-tighter">Quên mật khẩu?</button>
             </div>
-
-            {errors.password && (
-              <p className="text-[10px] text-red-500 font-bold ml-2 mt-1 italic animate-pulse">
-                * {errors.password}
-              </p>
-            )}
+            {errors.password && <p className="text-[10px] text-red-500 font-bold ml-2 mt-1 italic italic animate-pulse">* {errors.password}</p>}
           </div>
 
-          {/* Hiển thị lỗi chung (Sai tài khoản, chưa duyệt, v.v.) */}
           {generalError && (
             <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3 animate-in fade-in zoom-in duration-300">
               <AlertCircle className="text-red-500 flex-shrink-0" size={20} />
-              <p className="text-xs font-bold text-red-600 leading-tight">
-                {generalError}
-              </p>
+              <p className="text-xs font-bold text-red-600 leading-tight">{generalError}</p>
             </div>
           )}
 
-          {/* Action Buttons */}
           <div className="flex flex-col gap-3 pt-2">
             <button
               type="submit"
               disabled={isLoading}
               className="w-full bg-[#00459a] hover:bg-[#00367a] text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
             >
-              {isLoading ? (
-                <>
-                  <Loader className="animate-spin" size={18} />
-                  <span>Đang xử lý...</span>
-                </>
-              ) : (
-                'Đăng nhập ngay'
-              )}
+              {isLoading ? <><Loader className="animate-spin" size={18} /><span>Đang xử lý...</span></> : 'Đăng nhập ngay'}
             </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/signup')}
-              className="w-full py-4 bg-blue-50 text-[#00459a] rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all flex items-center justify-center gap-2 active:scale-95"
-            >
+            <button type="button" onClick={() => navigate('/signup')} className="w-full py-4 bg-blue-50 text-[#00459a] rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all flex items-center justify-center gap-2 active:scale-95">
               <UserPlus size={18} /> Tạo tài khoản mới
             </button>
           </div>

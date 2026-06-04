@@ -22,7 +22,11 @@ class ProductController extends ChangeNotifier {
 
     try {
       final data = await FirestoreService.getProducts();
-      _products = data.map((map) => Product.fromMap(map)).toList();
+      // Chỉ lấy các sản phẩm không ở trạng thái Inactive
+      _products = data
+          .map((map) => Product.fromMap(map))
+          .where((p) => p.status.toLowerCase() != 'inactive')
+          .toList();
       _filteredProducts = [];
     } catch (e) {
       _error = e.toString();
