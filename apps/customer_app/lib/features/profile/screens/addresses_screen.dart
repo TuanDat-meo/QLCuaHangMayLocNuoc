@@ -51,9 +51,6 @@ class AddressesScreen extends StatelessWidget {
                   ),
                   title: Text(addr.street, style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text(addr.fullAddress, style: const TextStyle(fontSize: 12)),
-                  trailing: addr.isDefault 
-                    ? const Icon(Icons.check_circle, color: Color(0xff10b981))
-                    : null,
                 ),
               );
             },
