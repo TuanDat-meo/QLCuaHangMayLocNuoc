@@ -19,7 +19,7 @@ class _OrdersScreenState extends State<OrdersScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
-    Future.microtask(() => context.read<OrderController>().loadOrders());
+    Future.microtask(() => context.read<OrderController>().fetchMyOrders());
   }
 
   @override
@@ -124,7 +124,7 @@ class _OrderCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  order.statusDisplayText.toUpperCase(),
+                  _getStatusText(order.status).toUpperCase(),
                   style: TextStyle(
                       color: _getStatusColor(order.status),
                       fontSize: 9,
@@ -205,6 +205,15 @@ class _OrderCard extends StatelessWidget {
       case 'in_progress': return Colors.blue;
       case 'completed': return Colors.green;
       default: return Colors.grey;
+    }
+  }
+
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'pending': return 'Chờ duyệt';
+      case 'in_progress': return 'Đang xử lý';
+      case 'completed': return 'Hoàn tất';
+      default: return 'Không xác định';
     }
   }
 }

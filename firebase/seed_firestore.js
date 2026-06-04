@@ -11,11 +11,16 @@ const path = require('path');
 console.log('🔥 Firestore Emulator Host:', process.env.FIRESTORE_EMULATOR_HOST);
 
 // For emulator: minimal initialization (no credentials needed)
+// Import file key vừa tải về
+const serviceAccount = require('./serviceAccountKey.json'); 
+
+// Khởi tạo kết nối với Firebase thật bằng credential
 if (!admin.apps.length) {
   admin.initializeApp({
-    projectId: 'demo-aquacare-local',
+    credential: admin.credential.cert(serviceAccount)
   });
 }
+
 
 const db = admin.firestore();
 const firestore = admin.firestore.FieldValue;
@@ -182,6 +187,15 @@ async function seedUsers() {
       trangThai: 'active',
       fcmToken: 'fcm_token_customer_001',
     },
+    {
+      uid: 'customer-002',
+      hoTen: 'Huynèee',
+      email: 'huyy5725@gmail.com',
+      soDienThoai: '0947271643',
+      vaiTro: 'customer',
+      trangThai: 'active',
+      fcmToken: 'fcm_token_customer_002',
+    },
   ];
 
   for (const user of users) {
@@ -298,6 +312,12 @@ async function seedAuthUsers() {
       uid: 'customer-001',
       email: 'customer1@aquacare.local',
       displayName: 'Phạm Thị Khách Hàng',
+      password: defaultPassword,
+    },
+    {
+      uid: 'customer-002',
+      email: 'huynheee@aquacare.local',
+      displayName: 'Huynèee',
       password: defaultPassword,
     },
   ];

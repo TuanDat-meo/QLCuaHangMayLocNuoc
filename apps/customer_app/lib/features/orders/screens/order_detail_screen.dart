@@ -116,9 +116,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(order.customerName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text(order.deliveryAddress.recipientName, style: const TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 2),
-                        Text(order.customerPhone, style: const TextStyle(color: Color(0xff64748b), fontSize: 13)),
+                        Text(order.deliveryAddress.phoneNumber, style: const TextStyle(color: Color(0xff64748b), fontSize: 13)),
                         const SizedBox(height: 4),
                         Text(order.deliveryAddress.fullAddress, style: const TextStyle(color: Color(0xff64748b), fontSize: 12)),
                       ],
