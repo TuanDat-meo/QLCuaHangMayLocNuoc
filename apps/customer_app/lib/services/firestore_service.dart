@@ -9,10 +9,11 @@ class FirestoreService {
   // ============ PRODUCTS ============
   static Future<List<Map<String, dynamic>>> getProducts() async {
     try {
+      // Lấy tất cả sản phẩm để hiển thị được cả sản phẩm hết hàng
       QuerySnapshot snapshot = await _firestore
           .collection('sanPham')
-          .where('trangThai', isEqualTo: 'active')
           .get();
+
       return snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;

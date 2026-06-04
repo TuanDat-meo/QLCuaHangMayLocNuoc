@@ -40,21 +40,37 @@ const NotificationsPage: React.FC = () => {
     }
   };
 
+  const getNotifTypeText = (type: string) => {
+    switch (type) {
+      case 'order': return 'Đơn hàng';
+      case 'maintenance': return 'Bảo trì';
+      case 'system': return 'Hệ thống';
+      case 'inventory': return 'Kho hàng';
+      default: return 'Thông tin';
+    }
+  };
+
   const formatDate = (timestamp: any) => {
     if (!timestamp) return '---';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return new Intl.DateTimeFormat('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
+    try {
+      if (typeof timestamp === 'object' && !timestamp.toDate && !timestamp.seconds) {
+        return 'Đang cập nhật...';
+      }
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      return new Intl.DateTimeFormat('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(date);
+    } catch (e) {
+      return 'Vừa xong';
+    }
   };
 
   return (
-    <div className="p-4 md:p-10 max-w-4xl mx-auto min-h-screen transition-colors duration-300">
-      {/* Header Section */}
+    <div className="p-4 md:p-10 max-w-4xl mx-auto min-h-screen transition-colors duration-300 text-left font-sans">
       <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-2xl font-black text-[#0b1c30] dark:text-white tracking-tight flex items-center gap-3 uppercase">
@@ -74,28 +90,11 @@ const NotificationsPage: React.FC = () => {
             className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-[10px] font-black text-[#00459a] dark:text-blue-400 uppercase tracking-widest hover:bg-blue-50 dark:hover:bg-slate-700 transition-all shadow-sm"
           >
             <CheckCircle2 size={16} />
-            Đánh dấu tất cả
+            Đánh dấu tất cả đã đọc
           </button>
         )}
       </div>
 
-      {/* Filter Bar */}
-      <div className="mb-8 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-        {['Tất cả', 'Đơn hàng', 'Bảo trì', 'Hệ thống'].map((filter, i) => (
-          <button
-            key={filter}
-            className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
-              i === 0
-                ? 'bg-[#0b1c30] text-white border-[#0b1c30] dark:bg-white dark:text-[#0b1c30] dark:border-white shadow-md'
-                : 'bg-white dark:bg-[#1e293b] text-slate-400 dark:text-slate-500 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
-          >
-            {filter}
-          </button>
-        ))}
-      </div>
-
-      {/* Notifications List */}
       <div className="space-y-4">
         {notifications.length > 0 ? (
           notifications.map((notif) => (
@@ -125,52 +124,31 @@ const NotificationsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <p className={`text-sm leading-relaxed mb-4 ${!notif.is_read ? 'text-slate-700 dark:text-slate-300 font-bold' : 'text-slate-500 dark:text-slate-500 font-medium'}`}>
+                <p className={`text-sm leading-relaxed mb-4 ${!notif.is_read ? 'text-slate-700 dark:text-slate-300 font-bold' : 'text-slate-50 dark:text-slate-500 font-medium'}`}>
                   {notif.message}
                 </p>
 
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
-                      notif.type === 'order' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
-                      notif.type === 'maintenance' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
-                      'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-400'
-                    }`}>
-                      {notif.type}
-                    </span>
-                    {notif.related_id && (
-                      <span className="text-[9px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">
-                        #{notif.related_id.substring(0, 8).toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-
-                  <button className="text-[#00459a] dark:text-blue-400 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
-                    Xem chi tiết
-                    <ChevronRight size={14} />
-                  </button>
+                  <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
+                    notif.type === 'order' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                    notif.type === 'maintenance' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
+                    notif.type === 'system' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' :
+                    'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-400'
+                  }`}>
+                    {getNotifTypeText(notif.type)}
+                  </span>
                 </div>
               </div>
             </div>
           ))
         ) : (
-          <div className="bg-white dark:bg-[#1e293b] rounded-[3rem] p-24 text-center border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
-            <div className="w-24 h-24 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Bell className="text-slate-200 dark:text-slate-800" size={48} />
-            </div>
-            <h3 className="text-xl font-black text-slate-300 dark:text-slate-700 mb-2 uppercase tracking-widest">Hộp thư trống</h3>
-            <p className="text-slate-400 dark:text-slate-600 font-bold text-sm">Bạn không có thông báo mới nào.</p>
+          <div className="bg-white dark:bg-[#1e293b] rounded-[3rem] p-24 text-center border border-slate-100 dark:border-slate-800">
+            <Bell className="text-slate-200 mx-auto mb-4" size={48} />
+            <h3 className="text-lg font-black text-slate-300 uppercase tracking-widest">Hộp thư trống</h3>
+            <p className="text-slate-400 text-xs font-bold uppercase mt-2">Bạn không có thông báo nào vào lúc này</p>
           </div>
         )}
       </div>
-
-      {notifications.length > 0 && (
-        <div className="mt-12 pt-10 border-t border-slate-50 dark:border-slate-800 text-center">
-          <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">
-            Hệ thống lưu giữ 50 bản tin gần nhất
-          </p>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import { UserRole } from './auth';
 
-export type NotificationType = 'order' | 'maintenance' | 'promotion' | 'system';
+export type NotificationType = 'order' | 'maintenance' | 'promotion' | 'system' | 'inventory';
 
 export interface AppNotification {
   nid: string;

@@ -1,30 +1,27 @@
 /**
- * Firebase Authentication Service - Production (Cloud) Version
+ * Firebase Authentication Service - Centralized Instance
  */
 
-import { initializeApp, getApps, App as FirebaseApp } from 'firebase/app';
+import { initializeApp, deleteApp } from 'firebase/app';
 import {
   getAuth,
-  Auth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
   confirmPasswordReset,
   signOut,
-  User,
   updateProfile,
-  setPersistence,
-  browserLocalPersistence,
-  deleteUser,
+  deleteUser as firebaseDeleteUser,
 } from 'firebase/auth';
+import type { User, Auth } from 'firebase/auth';
 import {
-  getFirestore,
   Firestore,
   doc,
   getDoc,
   setDoc,
   serverTimestamp,
 } from 'firebase/firestore';
+import { auth, firestore, firebaseConfig } from '../app/firebase.config';
 import {
   AuthUser,
   LoginCredentials,
@@ -32,48 +29,23 @@ import {
   UserRole,
 } from '../types/auth';
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-};
-
 /**
- * Kiểm tra xem Firebase đã được cấu hình đủ thông tin chưa
+ * Hàm hỗ trợ ép kiểu ngày tháng an toàn tuyệt đối
  */
-export const isFirebaseConfigured = (): boolean => {
-  return Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
+const safeToDate = (value: any): Date => {
+  if (!value) return new Date();
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  if (value && typeof value === 'object' && value.seconds) return new Date(value.seconds * 1000);
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? new Date() : d;
 };
 
-let app: FirebaseApp | null = null;
-let auth: Auth | null = null;
-let db: Firestore | null = null;
-
-export const initializeFirebase = () => {
-  if (app && auth && db) return { auth, db };
-  if (!getApps().length) app = initializeApp(firebaseConfig);
-  else app = getApps()[0];
-  auth = getAuth(app!);
-  db = getFirestore(app!);
-  setPersistence(auth, browserLocalPersistence).catch(() => {});
-  return { auth, db };
-};
-
-export const getDb = (): Firestore => {
-  if (!db) initializeFirebase();
-  return db!;
-};
-
-export const getAuthInstance = (): Auth => {
-  if (!auth) initializeFirebase();
-  return auth!;
-};
+export const getDb = (): Firestore => firestore;
+export const getAuthInstance = (): Auth => auth;
 
 export const convertFirebaseUser = async (user: User): Promise<AuthUser> => {
-  const userDocRef = doc(getDb(), 'nguoiDung', user.uid);
+  const userDocRef = doc(firestore, 'nguoiDung', user.uid);
   const userDoc = await getDoc(userDocRef);
 
   if (!userDoc.exists()) {
@@ -95,75 +67,104 @@ export const convertFirebaseUser = async (user: User): Promise<AuthUser> => {
   return {
     uid: user.uid,
     email: user.email || data.email || '',
-    displayName: data.displayName || user.displayName || '',
+    displayName: data.displayName || user.displayName || 'Thành viên',
     phoneNumber: data.phoneNumber || '',
-    role: data.role as UserRole ?? UserRole.PENDING,
+    // Đảm bảo role luôn là kiểu number
+    role: (data.role !== undefined && data.role !== null) ? Number(data.role) : UserRole.PENDING,
     isVerified: data.status === 'active',
     status: data.status || 'pending',
     source: data.source || 'admin_web',
-    createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(),
+    createdAt: safeToDate(data.createdAt),
+    updatedAt: safeToDate(data.updatedAt),
+    baseSalary: data.baseSalary || 0,
+    commissionPerOrder: data.commissionPerOrder || 0
   };
 };
 
-export const signupWithEmail = async (credentials: SignupCredentials): Promise<void> => {
-  const authInstance = getAuthInstance();
-  const dbInstance = getDb();
-  let createdFirebaseUser: User | null = null;
-
-  try {
-    const userCredential = await createUserWithEmailAndPassword(
-      authInstance, credentials.email, credentials.password
-    );
-    createdFirebaseUser = userCredential.user;
-    await updateProfile(createdFirebaseUser, { displayName: credentials.displayName });
-
-    const userDocRef = doc(dbInstance, 'nguoiDung', createdFirebaseUser.uid);
-    const userData = {
-      uid: createdFirebaseUser.uid,
-      email: credentials.email,
-      displayName: credentials.displayName,
-      phoneNumber: credentials.phoneNumber,
-      role: credentials.role ?? UserRole.PENDING,
-      status: 'pending',
-      source: credentials.source || 'admin_web',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-
-    await setDoc(userDocRef, userData);
-    await signOut(authInstance);
-  } catch (error: any) {
-    if (createdFirebaseUser) await deleteUser(createdFirebaseUser).catch(() => {});
-    throw error;
-  }
-};
-
 export const loginWithEmail = async (credentials: LoginCredentials): Promise<AuthUser> => {
-  const authInstance = getAuthInstance();
-  const userCredential = await signInWithEmailAndPassword(authInstance, credentials.email, credentials.password);
+  const userCredential = await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
   const authUser = await convertFirebaseUser(userCredential.user);
 
-  if (authUser.status !== 'active') {
-    await signOut(authInstance);
-    throw new Error('Tài khoản của bạn đang chờ quản trị viên phê duyệt.');
+  // Cho phép Admin đăng nhập ngay cả khi chưa active (để fix hệ thống) hoặc nếu status là active
+  if (authUser.status !== 'active' && Number(authUser.role) !== UserRole.ADMIN) {
+    await signOut(auth);
+    throw new Error('Tài khoản của bạn chưa được kích hoạt hoặc đã bị khóa.');
   }
 
   return authUser;
 };
 
-export const logout = async (): Promise<void> => { await signOut(getAuthInstance()); };
+export const signupWithEmail = async (credentials: SignupCredentials): Promise<void> => {
+  let createdFirebaseUser: User | null = null;
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, credentials.email, credentials.password);
+    createdFirebaseUser = userCredential.user;
+    await updateProfile(createdFirebaseUser, { displayName: credentials.displayName });
+
+    const userDocRef = doc(firestore, 'nguoiDung', createdFirebaseUser.uid);
+    await setDoc(userDocRef, {
+      uid: createdFirebaseUser.uid,
+      email: credentials.email,
+      displayName: credentials.displayName,
+      phoneNumber: credentials.phoneNumber,
+      role: Number(credentials.role ?? UserRole.PENDING),
+      status: 'pending',
+      source: credentials.source || 'admin_web',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    await signOut(auth);
+  } catch (error: any) {
+    if (createdFirebaseUser) await firebaseDeleteUser(createdFirebaseUser).catch(() => {});
+    throw error;
+  }
+};
+
+/**
+ * CẤP TÀI KHOẢN (ADMIN ONLY)
+ */
+export const adminCreateAuthUser = async (credentials: SignupCredentials): Promise<string> => {
+  const tempAppName = `temp-app-${Date.now()}`;
+  const tempApp = initializeApp(firebaseConfig, tempAppName);
+  const tempAuth = getAuth(tempApp);
+
+  try {
+    const userCredential = await createUserWithEmailAndPassword(tempAuth, credentials.email, credentials.password);
+    const uid = userCredential.user.uid;
+    await signOut(tempAuth);
+    await deleteApp(tempApp);
+    return uid;
+  } catch (error: any) {
+    await deleteApp(tempApp);
+    throw error;
+  }
+};
+
+export const logout = async (): Promise<void> => { await signOut(auth); };
 
 export const getCurrentUser = async (): Promise<AuthUser | null> => {
-  const user = getAuthInstance().currentUser;
+  const user = auth.currentUser;
   if (!user) return null;
   try { return await convertFirebaseUser(user); } catch { return null; }
 };
 
 export const sendPasswordReset = async (email: string) => {
-  await sendPasswordResetEmail(getAuthInstance(), email);
+  await sendPasswordResetEmail(auth, email);
 };
 
 export const resetPasswordWithCode = async (code: string, newPassword: string) => {
-  await confirmPasswordReset(getAuthInstance(), code, newPassword);
+  await confirmPasswordReset(auth, code, newPassword);
+};
+
+export const initializeFirebase = (): void => {
+  try {
+    if (!auth || !firestore) throw new Error('Firebase instances not available');
+  } catch (error) {
+    console.error('Firebase initialization failed:', error);
+  }
+};
+
+export const isFirebaseConfigured = (): boolean => {
+  const requiredEnvVars = ['VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_PROJECT_ID'];
+  return requiredEnvVars.every(envVar => !!import.meta.env[envVar]);
 };

@@ -44,14 +44,13 @@ const SignupPage: React.FC = () => {
     }
 
     setErrors({});
-    // Validate form (role is passed as null for admin_web signup)
     const valErrors = validateSignupForm(
       formData.email,
       formData.password,
       formData.confirmPassword,
       formData.displayName,
       formData.phoneNumber,
-      'null' // Passing 'null' string or similar to bypass old validation if needed
+      'null'
     );
 
     if (valErrors.length > 0) {
@@ -59,7 +58,6 @@ const SignupPage: React.FC = () => {
       valErrors.forEach(err => {
         errorMap[err.field] = err.message;
       });
-      // Filter out role error as it's null by default now
       if (errorMap.role) delete errorMap.role;
 
       if (Object.keys(errorMap).length > 0) {
@@ -76,7 +74,6 @@ const SignupPage: React.FC = () => {
         source: 'admin_web'
       });
 
-      // Tạo thông báo cho Admin về thành viên mới đăng ký
       await createNotification({
         title: 'Yêu cầu đăng ký mới',
         message: `Thành viên ${formData.displayName} (${formData.email}) vừa gửi yêu cầu tham gia hệ thống.`,
@@ -123,6 +120,7 @@ const SignupPage: React.FC = () => {
               <input
                 name="email"
                 type="email"
+                autoComplete="username"
                 value={formData.email}
                 onChange={handleChange}
                 className="w-full pl-11 pr-4 py-4 bg-transparent outline-none font-semibold text-slate-700 placeholder:text-slate-300 text-sm"
@@ -142,6 +140,7 @@ const SignupPage: React.FC = () => {
               <input
                 name="displayName"
                 type="text"
+                autoComplete="name"
                 value={formData.displayName}
                 onChange={handleChange}
                 className="w-full pl-11 pr-4 py-4 bg-transparent outline-none font-semibold text-slate-700 placeholder:text-slate-300 text-sm"
@@ -161,6 +160,7 @@ const SignupPage: React.FC = () => {
               <input
                 name="phoneNumber"
                 type="tel"
+                autoComplete="tel"
                 value={formData.phoneNumber}
                 onChange={handleChange}
                 className="w-full pl-11 pr-4 py-4 bg-transparent outline-none font-semibold text-slate-700 placeholder:text-slate-300 text-sm"
@@ -180,6 +180,7 @@ const SignupPage: React.FC = () => {
               <input
                 name="password"
                 type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
                 value={formData.password}
                 onChange={handleChange}
                 className="w-full pl-11 pr-12 py-4 bg-transparent outline-none font-semibold text-slate-700 placeholder:text-slate-300 text-sm"
@@ -202,6 +203,7 @@ const SignupPage: React.FC = () => {
               <input
                 name="confirmPassword"
                 type={showConfirmPassword ? 'text' : 'password'}
+                autoComplete="new-password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 className="w-full pl-11 pr-12 py-4 bg-transparent outline-none font-bold text-slate-700 placeholder:text-slate-300 text-sm"

@@ -32,7 +32,7 @@ class Product {
     required this.updatedAt,
   });
 
-  bool get isAvailable => status == 'active' && stock > 0;
+  bool get isAvailable => (status.toLowerCase() == 'active') && stock > 0;
   bool get isOutOfStock => stock <= 0;
 
   Map<String, dynamic> toMap() {
@@ -54,20 +54,23 @@ class Product {
   }
 
   factory Product.fromMap(Map<String, dynamic> map) {
+    // Hỗ trợ cả tiếng Việt (từ Admin) và tiếng Anh (từ seed cũ/Flutter)
     return Product(
       id: map['id'] as String? ?? '',
-      name: map['name'] as String? ?? '',
-      description: map['description'] as String? ?? '',
-      price: (map['price'] as num?)?.toDouble() ?? 0.0,
-      category: map['category'] as String? ?? '',
-      imageUrls: List<String>.from(map['imageUrls'] as List? ?? []),
-      specs: ProductSpecs.fromMap(map['specs'] as Map<String, dynamic>? ?? {}),
-      status: map['status'] as String? ?? 'active',
-      stock: map['stock'] as int? ?? 0,
+      name: map['tenSanPham'] as String? ?? map['name'] as String? ?? '',
+      description: map['moTa'] as String? ?? map['description'] as String? ?? '',
+      price: (map['giaBan'] as num?)?.toDouble() ?? (map['price'] as num?)?.toDouble() ?? 0.0,
+      category: map['danhMuc'] as String? ?? map['category'] as String? ?? '',
+      imageUrls: map['imageUrl'] != null 
+          ? [map['imageUrl'] as String] 
+          : List<String>.from(map['imageUrls'] as List? ?? []),
+      specs: ProductSpecs.fromMap(map['thongSoKyThuat'] as Map<String, dynamic>? ?? map['specs'] as Map<String, dynamic>? ?? {}),
+      status: map['trangThai'] as String? ?? map['status'] as String? ?? 'Active',
+      stock: map['tonKho'] as int? ?? map['soLuongTon'] as int? ?? map['stock'] as int? ?? 0,
       averageRating: (map['averageRating'] as num?)?.toDouble() ?? 0.0,
       reviewCount: map['reviewCount'] as int? ?? 0,
-      createdAt: (map['createdAt'] as dynamic)?.toDate() ?? DateTime.now(),
-      updatedAt: (map['updatedAt'] as dynamic)?.toDate() ?? DateTime.now(),
+      createdAt: (map['createdAt'] as dynamic)?.toDate() ?? (map['ngayTao'] as dynamic)?.toDate() ?? DateTime.now(),
+      updatedAt: (map['updatedAt'] as dynamic)?.toDate() ?? (map['ngayCapNhat'] as dynamic)?.toDate() ?? DateTime.now(),
     );
   }
 }

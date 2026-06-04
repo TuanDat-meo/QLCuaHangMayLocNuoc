@@ -7,7 +7,8 @@ import { Link } from 'react-router-dom';
 import {
   Bell, User, LogOut, ChevronDown,
   Settings as SettingsIcon, Package, Zap, Calendar,
-  Info, Moon, Sun, Palette, ShieldCheck, ArrowRight
+  Info, Moon, Sun, Palette, ShieldCheck, ArrowRight,
+  AlertTriangle
 } from 'lucide-react';
 import { useNotifications } from '../../hooks';
 import { useTheme } from '../../context/ThemeContext';
@@ -61,6 +62,7 @@ const Header: React.FC<HeaderProps> = ({
       case 'order': return <Package className="text-blue-500" size={16} />;
       case 'maintenance': return <Calendar className="text-amber-500" size={16} />;
       case 'system': return <Zap className="text-purple-500" size={16} />;
+      case 'inventory': return <AlertTriangle className="text-rose-500" size={16} />;
       default: return <Info className="text-slate-400" size={16} />;
     }
   };

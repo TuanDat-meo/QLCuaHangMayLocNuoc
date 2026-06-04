@@ -17,7 +17,7 @@ import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import FirebaseSetupGuide from './components/FirebaseSetupGuide';
 
 // Import Pages
-import DashboardPage from './pages/dashboard/DashboardPage';
+import DashboardPage from './pages/DashboardPage';
 import UsersPage from './pages/users/UsersPage';
 import CustomersPage from './pages/customers/CustomersPage';
 import ProfilePage from './pages/profile/ProfilePage';
@@ -27,6 +27,8 @@ import OrdersPage from './pages/orders/OrdersPage';
 import TechniciansPage from './pages/technicians/TechniciansPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import AuditLogsPage from './pages/audit/AuditLogsPage';
+import DevicesPage from './pages/devices/DevicesPage';
+import ReportsPage from './pages/reports/ReportsPage';
 
 // Placeholder cho các chức năng cũ đang khôi phục
 const PlaceholderPage = ({ title }: { title: string }) => (
@@ -100,9 +102,9 @@ const App: React.FC = () => {
 
           <Route path="/warranty" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN, UserRole.COORDINATOR]}><PlaceholderPage title="Quản lý Bảo hành" /></ProtectedRoute>} />
 
-          <Route path="/devices" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN, UserRole.COORDINATOR]}><PlaceholderPage title="Thiết bị lắp đặt" /></ProtectedRoute>} />
+          <Route path="/devices" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN, UserRole.COORDINATOR]}><DevicesPage /></ProtectedRoute>} />
 
-          <Route path="/reports" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN, UserRole.ACCOUNTANT]}><PlaceholderPage title="Thống kê & Báo cáo" /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN, UserRole.ACCOUNTANT]}><ReportsPage /></ProtectedRoute>} />
 
           <Route path="/audit-logs" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN]}><AuditLogsPage /></ProtectedRoute>} />
 

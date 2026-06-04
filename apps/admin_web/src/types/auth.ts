@@ -22,8 +22,11 @@ export interface AuthUser {
   updatedAt: Date;
   avatar?: string;
   isVerified: boolean;
-  status: 'active' | 'pending' | 'blocked';
+  status: 'active' | 'pending' | 'blocked' | 'resigned';
   source: 'admin_web' | 'customer_app' | 'technician_app';
+  // Salary fields
+  baseSalary?: number;
+  commissionPerOrder?: number;
 }
 
 export interface SignupCredentials {
