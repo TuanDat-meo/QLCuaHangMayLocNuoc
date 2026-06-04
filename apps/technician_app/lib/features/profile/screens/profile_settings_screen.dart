@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared/theme/app_colors.dart';
 import 'package:shared/theme/app_text_styles.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared/services/auth_service.dart';
 import '../../../controllers/auth_controller.dart';
+import '../../../controllers/profile_controller.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileSettingsScreen extends StatefulWidget {
   const ProfileSettingsScreen({super.key});
@@ -22,7 +26,75 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     {'device': 'iPad Pro • iPadOS 17.2', 'time': '20/05/2026 - 09:10', 'ip': '27.72.90.15 (Hà Nội)'},
   ];
 
+  Future<void> _updateAvatar(ImageSource source) async {
+    final authController = context.read<AuthController>();
+    final profileController = context.read<ProfileController>();
+    final uid = authController.currentUser?.uid;
+    if (uid == null) return;
+
+    await profileController.pickAndUploadAvatar(
+      source: source,
+      uid: uid,
+      onSuccess: (updatedUser) {
+        authController.updateCurrentUser(updatedUser);
+      },
+    );
+
+    if (!mounted) return;
+    if (profileController.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(profileController.error!),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cập nhật ảnh đại diện thành công!'),
+          backgroundColor: Color(0xff10b981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _removeAvatar() async {
+    final authController = context.read<AuthController>();
+    final profileController = context.read<ProfileController>();
+    final uid = authController.currentUser?.uid;
+    if (uid == null) return;
+
+    await profileController.removeAvatar(
+      uid: uid,
+      onSuccess: (updatedUser) {
+        authController.updateCurrentUser(updatedUser);
+      },
+    );
+
+    if (!mounted) return;
+    if (profileController.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(profileController.error!),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã gỡ ảnh đại diện thành công!'),
+          backgroundColor: Color(0xff10b981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   void _handleAvatarUpdate() {
+    final hasAvatar = context.read<AuthController>().currentUser?.avatar != null;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -42,8 +114,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 title: const Text('Chụp ảnh mới', style: TextStyle(fontWeight: FontWeight.bold)),
                 onTap: () {
                   Navigator.pop(context);
-                  // Simulate image select
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Simulated Camera Image selection')));
+                  _updateAvatar(ImageSource.camera);
                 },
               ),
               ListTile(
@@ -51,10 +122,18 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 title: const Text('Chọn từ thư viện', style: TextStyle(fontWeight: FontWeight.bold)),
                 onTap: () {
                   Navigator.pop(context);
-                  // Simulate image select
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Simulated Gallery Image selection')));
+                  _updateAvatar(ImageSource.gallery);
                 },
               ),
+              if (hasAvatar)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: AppColors.error),
+                  title: const Text('Gỡ ảnh đại diện', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _removeAvatar();
+                  },
+                ),
             ],
           ),
         );
@@ -67,80 +146,137 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    bool isSubmitting = false;
+    String? localError;
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: const Text('ĐỔI MẬT KHẨU', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-          content: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: oldPasswordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Mật khẩu cũ',
-                      prefixIcon: Icon(Icons.lock_outline),
-                    ),
-                    validator: (value) => (value == null || value.isEmpty) ? 'Nhập mật khẩu cũ' : null,
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              title: const Text('ĐỔI MẬT KHẨU', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (localError != null) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            localError!,
+                            style: const TextStyle(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      TextFormField(
+                        controller: oldPasswordController,
+                        obscureText: true,
+                        enabled: !isSubmitting,
+                        decoration: const InputDecoration(
+                          labelText: 'Mật khẩu cũ',
+                          prefixIcon: Icon(Icons.lock_outline),
+                        ),
+                        validator: (value) => (value == null || value.isEmpty) ? 'Nhập mật khẩu cũ' : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: newPasswordController,
+                        obscureText: true,
+                        enabled: !isSubmitting,
+                        decoration: const InputDecoration(
+                          labelText: 'Mật khẩu mới',
+                          prefixIcon: Icon(Icons.lock_reset),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return 'Nhập mật khẩu mới';
+                          if (value.length < 6) return 'Mật khẩu tối thiểu 6 ký tự';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: confirmPasswordController,
+                        obscureText: true,
+                        enabled: !isSubmitting,
+                        decoration: const InputDecoration(
+                          labelText: 'Xác nhận mật khẩu mới',
+                          prefixIcon: Icon(Icons.lock_person_outlined),
+                        ),
+                        validator: (value) {
+                          if (value != newPasswordController.text) return 'Mật khẩu xác nhận không khớp';
+                          return null;
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: newPasswordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Mật khẩu mới',
-                      prefixIcon: Icon(Icons.lock_reset),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) return 'Nhập mật khẩu mới';
-                      if (value.length < 6) return 'Mật khẩu tối thiểu 6 ký tự';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: confirmPasswordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Xác nhận mật khẩu mới',
-                      prefixIcon: Icon(Icons.lock_person_outlined),
-                    ),
-                    validator: (value) {
-                      if (value != newPasswordController.text) return 'Mật khẩu xác nhận không khớp';
-                      return null;
-                    },
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('HỦY BỎ', style: TextStyle(color: Color(0xff94a3b8), fontWeight: FontWeight.bold)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (!formKey.currentState!.validate()) return;
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Đổi mật khẩu thành công!'), backgroundColor: Color(0xff10b981)),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('XÁC NHẬN'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.pop(context),
+                  child: const Text('HỦY BỎ', style: TextStyle(color: Color(0xff94a3b8), fontWeight: FontWeight.bold)),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          
+                          setDialogState(() {
+                            isSubmitting = true;
+                            localError = null;
+                          });
+
+                          final profileController = context.read<ProfileController>();
+                          final success = await profileController.changePassword(
+                            currentPassword: oldPasswordController.text,
+                            newPassword: newPasswordController.text,
+                          );
+
+                          if (!mounted) return;
+
+                          if (success) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Đổi mật khẩu thành công!'),
+                                backgroundColor: Color(0xff10b981),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          } else {
+                            setDialogState(() {
+                              isSubmitting = false;
+                              localError = profileController.error ?? 'Đổi mật khẩu thất bại';
+                            });
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: isSubmitting
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text('XÁC NHẬN'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -236,7 +372,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             const SizedBox(height: 16),
 
             // 2. Chuyên môn nghề nghiệp
-            _buildSpecializationsCard(),
+            _buildSpecializationsCard(user),
             const SizedBox(height: 16),
 
             // 3. Cài đặt bảo mật & Đăng nhập
@@ -281,6 +417,103 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     );
   }
 
+  void _showEditSpecializationsDialog(AuthUser user) {
+    final List<String> allCommonSpecs = [
+      'Lắp đặt màng RO',
+      'Sửa chữa điện máy',
+      'Vệ sinh định kỳ',
+      'Kiểm thử nguồn nước',
+      'Lắp đặt máy mới',
+      'Thay thế lõi lọc định kỳ',
+      'Khắc phục rò rỉ nước',
+    ];
+
+    List<String> selectedSpecs = List.from(user.specializations ?? []);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              title: const Text('CHỌN CHUYÊN MÔN', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: allCommonSpecs.map((spec) {
+                    final isSelected = selectedSpecs.contains(spec);
+                    return CheckboxListTile(
+                      title: Text(spec, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                      value: isSelected,
+                      activeColor: AppColors.primary,
+                      onChanged: (checked) {
+                        setDialogState(() {
+                          if (checked == true) {
+                            selectedSpecs.add(spec);
+                          } else {
+                            selectedSpecs.remove(spec);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('HỦY BỎ', style: TextStyle(color: Color(0xff94a3b8), fontWeight: FontWeight.bold)),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final authController = context.read<AuthController>();
+                    final profileController = context.read<ProfileController>();
+                    
+                    Navigator.pop(context);
+
+                    final success = await profileController.updateSpecializations(
+                      uid: user.uid,
+                      specializations: selectedSpecs,
+                      onSuccess: (updatedUser) {
+                        authController.updateCurrentUser(updatedUser);
+                      },
+                    );
+
+                    if (!mounted) return;
+                    if (success) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Cập nhật chuyên môn thành công!'),
+                          backgroundColor: Color(0xff10b981),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(profileController.error ?? 'Lỗi không xác định'),
+                          backgroundColor: AppColors.error,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('XÁC NHẬN'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildProfileHeaderCard(dynamic user) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -289,63 +522,92 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xfff1f5f9)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Stack(
+          Row(
             children: [
-              CircleAvatar(
-                radius: 40,
-                backgroundColor: AppColors.primary.withOpacity(0.1),
-                backgroundImage: user?.avatar != null ? NetworkImage(user!.avatar!) : null,
-                child: user?.avatar == null
-                    ? const Icon(Icons.person, color: AppColors.primary, size: 40)
-                    : null,
-              ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: InkWell(
-                  onTap: _handleAvatarUpdate,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    backgroundImage: user?.avatar != null ? NetworkImage(user!.avatar!) : null,
+                    child: user?.avatar == null
+                        ? const Icon(Icons.person, color: AppColors.primary, size: 40)
+                        : null,
                   ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: InkWell(
+                      onTap: _handleAvatarUpdate,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user?.displayName ?? 'Kỹ thuật viên',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.onSurface),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      user?.email ?? 'tech@aquacare.com',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xff64748b)),
+                    ),
+                    Text(
+                      user?.phoneNumber ?? 'Chưa cập nhật SĐT',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xff64748b)),
+                    ),
+                  ],
                 ),
+              ),
+              IconButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+                  );
+                },
+                icon: const Icon(Icons.edit_outlined, color: AppColors.primary),
               ),
             ],
           ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          if (user?.address != null && user!.address!.isNotEmpty) ...[
+            const Divider(height: 24, color: Color(0xfff1f5f9)),
+            Row(
               children: [
-                Text(
-                  user?.displayName ?? 'Kỹ thuật viên',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.onSurface),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  user?.email ?? 'tech@aquacare.com',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xff64748b)),
-                ),
-                Text(
-                  user?.phoneNumber ?? 'Chưa cập nhật SĐT',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xff64748b)),
+                const Icon(Icons.location_on_outlined, color: Color(0xff64748b), size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    user.address!,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xff64748b)),
+                  ),
                 ),
               ],
             ),
-          ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildSpecializationsCard() {
-    final List<String> specs = ['Lắp đặt màng RO', 'Sửa chữa điện máy', 'Vệ sinh định kỳ', 'Kiểm thử nguồn nước'];
+  Widget _buildSpecializationsCard(dynamic user) {
+    final List<String> specs = (user?.specializations as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
 
     return Container(
       width: double.infinity,
@@ -358,28 +620,45 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'CHUYÊN MÔN NGHỀ NGHIỆP',
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xff94a3b8), letterSpacing: 1.0),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'CHUYÊN MÔN NGHỀ NGHIỆP',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xff94a3b8), letterSpacing: 1.0),
+              ),
+              if (user != null)
+                IconButton(
+                  onPressed: () => _showEditSpecializationsDialog(user),
+                  icon: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 18),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+            ],
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: specs.map((s) {
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(12),
+          specs.isEmpty
+              ? const Text(
+                  'Chưa cập nhật chuyên môn nghề nghiệp',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xff94a3b8), fontStyle: FontStyle.italic),
+                )
+              : Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: specs.map((s) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        s,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.primary),
+                      ),
+                    );
+                  }).toList(),
                 ),
-                child: Text(
-                  s,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.primary),
-                ),
-              );
-            }).toList(),
-          ),
         ],
       ),
     );

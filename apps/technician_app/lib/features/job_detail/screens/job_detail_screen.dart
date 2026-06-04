@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:shared/theme/app_colors.dart';
 import '../../../controllers/job_controller.dart';
 
@@ -14,6 +15,42 @@ class JobDetailScreen extends StatefulWidget {
 
 class _JobDetailScreenState extends State<JobDetailScreen> {
   final NumberFormat _currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+
+  // ── Deep link actions ────────────────────────────────────────────
+  Future<void> _callPhone(String phone) async {
+    final uri = Uri(scheme: 'tel', path: phone);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else if (mounted) {
+      _showLaunchError('Không thể mở ứng dụng điện thoại.');
+    }
+  }
+
+  Future<void> _openZalo(String phone) async {
+    // Chuẩn hóa số điện thoại: bỏ dấu + và khoảng trắng
+    final cleaned = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final uri = Uri.parse('https://zalo.me/$cleaned');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      _showLaunchError('Không thể mở Zalo. Vui lòng kiểm tra ứng dụng Zalo đã được cài đặt.');
+    }
+  }
+
+  Future<void> _sendSms(String phone) async {
+    final uri = Uri(scheme: 'sms', path: phone);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else if (mounted) {
+      _showLaunchError('Không thể mở ứng dụng nhắn tin.');
+    }
+  }
+
+  void _showLaunchError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: Colors.red),
+    );
+  }
 
   void _showStatusConfirmation(JobStatus nextStatus, String title, String message) {
     showDialog(
@@ -42,9 +79,10 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
               onPressed: () async {
                 Navigator.pop(context);
                 final controller = context.read<JobController>();
+                final messenger = ScaffoldMessenger.of(context);
                 final success = await controller.updateJobStatus(widget.jobId, nextStatus);
                 if (mounted && success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     SnackBar(
                       content: Text('Đã cập nhật: ${nextStatus.displayName}'),
                       backgroundColor: nextStatus.color,
@@ -242,39 +280,49 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
             ),
           ),
           const SizedBox(height: 12),
+          // ── Số điện thoại + nút liên hệ ──
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.phone, size: 16, color: Color(0xff64748b)),
-                  const SizedBox(width: 8),
-                  Text(
-                    job.customerPhone,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xff475569),
-                    ),
-                  ),
-                ],
+              const Icon(Icons.phone, size: 16, color: Color(0xff64748b)),
+              const SizedBox(width: 8),
+              Text(
+                job.customerPhone,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xff475569),
+                ),
               ),
-              InkWell(
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Đang kết nối cuộc gọi tới: ${job.customerPhone}'),
-                      backgroundColor: AppColors.primary,
-                    ),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withAlpha(25),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.call, color: AppColors.primary, size: 20),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // ── Quick action buttons ──
+          Row(
+            children: [
+              Expanded(
+                child: _contactBtn(
+                  icon: Icons.call_rounded,
+                  label: 'Gọi điện',
+                  color: const Color(0xff0284c7),
+                  onTap: () => _callPhone(job.customerPhone),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _contactBtn(
+                  icon: Icons.chat_bubble_rounded,
+                  label: 'Zalo',
+                  color: const Color(0xff0068ff),
+                  onTap: () => _openZalo(job.customerPhone),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _contactBtn(
+                  icon: Icons.sms_rounded,
+                  label: 'Nhắn tin',
+                  color: const Color(0xff10b981),
+                  onTap: () => _sendSms(job.customerPhone),
                 ),
               ),
             ],
@@ -328,6 +376,40 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _contactBtn({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

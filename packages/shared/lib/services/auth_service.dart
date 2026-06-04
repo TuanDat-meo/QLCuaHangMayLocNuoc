@@ -21,13 +21,15 @@ class AuthUser {
   final String email;
   final String displayName;
   final String phoneNumber;
-  final int role; 
+  final int role;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? avatar;
   final bool isVerified;
   final String status;
   final String? source;
+  final String? address;
+  final List<String>? specializations;
 
   AuthUser({
     required this.uid,
@@ -41,13 +43,47 @@ class AuthUser {
     required this.isVerified,
     required this.status,
     this.source,
+    this.address,
+    this.specializations,
   });
+
+  AuthUser copyWith({
+    String? uid,
+    String? email,
+    String? displayName,
+    String? phoneNumber,
+    int? role,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? avatar,
+    bool? isVerified,
+    String? status,
+    String? source,
+    String? address,
+    List<String>? specializations,
+  }) {
+    return AuthUser(
+      uid: uid ?? this.uid,
+      email: email ?? this.email,
+      displayName: displayName ?? this.displayName,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      role: role ?? this.role,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      avatar: avatar ?? this.avatar,
+      isVerified: isVerified ?? this.isVerified,
+      status: status ?? this.status,
+      source: source ?? this.source,
+      address: address ?? this.address,
+      specializations: specializations ?? this.specializations,
+    );
+  }
 
   factory AuthUser.fromFirestore(DocumentSnapshot doc, User firebaseUser) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     String status = data['status'] ?? 'pending';
     bool verified = (status == 'active');
-    
+
     return AuthUser(
       uid: firebaseUser.uid,
       email: firebaseUser.email ?? data['email'] ?? '',
@@ -61,6 +97,10 @@ class AuthUser {
       isVerified: verified,
       status: status,
       source: data['source'],
+      address: data['address'],
+      specializations: data['specializations'] != null
+          ? List<String>.from(data['specializations'])
+          : null,
     );
   }
 }

@@ -93,7 +93,6 @@ class FirestoreUserService {
     }
   }
 
-  /// Helper method to construct AuthUser from Firestore document
   AuthUser _authUserFromFirestore(String uid, Map<String, dynamic> data) {
     return AuthUser(
       uid: uid,
@@ -106,6 +105,10 @@ class FirestoreUserService {
       avatar: data['avatar'],
       isVerified: data['status'] == 'active',
       status: data['status'] ?? 'pending',
+      address: data['address'],
+      specializations: data['specializations'] != null
+          ? List<String>.from(data['specializations'])
+          : null,
     );
   }
 }

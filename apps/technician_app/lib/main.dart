@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:shared/theme/app_colors.dart';
 import 'package:shared/theme/app_text_styles.dart';
@@ -8,19 +9,23 @@ import 'firebase_options.dart';
 import 'core/routing/auth_routing.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/job_controller.dart';
+import 'controllers/profile_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // Khởi tạo locale tiếng Việt cho intl/DateFormat
+  await initializeDateFormatting('vi_VN', null);
+
   // Load environment configuration
   await dotenv.load();
-  
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
+
   print('✅ Firebase initialized - connecting to production (aquacaresystem0608)');
-  
+
   runApp(const MyApp());
 }
 
@@ -33,6 +38,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthController()),
         ChangeNotifierProvider(create: (_) => JobController()),
+        ChangeNotifierProvider(create: (_) => ProfileController()),
       ],
       child: MaterialApp(
         title: 'AquaCare - Technician App',
