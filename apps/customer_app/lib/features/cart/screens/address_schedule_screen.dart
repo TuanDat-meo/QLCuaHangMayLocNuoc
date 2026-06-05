@@ -29,11 +29,8 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
   @override
   void initState() {
     super.initState();
-    // Start from tomorrow
+    // Bắt đầu từ ngày mai (Bao gồm cả Chủ Nhật theo yêu cầu)
     _selectedDate = DateTime.now().add(const Duration(days: 1));
-    if (_selectedDate.weekday == DateTime.sunday) {
-      _selectedDate = _selectedDate.add(const Duration(days: 1));
-    }
     
     // Set initial selected address from AuthController if possible
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -52,14 +49,12 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
     });
   }
 
-  // Generate next 14 days (excluding Sundays)
+  // Tạo danh sách 14 ngày tới (Bao gồm Chủ Nhật)
   List<DateTime> get _availableDates {
     final dates = <DateTime>[];
     var date = DateTime.now().add(const Duration(days: 1));
     while (dates.length < 14) {
-      if (date.weekday != DateTime.sunday) {
-        dates.add(date);
-      }
+      dates.add(date);
       date = date.add(const Duration(days: 1));
     }
     return dates;
@@ -137,7 +132,6 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
                         title: 'Địa chỉ lắp đặt',
                         child: Column(
                           children: [
-                            // Search bar (Google Map style)
                             Container(
                               decoration: BoxDecoration(
                                 color: const Color(0xfff8fafc),
@@ -168,8 +162,6 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
                                 ],
                               ),
                             ),
-
-                            // Map placeholder
                             const SizedBox(height: 12),
                             ClipRRect(
                               borderRadius: BorderRadius.circular(12),
@@ -209,7 +201,6 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
                                 ),
                               ),
                             ),
-
                             const SizedBox(height: 16),
                             const Align(
                               alignment: Alignment.centerLeft,
@@ -223,15 +214,12 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
                               ),
                             ),
                             const SizedBox(height: 10),
-
-                            // Saved addresses from Firebase
                             if (addresses.isEmpty)
                               const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 10),
                                 child: Text('Bạn chưa có địa chỉ nào được lưu.', 
                                   style: TextStyle(fontSize: 12, color: Colors.grey)),
                               ),
-                              
                             ...addresses.map((address) => _AddressCard(
                                   address: address,
                                   isSelected: _selectedAddressId == address.id,
@@ -240,8 +228,6 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
                                       _searchController.text = address.fullAddress;
                                   }),
                                 )),
-
-                            // Add new address button
                             const SizedBox(height: 8),
                             InkWell(
                               borderRadius: BorderRadius.circular(12),
@@ -277,9 +263,7 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
                           ],
                         ),
                       ),
-
                       const SizedBox(height: 16),
-
                       // ── Thời gian hẹn ─────────────────────────────────────
                       _SectionCard(
                         icon: Icons.calendar_month_outlined,
@@ -288,7 +272,6 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Month header
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -302,10 +285,7 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
                                 ),
                               ],
                             ),
-
                             const SizedBox(height: 12),
-
-                            // Date picker
                             SizedBox(
                               height: 72,
                               child: ListView.builder(
@@ -358,9 +338,7 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
                                 },
                               ),
                             ),
-
                             const SizedBox(height: 20),
-
                             const Text(
                               'Giờ khả dụng',
                               style: TextStyle(
@@ -370,8 +348,6 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
                               ),
                             ),
                             const SizedBox(height: 10),
-
-                            // Time slots grid
                             GridView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
@@ -411,7 +387,6 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
                                 );
                               },
                             ),
-
                             const SizedBox(height: 16),
                             Container(
                               padding: const EdgeInsets.all(12),
@@ -456,14 +431,11 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
                           ],
                         ),
                       ),
-
                       const SizedBox(height: 24),
                     ],
                   ),
                 ),
               ),
-
-              // Bottom CTA
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 decoration: const BoxDecoration(
@@ -504,8 +476,6 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
     );
   }
 }
-
-// ── Reusable Section Card ───────────────────────────────────────────────────
 
 class _SectionCard extends StatelessWidget {
   final IconData icon;
@@ -559,8 +529,6 @@ class _SectionCard extends StatelessWidget {
     );
   }
 }
-
-// ── Address Card ────────────────────────────────────────────────────────────
 
 class _AddressCard extends StatelessWidget {
   final Address address;
@@ -638,8 +606,6 @@ class _AddressCard extends StatelessWidget {
   }
 }
 
-// ── Map grid painter (decorative) ──────────────────────────────────────────
-
 class _MapGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -647,12 +613,10 @@ class _MapGridPainter extends CustomPainter {
       ..color = const Color(0xffb8d9f5)
       ..strokeWidth = 1;
 
-    // Horizontal lines
     for (var i = 0; i < 6; i++) {
       final y = (size.height / 5) * i;
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
-    // Vertical lines
     for (var i = 0; i < 10; i++) {
       final x = (size.width / 9) * i;
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);

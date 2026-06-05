@@ -20,7 +20,28 @@ import { Order, OrderStatus, OrderTechnician } from '../types/order';
 const COLLECTION_NAME = 'donHang';
 
 /**
- * Hàm ép kiểu ngày tháng an toàn tuyệt đối 100%
+ * Hàm hỗ trợ tạo thông báo cho khách hàng
+ */
+const createCustomerNotification = async (userId: string, title: string, body: string, data: any) => {
+  const db = getDb();
+  if (!db || !userId) return;
+  try {
+    await addDoc(collection(db, 'thongBao'), {
+      userId,
+      title,
+      body,
+      type: 'order_status',
+      data,
+      isRead: false,
+      createdAt: serverTimestamp()
+    });
+  } catch (e) {
+    console.error("Error creating notification:", e);
+  }
+};
+
+/**
+ * Hàm ép kiểu ngày tháng an toàn
  */
 export const safeToDate = (value: any): Date => {
   if (!value) return new Date();
@@ -40,7 +61,30 @@ export const addOrder = async (orderData: any) => {
   const db = getDb();
   if (!db) throw new Error("Kết nối Firestore thất bại");
 
+  let customerId = orderData.customerId || null;
+
+  if (!customerId && orderData.phoneNumber) {
+    try {
+      let q = query(collection(db, 'nguoiDung'), where('phoneNumber', '==', String(orderData.phoneNumber).trim()));
+      let snap = await getDocs(q);
+      if (snap.empty) {
+        q = query(collection(db, 'nguoiDung'), where('phone', '==', String(orderData.phoneNumber).trim()));
+        snap = await getDocs(q);
+      }
+      if (!snap.empty) {
+        customerId = snap.docs[0].id;
+      }
+    } catch (e) {
+      console.error("Error finding customer by phone:", e);
+    }
+  }
+
+  const orderCode = 'ORD-' + Math.random().toString(36).toUpperCase().substring(2, 8);
+
   const docData = {
+    customerId: customerId,
+    khachHangId: customerId,
+    orderCode: orderCode,
     tenKhachHang: String(orderData.customerName || 'Khách hàng'),
     phoneNumber: String(orderData.phoneNumber || ''),
     diaChiGiaoHang: String(orderData.address || ''),
@@ -48,8 +92,6 @@ export const addOrder = async (orderData: any) => {
     provinceCode: Number(orderData.provinceCode) || null,
     districtCode: Number(orderData.districtCode) || null,
     wardCode: Number(orderData.wardCode) || null,
-    latitude: orderData.latitude ? Number(orderData.latitude) : null,
-    longitude: orderData.longitude ? Number(orderData.longitude) : null,
     tenSanPham: String(orderData.productName || ''),
     items: (orderData.items || []).map((item: any) => ({
       id: String(item.id || ''),
@@ -72,7 +114,19 @@ export const addOrder = async (orderData: any) => {
     ngayBaoTriTiepTheo: Timestamp.fromDate(new Date(Date.now() + 180 * 24 * 60 * 60 * 1000))
   };
 
-  return addDoc(collection(db, COLLECTION_NAME), docData);
+  const docRef = await addDoc(collection(db, COLLECTION_NAME), docData);
+
+  // Thông báo cho khách hàng nếu có customerId
+  if (customerId) {
+    await createCustomerNotification(
+      customerId,
+      'Đơn hàng mới đã được tạo',
+      `Đơn hàng ${orderCode} của bạn đã được tạo thành công trên hệ thống.`,
+      { orderId: docRef.id, status: docData.trangThai }
+    );
+  }
+
+  return docRef;
 };
 
 export const subscribeToOrders = (callback: (orders: Order[]) => void, statusFilter?: string) => {
@@ -84,6 +138,7 @@ export const subscribeToOrders = (callback: (orders: Order[]) => void, statusFil
       'Đã duyệt': 'approved',
       'Đã phân công': 'assigned',
       'Đang xử lý': 'processing',
+      'Đang lắp đặt': 'installing',
       'Hoàn tất': 'completed',
       'Sự cố': 'incident',
       'Đã tất toán': 'paid',
@@ -112,40 +167,52 @@ export const subscribeToOrders = (callback: (orders: Order[]) => void, statusFil
   });
 };
 
-export const updateOrder = async (orderId: string, orderData: Partial<Order>) => {
-  const db = getDb();
-  const updateData: any = { ...orderData, updatedAt: serverTimestamp() };
-
-  if (orderData.customerName) updateData.tenKhachHang = orderData.customerName;
-  if (orderData.productName) updateData.tenSanPham = orderData.productName;
-  if (orderData.totalAmount !== undefined) updateData.tongTien = orderData.totalAmount;
-  if (orderData.status) updateData.trangThai = orderData.status;
-  if (orderData.orderType) updateData.loaiDonHang = orderData.orderType;
-  if (orderData.address) updateData.diaChiGiaoHang = orderData.address;
-  if (orderData.scheduledDate) {
-    updateData.scheduledDate = orderData.scheduledDate instanceof Date
-      ? Timestamp.fromDate(orderData.scheduledDate)
-      : Timestamp.fromDate(new Date(orderData.scheduledDate));
-  }
-
-  return updateDoc(doc(db, COLLECTION_NAME, orderId), updateData);
-};
-
+/**
+ * Cập nhật trạng thái đơn hàng kèm thông báo
+ */
 export const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
-  return updateDoc(doc(getDb(), COLLECTION_NAME, orderId), { trangThai: status, updatedAt: serverTimestamp() });
+  const db = getDb();
+  const orderDoc = await getDoc(doc(db, COLLECTION_NAME, orderId));
+  if (!orderDoc.exists()) return;
+
+  const orderData = orderDoc.data();
+  await updateDoc(doc(db, COLLECTION_NAME, orderId), {
+    trangThai: status,
+    updatedAt: serverTimestamp()
+  });
+
+  // Gửi thông báo cho khách hàng
+  const statusLabels: any = {
+    'approved': 'đã được duyệt',
+    'assigned': 'đã được phân công kỹ thuật viên',
+    'processing': 'đang được xử lý',
+    'installing': 'đang được tiến hành lắp đặt',
+    'completed': 'đã hoàn tất thành công',
+    'cancelled': 'đã bị hủy',
+    'incident': 'gặp sự cố kỹ thuật'
+  };
+
+  if (orderData.customerId || orderData.khachHangId) {
+    const uid = orderData.customerId || orderData.khachHangId;
+    await createCustomerNotification(
+      uid,
+      'Cập nhật trạng thái đơn hàng',
+      `Đơn hàng ${orderData.orderCode || ''} ${statusLabels[status] || status}.`,
+      { orderId, status }
+    );
+  }
 };
 
 /**
- * Cập nhật KTV và Lịch hẹn
- * @param currentStatus Trạng thái hiện tại của đơn để quyết định có chuyển sang 'assigned' hay không
+ * Cập nhật KTV và gửi thông báo
  */
 export const assignTechnicians = async (orderId: string, technicians: OrderTechnician[], scheduledDate: Date, currentStatus: string) => {
+  const db = getDb();
   const updateData: any = {
     technicians,
     updatedAt: serverTimestamp()
   };
 
-  // Chỉ tự động chuyển sang 'assigned' nếu đang ở bước Chờ duyệt hoặc Đã duyệt
   if (['pending', 'approved'].includes(currentStatus)) {
     updateData.trangThai = 'assigned';
   }
@@ -154,10 +221,64 @@ export const assignTechnicians = async (orderId: string, technicians: OrderTechn
     updateData.scheduledDate = Timestamp.fromDate(scheduledDate);
   }
 
-  return updateDoc(doc(getDb(), COLLECTION_NAME, orderId), updateData);
+  await updateDoc(doc(db, COLLECTION_NAME, orderId), updateData);
+
+  // Thông báo phân công
+  const orderDoc = await getDoc(doc(db, COLLECTION_NAME, orderId));
+  if (orderDoc.exists()) {
+    const data = orderDoc.data();
+    const uid = data.customerId || data.khachHangId;
+    if (uid) {
+      await createCustomerNotification(
+        uid,
+        'Kỹ thuật viên đã được phân công',
+        `Đơn hàng ${data.orderCode} sẽ được xử lý bởi ${technicians.length} kỹ thuật viên vào lúc ${scheduledDate.toLocaleString('vi-VN')}.`,
+        { orderId, status: 'assigned' }
+      );
+    }
+  }
 };
 
 export const deleteOrder = async (orderId: string, status: OrderStatus) => {
   if (status === 'pending') return deleteDoc(doc(getDb(), COLLECTION_NAME, orderId));
   return updateDoc(doc(getDb(), COLLECTION_NAME, orderId), { trangThai: 'deleted', updatedAt: serverTimestamp() });
+};
+
+export const updateOrder = async (orderId: string, orderData: any) => {
+  const db = getDb();
+  
+  // Lấy đơn hàng hiện tại để so sánh trạng thái
+  const orderDoc = await getDoc(doc(db, COLLECTION_NAME, orderId));
+  if (orderDoc.exists()) {
+    const oldData = orderDoc.data();
+    // Nếu có sự thay đổi trạng thái và trạng thái mới khác trạng thái cũ
+    if (orderData.status && oldData.trangThai !== orderData.status) {
+      const uid = oldData.customerId || oldData.khachHangId;
+      if (uid) {
+        const statusLabels: any = {
+          'approved': 'đã được duyệt',
+          'assigned': 'đã được phân công kỹ thuật viên',
+          'processing': 'đang được xử lý',
+          'installing': 'đang được tiến hành lắp đặt',
+          'completed': 'đã hoàn tất thành công',
+          'cancelled': 'đã bị hủy',
+          'incident': 'gặp sự cố kỹ thuật'
+        };
+        await createCustomerNotification(
+          uid,
+          'Cập nhật trạng thái đơn hàng',
+          `Đơn hàng ${oldData.orderCode || ''} ${statusLabels[orderData.status] || orderData.status}.`,
+          { orderId, status: orderData.status }
+        );
+      }
+    }
+  }
+
+  // Cập nhật dữ liệu
+  const updatePayload = {
+    ...orderData,
+    trangThai: orderData.status || orderData.trangThai || 'pending',
+    updatedAt: serverTimestamp()
+  };
+  await updateDoc(doc(db, COLLECTION_NAME, orderId), updatePayload);
 };

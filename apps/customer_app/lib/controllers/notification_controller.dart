@@ -1,12 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:customer_app/models/notification_model.dart';
-import 'package:customer_app/services/firestore_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class NotificationController extends ChangeNotifier {
   List<AppNotification> _notifications = [];
   bool _isLoading = false;
   String? _error;
+  StreamSubscription? _notificationSubscription;
 
   List<AppNotification> get notifications => _notifications;
   bool get isLoading => _isLoading;
@@ -14,68 +16,101 @@ class NotificationController extends ChangeNotifier {
   bool get hasUnread => _notifications.any((n) => !n.isRead);
   int get unreadCount => _notifications.where((n) => !n.isRead).length;
 
-  Future<void> loadNotifications() async {
+  NotificationController() {
+    _startListening();
+  }
+
+  // Lắng nghe thay đổi Real-time từ Firestore (Thay thế cho Cloud Functions)
+  void _startListening() {
+    _notificationSubscription?.cancel();
+    
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      final data = await FirestoreService.getNotifications(user.uid);
-      _notifications = data.map((map) => AppNotification.fromMap(map)).toList();
-    } catch (e) {
+    _notificationSubscription = FirebaseFirestore.instance
+        .collection('thongBao')
+        .where('userId', isEqualTo: user.uid)
+        .snapshots()
+        .listen((snapshot) {
+      _notifications = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return AppNotification.fromMap(data);
+      }).toList();
+      
+      _notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      notifyListeners();
+      
+      // Ở đây bạn có thể gọi hàm hiện thông báo Popup cục bộ
+      debugPrint('Đã cập nhật thông báo mới: ${_notifications.length}');
+    }, onError: (e) {
       _error = e.toString();
-    }
+      notifyListeners();
+    });
+  }
 
-    _isLoading = false;
-    notifyListeners();
+  // Làm mới khi chuyển tài khoản
+  void refresh() {
+    _startListening();
+  }
+
+  @override
+  void dispose() {
+    _notificationSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> markAsRead(String notificationId) async {
     try {
-      await FirestoreService.markNotificationRead(notificationId);
-      final index = _notifications.indexWhere((n) => n.id == notificationId);
-      if (index >= 0) {
-        final notification = _notifications[index];
-        _notifications[index] = AppNotification(
-          id: notification.id,
-          userId: notification.userId,
-          title: notification.title,
-          body: notification.body,
-          type: notification.type,
-          data: notification.data,
-          isRead: true,
-          createdAt: notification.createdAt,
-          readAt: DateTime.now(),
-        );
-        notifyListeners();
-      }
-    } catch (e) {
-      _error = e.toString();
-    }
-  }
-
-  Future<void> deleteNotification(String notificationId) async {
-    try {
-      await FirestoreService.deleteNotification(notificationId);
-      _notifications.removeWhere((n) => n.id == notificationId);
-      notifyListeners();
+      await FirebaseFirestore.instance
+          .collection('thongBao')
+          .doc(notificationId)
+          .update({
+        'isRead': true,
+        'readAt': FieldValue.serverTimestamp(),
+      });
     } catch (e) {
       _error = e.toString();
     }
   }
 
   Future<void> markAllAsRead() async {
-    for (var n in _notifications.where((n) => !n.isRead)) {
-      await markAsRead(n.id);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final batch = FirebaseFirestore.instance.batch();
+    final unreadItems = _notifications.where((n) => !n.isRead);
+    
+    for (var n in unreadItems) {
+      batch.update(FirebaseFirestore.instance.collection('thongBao').doc(n.id), {
+        'isRead': true,
+        'readAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
+
+  Future<void> deleteNotification(String notificationId) async {
+    try {
+      await FirebaseFirestore.instance.collection('thongBao').doc(notificationId).delete();
+    } catch (e) {
+      _error = e.toString();
     }
   }
 
+  Future<void> loadNotifications() async {
+    refresh();
+  }
+
   Future<void> deleteAll() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final batch = FirebaseFirestore.instance.batch();
     for (var n in _notifications) {
-      await deleteNotification(n.id);
+      batch.delete(FirebaseFirestore.instance.collection('thongBao').doc(n.id));
     }
+    await batch.commit();
   }
 }

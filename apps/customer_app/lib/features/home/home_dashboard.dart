@@ -4,6 +4,7 @@ import 'package:customer_app/controllers/auth_controller.dart';
 import 'package:customer_app/widgets/home_banner_widget.dart';
 import 'package:customer_app/widgets/category_section_widget.dart';
 import 'package:customer_app/widgets/featured_products_widget.dart';
+import 'package:customer_app/controllers/notification_controller.dart';
 
 class HomeDashboard extends StatefulWidget {
   final Function(int)? onTabChange;
@@ -88,9 +89,32 @@ class _HomeDashboardState extends State<HomeDashboard> {
               ),
             ),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.notifications_none_rounded, color: Color(0xff00459a)),
-                onPressed: () => Navigator.pushNamed(context, '/notifications'),
+              Consumer<NotificationController>(
+                builder: (context, notificationController, _) {
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.notifications_none_rounded, color: Color(0xff00459a)),
+                        onPressed: () => Navigator.pushNamed(context, '/notifications'),
+                      ),
+                      if (notificationController.hasUnread)
+                        Positioned(
+                          right: 12,
+                          top: 12,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 1.5),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(width: 4),
             ],
