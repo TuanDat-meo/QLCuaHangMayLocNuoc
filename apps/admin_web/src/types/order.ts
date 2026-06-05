@@ -1,6 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 
-export type OrderStatus = 'pending' | 'approved' | 'assigned' | 'processing' | 'completed' | 'incident' | 'paid' | 'cancelled' | 'deleted';
+export type OrderStatus = 'pending' | 'approved' | 'assigned' | 'processing' | 'installing' | 'completed' | 'incident' | 'paid' | 'cancelled' | 'deleted';
 
 export type OrderType = 'installation' | 'maintenance' | 'repair';
 

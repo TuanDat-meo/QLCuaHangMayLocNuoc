@@ -1,9 +1,4 @@
 "use strict";
-/**
- * AquaCareSystem - Firebase Cloud Functions
- *
- * Xử lý business logic cho hệ thống quản lý máy lọc nước
- */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -38,61 +33,88 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyOtp = exports.setCustomClaims = exports.onOrderCreated = void 0;
+exports.onOrderStatusChanged = exports.onNotificationCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
-// Phase 1 - Core Functions
-exports.onOrderCreated = functions
-    .region("asia-southeast1")
-    .firestore.document("orders/{orderId}")
-    .onCreate(async (snapshot, context) => {
-    /**
-     * Trigger khi tạo đơn hàng mới
-     */
+const REGION = "asia-southeast1";
+/**
+ * Trigger: Tự động gửi Push Notification khi có tài liệu mới trong bộ sưu tập 'thongBao'
+ */
+exports.onNotificationCreated = functions
+    .region(REGION)
+    .firestore.document("thongBao/{notificationId}")
+    .onCreate(async (snap, context) => {
+    const data = snap.data();
+    if (!data || !data.userId)
+        return null;
+    const { userId, title, body, type, data: extraData } = data;
     try {
-        const orderId = context.params.orderId;
-        const data = snapshot.data();
-        console.log(`Order created: ${orderId}`);
-        console.log(`Order data:`, data);
-        // TODO: Gửi notification đến admin
-        // TODO: Ghi audit log
-    }
-    catch (error) {
-        console.error("Error in onOrderCreated:", error);
-        throw error;
-    }
-});
-exports.setCustomClaims = functions
-    .region("asia-southeast1")
-    .https.onRequest({ cors: true }, async (req, res) => {
-    /**
-     * Set custom claims (role) cho user
-     */
-    try {
-        const { uid, role } = req.body; // "admin", "technician", "customer"
-        if (!uid || !role) {
-            res.status(400).json({ error: "Missing uid or role" });
-            return;
+        // 1. Lấy token của người dùng
+        const userDoc = await admin.firestore().collection("nguoiDung").doc(userId).get();
+        const fcmToken = userDoc.data()?.fcmToken;
+        if (!fcmToken) {
+            console.log(`[FCM] No token found for user: ${userId}`);
+            return null;
         }
-        // Set custom claims
-        await admin.auth().setCustomUserClaims(uid, { role });
-        res.status(200).json({
-            success: true,
-            message: `Role ${role} set for user ${uid}`,
-        });
+        // 2. Cấu hình nội dung thông báo
+        const message = {
+            token: fcmToken,
+            notification: {
+                title: title || "Thông báo từ AquaCare",
+                body: body || "Bạn có cập nhật mới",
+            },
+            data: {
+                type: type || "system",
+                click_action: "FLUTTER_NOTIFICATION_CLICK",
+                ...(extraData || {}),
+            },
+            android: {
+                priority: "high",
+                notification: {
+                    channelId: "high_importance_channel",
+                    sound: "default",
+                },
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: "default",
+                        badge: 1,
+                    },
+                },
+            },
+        };
+        // 3. Gửi thông báo
+        const response = await admin.messaging().send(message);
+        console.log(`[FCM] Successfully sent message to ${userId}:`, response);
+        return response;
     }
     catch (error) {
-        console.error("Error:", error);
-        res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+        console.error(`[FCM] Error sending notification to ${userId}:`, error);
+        return null;
     }
 });
-exports.verifyOtp = functions
-    .region("asia-southeast1")
-    .https.onRequest({ cors: true }, async (req, res) => {
-    /**
-     * Xác thực OTP
-     */
-    // TODO: Implement OTP verification
-    res.status(501).json({ error: "OTP verification not implemented" });
+/**
+ * Trigger: Cập nhật nhật ký hệ thống khi đơn hàng thay đổi
+ */
+exports.onOrderStatusChanged = functions
+    .region(REGION)
+    .firestore.document("donHang/{orderId}")
+    .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const orderId = context.params.orderId;
+    if (before.trangThai === after.trangThai)
+        return null;
+    const orderCode = after.orderCode || orderId.slice(-6).toUpperCase();
+    // Ghi log vào dashboard (để Admin theo dõi)
+    await admin.firestore().collection("nhatKyHoatDong").add({
+        moTa: `Đơn hàng ${orderCode}: ${before.trangThai} ➔ ${after.trangThai}`,
+        loai: after.trangThai === "completed" ? "success" : "info",
+        ngayTao: admin.firestore.FieldValue.serverTimestamp(),
+        orderId: orderId
+    });
+    return null;
 });
+//# sourceMappingURL=index.js.map

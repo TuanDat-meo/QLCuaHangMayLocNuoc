@@ -11,7 +11,11 @@ import 'controllers/cart_controller.dart';
 import 'controllers/order_controller.dart';
 import 'controllers/notification_controller.dart';
 import 'controllers/favorites_controller.dart';
+import 'controllers/chat_controller.dart';
+import 'services/push_notification_service.dart';
 import 'package:intl/date_symbol_data_local.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +30,10 @@ void main() async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
     }
+    
+    // Khởi tạo Push Notifications
+    await PushNotificationService.initialize();
+
   } catch (e) {
     debugPrint("Firebase initialization error: $e");
   }
@@ -46,12 +54,14 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CartController()),
         ChangeNotifierProvider(create: (_) => OrderController()),
         ChangeNotifierProvider(create: (_) => NotificationController()),
+        ChangeNotifierProvider(create: (_) => ChatController()),
         ChangeNotifierProxyProvider<AuthController, FavoritesController>(
           create: (context) => FavoritesController(context.read<AuthController>()),
           update: (context, auth, favorites) => FavoritesController(auth),
         ),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'AquaCare - Customer App',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(

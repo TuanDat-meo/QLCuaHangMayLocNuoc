@@ -8,6 +8,9 @@ class Address {
   final String ward;
   final String district;
   final String city;
+  final int? provinceCode;
+  final int? districtCode;
+  final int? wardCode;
   final String type; // 'home' | 'company'
 
   Address({
@@ -18,10 +21,13 @@ class Address {
     required this.ward,
     required this.district,
     required this.city,
+    this.provinceCode,
+    this.districtCode,
+    this.wardCode,
     this.type = 'home',
   });
 
-  String get fullAddress => '$street, Phường $ward, $district, $city';
+  String get fullAddress => '$street, $ward, $district, $city';
 
   Map<String, dynamic> toMap() => {
         'id': id,
@@ -31,7 +37,10 @@ class Address {
         'ward': ward,
         'district': district,
         'city': city,
-        'kind': type, // Matching user's 'kind' field
+        'provinceCode': provinceCode,
+        'districtCode': districtCode,
+        'wardCode': wardCode,
+        'kind': type,
       };
 
   factory Address.fromMap(Map<String, dynamic> map) => Address(
@@ -42,6 +51,9 @@ class Address {
         ward: map['ward'] ?? '',
         district: map['district'] ?? '',
         city: map['city'] ?? '',
+        provinceCode: map['provinceCode'],
+        districtCode: map['districtCode'],
+        wardCode: map['wardCode'],
         type: map['kind'] ?? map['type'] ?? 'home',
       );
 }
@@ -153,35 +165,6 @@ class Order {
     required this.createdAt,
   });
 
-  List<OrderTrackingStep> get trackingSteps => [
-        OrderTrackingStep(
-          title: 'Chờ xác nhận',
-          subtitle: 'Đơn hàng đã được tiếp nhận.',
-          isCompleted: ['confirmed', 'in_progress', 'completed'].contains(status),
-          isActive: status == 'pending',
-          timestamp: createdAt,
-        ),
-        OrderTrackingStep(
-          title: 'Đã xác nhận',
-          subtitle: 'Đã lên lịch và chuẩn bị thiết bị.',
-          isCompleted: ['in_progress', 'completed'].contains(status),
-          isActive: status == 'confirmed',
-        ),
-        OrderTrackingStep(
-          title: 'Đang giao hàng & Lắp đặt',
-          subtitle:
-              'Kỹ thuật viên đang di chuyển đến địa chỉ của bạn. Dự kiến đến trong 30 phút.',
-          isCompleted: status == 'completed',
-          isActive: status == 'in_progress',
-        ),
-        OrderTrackingStep(
-          title: 'Hoàn thành',
-          subtitle: 'Lắp đặt thành công và kích hoạt thiết bị.',
-          isCompleted: status == 'completed',
-          isActive: false,
-        ),
-      ];
-
   Map<String, dynamic> toMap() => {
         'id': id,
         'orderCode': orderCode,
@@ -193,7 +176,7 @@ class Order {
         'notes': notes,
         'subtotal': subtotal,
         'discount': discount,
-        'Shipping fee': shippingFee, // Matching user's field
+        'Shipping fee': shippingFee,
         'status': status,
         'technicianId': technicianId,
         'technicianName': technicianName,

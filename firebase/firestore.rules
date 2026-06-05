@@ -62,6 +62,11 @@ service cloud.firestore {
       allow write: if isStaff();
     }
 
+    // Thông báo
+    match /thongBao/{document=**} {
+      allow write: if request.auth != null;
+    }
+
     // Sản phẩm (Cho phép Staff/Accountant nhập kho thì nên để <= 3 hoặc cho phép update cụ thể)
     match /sanPham/{document=**} {
       allow write: if isStaff(); 
@@ -70,6 +75,38 @@ service cloud.firestore {
     // Nhật ký hoạt động
     match /nhatKyHoatDong/{document=**} {
       allow write: if request.auth != null;
+    }
+
+    // Chat Sessions - Hệ thống hỗ trợ khách hàng
+    match /chatSessions/{sessionId} {
+      // Khách đọc session của chính mình
+      allow read: if request.auth != null &&
+        (resource.data.customerId == request.auth.uid || isStaff());
+      
+      // Khách tạo session mới (customerId phải là uid của mình)
+      allow create: if request.auth != null &&
+        request.resource.data.customerId == request.auth.uid;
+
+      // Khách cập nhật unreadByCustomer / lastMessage của session mình
+      allow update: if request.auth != null &&
+        (resource.data.customerId == request.auth.uid || isStaff());
+
+      // Chỉ admin/staff mới xóa session
+      allow delete: if isStaff();
+    }
+
+    // Messages trong mỗi chat session
+    match /chatSessions/{sessionId}/messages/{messageId} {
+      // Đọc: customer chủ session hoặc staff
+      allow read: if request.auth != null;
+
+      // Gửi tin: customer chủ session hoặc staff hoặc bot (system)
+      allow create: if request.auth != null;
+
+      // Cập nhật (đánh dấu đã đọc): customer hoặc staff
+      allow update: if request.auth != null;
+
+      allow delete: if isStaff();
     }
   }
 }
