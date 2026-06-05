@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared/theme/app_colors.dart';
-import 'package:shared/theme/app_text_styles.dart';
 import '../../../controllers/job_controller.dart';
 import '../../../controllers/auth_controller.dart';
 
@@ -142,7 +141,7 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
     IconData emptyIcon,
   ) {
     return RefreshIndicator(
-      onRefresh: () => controller.refreshJobs(),
+      onRefresh: () => controller.refreshData(),
       color: AppColors.primary,
       child: jobList.isEmpty
           ? _buildEmptyState(emptyText, emptyIcon)

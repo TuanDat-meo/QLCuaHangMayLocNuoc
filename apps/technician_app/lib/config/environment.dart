@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class Environment {
@@ -10,12 +11,28 @@ class Environment {
 
   // App Configuration
   static String get appEnvironment => dotenv.get('APP_ENVIRONMENT', fallback: 'development');
-  static String get apiBaseUrl => dotenv.get('API_BASE_URL', fallback: 'http://localhost:5000');
+  
+  static String get apiBaseUrl {
+    final url = dotenv.get('API_BASE_URL', fallback: 'http://localhost:5000');
+    // Tự động chuyển đổi localhost hoặc 127.0.0.1 sang IP cổng máy ảo Android (10.0.2.2)
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      if (url.contains('localhost')) {
+        return url.replaceAll('localhost', '10.0.2.2');
+      } else if (url.contains('127.0.0.1')) {
+        return url.replaceAll('127.0.0.1', '10.0.2.2');
+      }
+    }
+    return url;
+  }
+
   static String get logLevel => dotenv.get('LOG_LEVEL', fallback: 'debug');
 
   // Feature Flags
   static bool get enableAnalytics => dotenv.get('ENABLE_ANALYTICS', fallback: 'false') == 'true';
   static bool get enableCrashReporting => dotenv.get('ENABLE_CRASH_REPORTING', fallback: 'false') == 'true';
+
+  // Google Maps
+  static String get googleMapsApiKey => dotenv.get('GOOGLE_MAPS_API_KEY', fallback: '');
 
   // Getters
   static bool get isProduction => appEnvironment == 'production';
