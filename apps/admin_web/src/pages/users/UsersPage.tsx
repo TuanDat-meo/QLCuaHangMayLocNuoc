@@ -5,7 +5,8 @@ import {
   CheckCircle, ChevronDown, Plus, Lock, Filter,
   Mail, Phone, UserCheck, ShieldAlert, Ban, Unlock,
   Activity, Users as UsersIcon, Briefcase, Calculator,
-  Layers, Info, Zap, UserPlus, Sparkles
+  Layers, Info, Zap, UserPlus, Sparkles, DollarSign, Wallet,
+  ShieldCheck, History, MoreHorizontal, TrendingUp, Clock
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -18,12 +19,12 @@ import {
   updateRole,
   deleteRole,
   getAllPermissions,
-  seedStandardRoles
+  seedStandardRoles,
+  toggleRolePermission
 } from '../../services/roleService';
 import { AuthUser, UserRole } from '../../types/auth';
 import { Role } from '../../types/role';
 import toast from 'react-hot-toast';
-import { logActivity } from '../../services/auditService';
 
 const UsersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -43,14 +44,14 @@ const UsersPage: React.FC = () => {
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
 
   const [userForm, setUserForm] = useState({
-    email: '', password: '', displayName: '', phoneNumber: '', role: 3 as number, status: 'active'
+    email: '', password: '', displayName: '', phoneNumber: '', role: 3 as number, status: 'active',
+    baseSalary: 0, commissionPerOrder: 50000
   });
   const [roleForm, setRoleForm] = useState({
     name: '', description: '', roleValue: 0, permissions: [] as string[]
   });
 
   const allPermissions = useMemo(() => getAllPermissions(), []);
-  const [openApproveId, setOpenApproveId] = useState<string | null>(null);
   const [pendingRoleValue, setPendingRoleValue] = useState<Record<string, number>>({});
 
   // --- DATA FETCHING ---
@@ -60,7 +61,13 @@ const UsersPage: React.FC = () => {
       const [uData, rData] = await Promise.all([getAllUsers(), getAllRoles()]);
       setAllUsers(uData);
       setRoles(rData);
-      if (rData.length > 0 && !selectedRole) setSelectedRole(rData[0]);
+
+      if (selectedRole) {
+        const updated = rData.find(r => r.id === selectedRole.id);
+        if (updated) setSelectedRole(updated);
+      } else if (rData.length > 0) {
+        setSelectedRole(rData[0]);
+      }
     } catch (err: any) {
       toast.error('Lỗi tải dữ liệu hệ thống!');
     } finally {
@@ -73,36 +80,30 @@ const UsersPage: React.FC = () => {
   // --- LOGIC ---
   const dynamicStats = useMemo(() => {
     const active = allUsers.filter(u => u.status === 'active');
-    const roleCounts = roles.map(role => ({
-      name: role.name,
-      value: active.filter(u => u.role === role.roleValue).length,
-      roleValue: role.roleValue
-    }));
-
     return {
       total: allUsers.length,
-      pending: allUsers.filter(u => u.status === 'pending' || u.role === UserRole.PENDING).length,
-      roleCounts,
-      staffCount: active.filter(u => u.role !== UserRole.CUSTOMER && u.role !== UserRole.PENDING).length
+      pending: allUsers.filter(u => u.status === 'pending' || Number(u.role) === UserRole.PENDING).length,
+      staffCount: active.filter(u => Number(u.role) !== UserRole.CUSTOMER && Number(u.role) !== UserRole.PENDING).length
     };
-  }, [allUsers, roles]);
+  }, [allUsers]);
 
   const filteredUsers = useMemo(() => {
     let result = allUsers;
-    if (activeTab === 'pending') result = result.filter(u => u.status === 'pending' || u.role === UserRole.PENDING);
-    else if (activeTab === 'staff') result = result.filter(u => u.status !== 'pending' && u.role !== UserRole.CUSTOMER && u.role !== UserRole.PENDING);
-    if (roleFilter !== 'all') result = result.filter(u => u.role === roleFilter);
+    if (activeTab === 'pending') result = result.filter(u => u.status === 'pending' || Number(u.role) === UserRole.PENDING);
+    else if (activeTab === 'staff') result = result.filter(u => u.status !== 'pending' && Number(u.role) !== UserRole.CUSTOMER && Number(u.role) !== UserRole.PENDING);
+
+    if (roleFilter !== 'all') result = result.filter(u => Number(u.role) === Number(roleFilter));
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(u => u.displayName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.phoneNumber?.includes(q));
+      result = result.filter(u =>
+        (u.displayName || '').toLowerCase().includes(q) ||
+        (u.email || '').toLowerCase().includes(q) ||
+        (u.phoneNumber || '').includes(q)
+      );
     }
     return result;
   }, [allUsers, activeTab, roleFilter, searchQuery]);
-
-  const usersInSelectedRole = useMemo(() => {
-    if (!selectedRole) return [];
-    return allUsers.filter(u => u.role === selectedRole.roleValue);
-  }, [allUsers, selectedRole]);
 
   // --- ACTIONS ---
   const handleUserSubmit = async (e: React.FormEvent) => {
@@ -111,7 +112,7 @@ const UsersPage: React.FC = () => {
     try {
       if (modalMode === 'create') await adminCreateUser(userForm);
       else if (selectedUser) await adminUpdateUser({ uid: selectedUser.uid, ...userForm });
-      toast.success('Thành công!');
+      toast.success('Cập nhật nhân sự thành công!');
       setIsUserModalOpen(false);
       fetchData();
     } catch (err: any) { toast.error(err.message || 'Lỗi thao tác'); }
@@ -120,12 +121,12 @@ const UsersPage: React.FC = () => {
 
   const handleToggleStatus = async (user: AuthUser) => {
     const newStatus = user.status === 'active' ? 'blocked' : 'active';
-    if (window.confirm(`Xác nhận thay đổi trạng thái tài khoản ${user.displayName}?`)) {
+    if (window.confirm(`Xác nhận thay đổi trạng thái tài khoản ${user.displayName || 'này'}?`)) {
       try {
         await updateUserStatus(user.uid, newStatus);
         toast.success(`Đã cập nhật trạng thái`);
         fetchData();
-      } catch (err) { toast.error('Lỗi cập nhật'); }
+      } catch (err) { toast.error('Lỗi'); }
     }
   };
 
@@ -133,21 +134,21 @@ const UsersPage: React.FC = () => {
     const role = pendingRoleValue[uid] || 3;
     setIsActionLoading(true);
     try {
-      await approveUser(uid, role);
+      await approveUser(uid, Number(role));
       toast.success('Đã duyệt nhân sự!');
       fetchData();
-    } catch (err) { toast.error('Lỗi phê duyệt'); }
-    finally { setIsActionLoading(false); setOpenApproveId(null); }
+    } catch (err) { toast.error('Lỗi'); }
+    finally { setIsActionLoading(false); }
   };
 
   const handleSeedRoles = async () => {
-    if (window.confirm('Hệ thống sẽ khởi tạo bộ vai trò chuẩn (Admin, KTV, Điều phối, Kế toán, Khách hàng) theo đúng nghiệp vụ AquaCare. Bạn có chắc chắn?')) {
+    if (window.confirm('Hệ thống sẽ khởi tạo bộ vai trò chuẩn. Bạn có chắc chắn?')) {
       setIsActionLoading(true);
       try {
         await seedStandardRoles();
         toast.success('Đã khởi tạo vai trò chuẩn thành công!');
         fetchData();
-      } catch (err) { toast.error('Lỗi khởi tạo'); }
+      } catch (err) { toast.error('Lỗi'); }
       finally { setIsActionLoading(false); }
     }
   };
@@ -158,48 +159,72 @@ const UsersPage: React.FC = () => {
     try {
       if (modalMode === 'create') await createRole(roleForm);
       else if (selectedRole) await updateRole(selectedRole.id, roleForm);
-      toast.success('Đã lưu vai trò!');
+      toast.success('Đã lưu cấu hình vai trò!');
       setIsRoleModalOpen(false);
       fetchData();
-    } catch (err) { toast.error('Lỗi vai trò'); }
+    } catch (err: any) { toast.error('Lỗi'); }
     finally { setIsActionLoading(false); }
   };
 
-  const getRoleName = (val: number | null) => {
-    if (val === 0) return 'Chờ duyệt';
-    return roles.find(r => r.roleValue === val)?.name || 'N/A';
+  const handleQuickTogglePermission = async (roleId: string, permissionId: string, hasPermission: boolean) => {
+    try {
+      await toggleRolePermission(roleId, permissionId, hasPermission);
+      setRoles(prev => prev.map(r => {
+        if (r.id === roleId) {
+          const newPerms = hasPermission ? r.permissions.filter(p => p !== permissionId) : [...r.permissions, permissionId];
+          return { ...r, permissions: newPerms };
+        }
+        return r;
+      }));
+      if (selectedRole?.id === roleId) {
+        const newPerms = hasPermission ? selectedRole.permissions.filter(p => p !== permissionId) : [...selectedRole.permissions, permissionId];
+        setSelectedRole({ ...selectedRole, permissions: newPerms });
+      }
+      toast.success('Đã cập nhật quyền');
+    } catch (err) { toast.error('Lỗi'); }
   };
 
-  const getRoleIcon = (val: number) => {
-    switch(val) {
-      case 1: return <Shield size={20} className="text-rose-500" />;
-      case 4: return <Zap size={20} className="text-amber-500" />;
-      case 2: return <Briefcase size={20} className="text-blue-500" />;
-      case 6: return <Calculator size={20} className="text-purple-500" />;
-      default: return <UserIcon size={20} className="text-slate-400" />;
+  const getRoleName = (val: any) => {
+    const roleVal = Number(val);
+    if (isNaN(roleVal) || roleVal === 0) return 'Chờ duyệt';
+    const found = roles.find(r => Number(r.roleValue) === roleVal);
+    if (found) return found.name;
+    const systemRoles: Record<number, string> = { 1: 'Admin', 2: 'Điều phối', 3: 'Nhân viên', 4: 'Kỹ thuật', 5: 'Khách hàng', 6: 'Kế toán' };
+    return systemRoles[roleVal] || `Vai trò ${roleVal}`;
+  };
+
+  const getRoleIcon = (val: any) => {
+    const roleVal = Number(val);
+    switch(roleVal) {
+      case 1: return <Shield size={16} className="text-rose-500" />;
+      case 4: return <Zap size={16} className="text-amber-500" />;
+      case 2: return <Briefcase size={16} className="text-blue-500" />;
+      case 3: return <UserCheck size={16} className="text-emerald-500" />;
+      case 6: return <Calculator size={16} className="text-purple-500" />;
+      default: return <UserIcon size={16} className="text-slate-400" />;
     }
   };
 
   return (
-    <div className="p-4 md:p-8 bg-[#f8fafc] dark:bg-[#0f172a] min-h-screen text-left transition-all font-sans">
-      {/* Header */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-10">
-        <div>
+    <div className="w-full transition-all font-sans overflow-x-hidden">
+      {/* Header - Stretches full width */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-10 w-full">
+        <div className="shrink-0">
           <h1 className="text-2xl font-black text-[#0b1c30] dark:text-white uppercase tracking-tight flex items-center gap-3">
             <div className="p-3 bg-white dark:bg-[#1e293b] rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-               <UserCheck className="text-[#00459a]" size={28} />
+               <ShieldCheck className="text-[#00459a]" size={28} />
             </div>
             Quản trị Nhân sự
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">Hệ thống phân quyền & Điều phối nhân sự AquaCare</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium text-xs mt-1 uppercase tracking-widest">Phân quyền & Quản lý nhân sự AquaCare</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
-          <div className="relative flex-1 xl:flex-none xl:min-w-[300px]">
+        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto xl:flex-1 xl:justify-end">
+          <div className="relative w-full xl:max-w-2xl">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
             <input
               type="text" placeholder="Tìm tên, email, sđt..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-6 py-3.5 bg-white dark:bg-[#1e293b] border border-slate-100 dark:border-slate-800 rounded-2xl text-xs font-bold outline-none shadow-sm focus:ring-2 ring-blue-500/10 transition-all"
+              className="w-full pl-12 pr-6 py-4 bg-white dark:bg-[#1e293b] border border-slate-100 dark:border-slate-800 rounded-2xl text-[13px] font-bold outline-none shadow-sm focus:ring-2 ring-blue-500/10 transition-all"
             />
           </div>
           <button
@@ -208,282 +233,342 @@ const UsersPage: React.FC = () => {
                 setRoleForm({ name: '', description: '', roleValue: roles.length + 10, permissions: [] });
                 setModalMode('create'); setIsRoleModalOpen(true);
               } else {
-                setUserForm({ email: '', password: '', displayName: '', phoneNumber: '', role: roles[0]?.roleValue || 3, status: 'active' });
+                setUserForm({ email: '', password: '', displayName: '', phoneNumber: '', role: Number(roles[0]?.roleValue || 3), status: 'active', baseSalary: 0, commissionPerOrder: 50000 });
                 setModalMode('create'); setIsUserModalOpen(true);
               }
             }}
-            className="flex items-center gap-2 px-6 py-3.5 bg-[#00459a] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:brightness-110 active:scale-95 transition-all"
+            className="flex items-center gap-2 px-8 py-4 bg-[#00459a] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:brightness-110 active:scale-95 transition-all whitespace-nowrap"
           >
             <UserPlus size={20} /> {activeTab === 'roles' ? 'Thêm vai trò' : 'Thêm nhân sự'}
           </button>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="flex items-center gap-4 mb-8 overflow-x-auto pb-2 scrollbar-hide">
-        <div className="bg-[#0b1c30] p-6 rounded-[2.5rem] shadow-xl flex items-center gap-5 min-w-[240px] shrink-0 text-white">
-          <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center"><UsersIcon size={24} /></div>
-          <div>
-            <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Tổng nhân sự</p>
-            <p className="text-2xl font-black">{dynamicStats.staffCount}</p>
-          </div>
-        </div>
-        {dynamicStats.roleCounts.map((roleStat, i) => (
-          <div key={i} className="bg-white dark:bg-[#1e293b] p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-5 min-w-[200px] shrink-0">
-            <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-100 dark:border-slate-800">
-               {getRoleIcon(roleStat.roleValue)}
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 w-full">
+        {[
+          { label: 'Tổng nhân sự', value: dynamicStats.total, color: 'text-blue-600', icon: UsersIcon, bg: 'bg-blue-50' },
+          { label: 'Đang làm việc', value: dynamicStats.staffCount, color: 'text-emerald-600', icon: UserCheck, bg: 'bg-emerald-50' },
+          { label: 'Chờ phê duyệt', value: dynamicStats.pending, color: 'text-amber-600', icon: Clock, bg: 'bg-amber-50' },
+          { label: 'Bộ vai trò', value: roles.length, color: 'text-purple-600', icon: ShieldCheck, bg: 'bg-purple-50' },
+        ].map((stat, i) => (
+          <div key={i} className="bg-white dark:bg-[#1e293b] p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-5 transition-all hover:shadow-md">
+            <div className={`w-14 h-14 ${stat.bg} dark:bg-slate-900/50 rounded-2xl flex items-center justify-center ${stat.color} shadow-inner`}>
+              <stat.icon size={26} />
             </div>
             <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase truncate max-w-[100px] tracking-widest">{roleStat.name}</p>
-              <p className="text-2xl font-black text-[#0b1c30] dark:text-white leading-none mt-1">{roleStat.value}</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{stat.label}</p>
+              <p className={`text-2xl font-black ${stat.color} dark:text-white`}>{stat.value}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-6 mb-8">
-        <div className="flex bg-white dark:bg-[#1e293b] rounded-2xl p-1.5 shadow-sm border border-slate-100 dark:border-slate-800 w-fit">
+      {/* Navigation Bars */}
+      <div className="flex flex-wrap items-center justify-between gap-6 mb-8 w-full">
+        <div className="flex bg-white dark:bg-[#1e293b] rounded-2xl p-1.5 shadow-sm border border-slate-100 dark:border-slate-800 w-fit overflow-x-auto no-scrollbar">
           {[
             { id: 'staff', label: 'Hoạt động' },
-            { id: 'pending', label: `Yêu cầu (${dynamicStats.pending})` },
-            { id: 'roles', label: 'Vai trò' },
+            { id: 'pending', label: `Duyệt mới (${dynamicStats.pending})` },
+            { id: 'roles', label: 'Vai trò & Quyền' },
             { id: 'all', label: 'Tất cả' }
           ].map(t => (
             <button
               key={t.id} onClick={() => setActiveTab(t.id as any)}
-              className={`px-8 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all ${activeTab === t.id ? 'bg-[#0b1c30] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`px-8 py-3.5 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-[#0b1c30] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
             >
               {t.label}
             </button>
           ))}
         </div>
-        {activeTab === 'roles' && (
-          <button onClick={handleSeedRoles} disabled={isActionLoading} className="flex items-center gap-2 px-6 py-3 bg-emerald-50 text-emerald-600 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-emerald-100 hover:bg-emerald-100 transition-all">
-             <Sparkles size={16} /> Khởi tạo vai trò chuẩn
+        {activeTab === 'roles' ? (
+          <button onClick={handleSeedRoles} className="flex items-center gap-2 px-6 py-3.5 bg-emerald-50 text-emerald-600 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-emerald-100 hover:bg-emerald-100 transition-all shadow-sm">
+             <Sparkles size={16} /> Bộ vai trò chuẩn
           </button>
+        ) : (
+          <div className="flex items-center gap-3 bg-white dark:bg-[#1e293b] p-1.5 px-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+             <Filter size={14} className="text-slate-300" />
+             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest pr-3 border-r border-slate-100 dark:border-slate-800">Lọc vai trò:</span>
+             <select
+               value={roleFilter}
+               onChange={e => setRoleFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+               className="bg-transparent text-[11px] font-black uppercase outline-none text-slate-700 dark:text-white cursor-pointer ml-2"
+             >
+                <option value="all">Tất cả</option>
+                {roles.map(r => <option key={r.id} value={r.roleValue}>{r.name}</option>)}
+             </select>
+          </div>
         )}
       </div>
 
-      {activeTab !== 'roles' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredUsers.map(user => (
-            <div key={user.uid} className={`bg-white dark:bg-[#1e293b] rounded-[2.5rem] p-7 border-2 transition-all group relative shadow-sm ${user.status === 'blocked' ? 'border-rose-100 opacity-80' : 'border-transparent hover:border-[#00459a]/20'}`}>
-              <div className="flex items-center gap-5 mb-8">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner border ${user.status === 'blocked' ? 'bg-rose-50 text-rose-500 border-rose-100' : 'bg-slate-50 dark:bg-slate-900 text-[#00459a] border-slate-100 dark:border-slate-800'}`}>
-                  {user.displayName.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0 text-left">
-                  <h3 className="font-black text-[#0b1c30] dark:text-white truncate uppercase tracking-tight text-base">{user.displayName}</h3>
-                  <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-black uppercase mt-1">
-                    {user.source === 'admin_web' ? <Globe size={12} /> : <Smartphone size={12} />} {user.source || 'Hệ thống'}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => { setSelectedUser(user); setUserForm({ ...userForm, email: user.email, displayName: user.displayName, phoneNumber: user.phoneNumber || '', role: user.role || 3 }); setModalMode('edit'); setIsUserModalOpen(true); }} className="p-2.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all"><Edit2 size={16} /></button>
-                  <button onClick={() => handleToggleStatus(user)} className={`p-2.5 rounded-xl transition-all ${user.status === 'active' ? 'text-slate-400 hover:text-rose-500 hover:bg-rose-50' : 'text-emerald-500 hover:bg-emerald-50'}`}>
-                    {user.status === 'active' ? <Ban size={16} /> : <Unlock size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3 mb-8 text-left">
-                <div className="flex items-center gap-3 p-4 bg-slate-50/50 dark:bg-slate-900/50 rounded-2xl border border-transparent">
-                  <Mail size={16} className="text-slate-300" />
-                  <span className="font-bold text-xs truncate dark:text-slate-300">{user.email}</span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-900/50 rounded-2xl border border-transparent">
-                  <div className="flex items-center gap-2">
-                     {getRoleIcon(user.role || 0)}
-                     <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-300">{getRoleName(user.role)}</span>
-                  </div>
-                  {user.status === 'active' ? (
-                    <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-500 uppercase"><CheckCircle size={12} /> Active</span>
-                  ) : (
-                    <span className="flex items-center gap-1.5 text-[10px] font-black text-rose-500 uppercase">Blocked</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-6 border-t border-slate-50 dark:border-slate-800">
-                <button onClick={() => navigate(`/audit-logs?email=${user.email}`)} className="flex-1 py-3 bg-slate-50 dark:bg-slate-900 text-slate-400 hover:text-[#00459a] rounded-2xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2 border border-transparent hover:border-blue-100">
-                   <Activity size={14} /> Nhật ký
-                </button>
-                {user.status === 'pending' && (
-                  <button onClick={() => handleApprove(user.uid)} className="flex-1 py-3 bg-[#0b1c30] dark:bg-white text-white dark:text-[#0b1c30] rounded-2xl text-[10px] font-black uppercase shadow-lg hover:scale-105 active:scale-95 transition-all">Duyệt</button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 text-left">
-          {/* Vai trò Sidebar */}
-          <div className="lg:col-span-1 space-y-4">
-            {roles.map(role => (
-              <div key={role.id} onClick={() => setSelectedRole(role)} className={`p-6 rounded-[2.5rem] border-2 cursor-pointer transition-all ${selectedRole?.id === role.id ? 'border-[#00459a] bg-blue-50/50 dark:bg-blue-900/10' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-[#1e293b] hover:border-slate-200 shadow-sm'}`}>
-                <div className="flex justify-between items-start mb-5">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner ${selectedRole?.id === role.id ? 'bg-white dark:bg-slate-800' : 'bg-slate-50 dark:bg-slate-900'}`}>
-                    {getRoleIcon(role.roleValue)}
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={(e) => { e.stopPropagation(); setRoleForm({ ...role }); setModalMode('edit'); setIsRoleModalOpen(true); }} className="p-2 text-slate-400 hover:text-blue-500 transition-all"><Edit2 size={16} /></button>
-                    <button onClick={(e) => { e.stopPropagation(); if(window.confirm('Xóa vai trò này?')) deleteRole(role.id).then(fetchData); }} className="p-2 text-slate-400 hover:text-rose-500 transition-all"><Trash2 size={16} /></button>
-                  </div>
-                </div>
-                <h3 className="font-black text-[#0b1c30] dark:text-white uppercase tracking-tight text-lg leading-tight">{role.name}</h3>
-                <div className="mt-5 flex items-center justify-between">
-                  <span className="text-[10px] font-black bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full text-slate-500 uppercase">{role.permissions.length} Quyền</span>
-                  <span className="text-[10px] font-black text-[#00459a] dark:text-blue-400 uppercase tracking-widest">ID: {role.roleValue}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          {/* Vai trò Detail */}
-          <div className="lg:col-span-2 space-y-6">
-            {selectedRole ? (
-              <div className="bg-white dark:bg-[#1e293b] rounded-[3rem] border border-slate-100 dark:border-slate-800 p-10 shadow-xl animate-in fade-in duration-300">
-                <div className="flex justify-between items-center mb-10 pb-8 border-b border-slate-50 dark:border-slate-800">
-                  <div>
-                    <h2 className="text-2xl font-black text-[#0b1c30] dark:text-white uppercase tracking-tight">{selectedRole.name}</h2>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase mt-2 line-clamp-3 leading-relaxed italic">{selectedRole.description || 'Chưa có mô tả chi tiết'}</p>
-                  </div>
-                  <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-3xl shrink-0"><Lock size={32} className="text-[#00459a]" /></div>
-                </div>
-                <div className="space-y-10">
-                  {Object.entries(allPermissions.reduce((acc: any, p) => ({ ...acc, [p.module]: [...(acc[p.module] || []), p] }), {})).map(([module, perms]: any) => (
-                    <div key={module}>
-                      <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-[#00459a]" /> Module: {module}
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {perms.map((p: any) => {
-                          const has = selectedRole.permissions.includes(p.id);
-                          return (
-                            <div key={p.id} className={`p-5 rounded-2xl border-2 flex items-center justify-between transition-all ${has ? 'border-emerald-100 bg-emerald-50/20 dark:border-emerald-900/10' : 'border-slate-50 dark:border-slate-800 bg-slate-50/30'}`}>
-                              <div className="min-w-0 pr-4">
-                                <p className={`text-[12px] font-black uppercase truncate ${has ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400'}`}>{p.name}</p>
-                                <p className="text-[9px] text-slate-400 mt-1 font-bold">{p.description}</p>
-                              </div>
-                              {has ? <Check size={18} className="text-emerald-500" /> : <X size={16} className="text-slate-200" />}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+      {/* Main Content Area */}
+      <div className="w-full">
+        {activeTab !== 'roles' ? (
+          <div className="bg-white dark:bg-[#1e293b] rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-xl overflow-hidden w-full transition-all">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse table-auto">
+                <thead>
+                  <tr className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
+                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Nhân viên</th>
+                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Thông tin liên hệ</th>
+                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Vai trò</th>
+                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Định mức lương</th>
+                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Nguồn</th>
+                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Trạng thái</th>
+                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                  {filteredUsers.length === 0 ? (
+                    <tr><td colSpan={7} className="py-24 text-center text-slate-300 font-black uppercase text-xs tracking-widest">Không tìm thấy dữ liệu nhân sự</td></tr>
+                  ) : filteredUsers.map(user => (
+                    <tr key={user.uid} className={`hover:bg-slate-50/30 dark:hover:bg-slate-900/30 transition-colors group ${user.status === 'blocked' ? 'opacity-60 bg-rose-50/5' : ''}`}>
+                      <td className="px-8 py-5">
+                        <div className="flex items-center gap-4 text-left">
+                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-sm shadow-inner border bg-slate-100 dark:bg-slate-800 text-[#00459a] border-slate-200 dark:border-slate-700`}>
+                            {(user.displayName || 'U').charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-black text-[#0b1c30] dark:text-white uppercase tracking-tight text-sm truncate">{user.displayName || 'Chưa đặt tên'}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-0.5">UID: {user.uid.slice(-6).toUpperCase()}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-8 py-5">
+                        <div className="text-left space-y-0.5">
+                          <p className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2 whitespace-nowrap"><Mail size={12} className="text-slate-300" /> {user.email}</p>
+                          <p className="text-[11px] font-medium text-slate-400 flex items-center gap-2"><Phone size={12} className="text-slate-300" /> {user.phoneNumber || '---'}</p>
+                        </div>
+                      </td>
+                      <td className="px-8 py-5">
+                        <div className="flex items-center gap-2.5 text-left">
+                          <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg">{getRoleIcon(user.role)}</div>
+                          <span className="text-[11px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-tight whitespace-nowrap">{getRoleName(user.role)}</span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-5">
+                         <div className="text-left">
+                            <p className="text-[11px] font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5"><Wallet size={12} className="text-emerald-500" /> {user.baseSalary?.toLocaleString()}đ</p>
+                            <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5 mt-0.5 whitespace-nowrap"><TrendingUp size={12} className="text-blue-500" /> +{user.commissionPerOrder?.toLocaleString()}đ/đơn</p>
+                         </div>
+                      </td>
+                      <td className="px-8 py-5 text-center">
+                         <div className="flex flex-col items-center gap-0.5">
+                            {user.source === 'admin_web' ? <Globe size={14} className="text-blue-500" /> : <Smartphone size={14} className="text-emerald-500" />}
+                            <span className="text-[9px] font-black text-slate-400 uppercase whitespace-nowrap">{user.source || 'App KTV'}</span>
+                         </div>
+                      </td>
+                      <td className="px-8 py-5 text-center">
+                         <span className={`inline-flex px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${user.status === 'active' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                            {user.status === 'active' ? 'Hoạt động' : 'Bị khóa'}
+                         </span>
+                      </td>
+                      <td className="px-8 py-5 text-right">
+                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {user.status === 'pending' ? (
+                              <button onClick={() => handleApprove(user.uid)} className="p-2.5 bg-[#0b1c30] text-white rounded-xl hover:brightness-110 shadow-lg" title="Duyệt nhân sự"><Check size={18} /></button>
+                            ) : (
+                              <>
+                                 <button onClick={() => navigate(`/audit-logs?email=${user.email}`)} className="p-2.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all" title="Nhật ký"><History size={18} /></button>
+                                 <button onClick={() => { setSelectedUser(user); setUserForm({ ...userForm, email: user.email, displayName: user.displayName || '', phoneNumber: user.phoneNumber || '', role: Number(user.role || 3), baseSalary: user.baseSalary || 0, commissionPerOrder: user.commissionPerOrder || 50000, password: '' }); setModalMode('edit'); setIsUserModalOpen(true); }} className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all" title="Sửa"><Edit2 size={18} /></button>
+                                 <button onClick={() => handleToggleStatus(user)} className={`p-2.5 rounded-xl transition-all ${user.status === 'active' ? 'text-rose-400 hover:text-rose-600 hover:bg-rose-50' : 'text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50'}`} title={user.status === 'active' ? 'Khóa' : 'Mở'}>
+                                    {user.status === 'active' ? <Ban size={18} /> : <Unlock size={18} />}
+                                 </button>
+                              </>
+                            )}
+                         </div>
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              </div>
-            ) : (
-              <div className="h-full min-h-[500px] bg-white dark:bg-[#1e293b] rounded-[3rem] border-2 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center justify-center p-20 text-center shadow-inner">
-                 <Layers size={84} className="text-slate-100 mb-8" />
-                 <h3 className="text-xl font-black text-slate-300 uppercase tracking-widest">Chọn vai trò để quản lý</h3>
-              </div>
-            )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-col lg:flex-row gap-6 text-left items-start w-full">
+            {/* Sidebar danh sách vai trò */}
+            <div className="w-full lg:w-72 xl:w-80 shrink-0 space-y-4">
+              {roles.length === 0 ? (
+                 <div className="bg-white dark:bg-[#1e293b] p-10 rounded-[2.5rem] border-2 border-dashed border-slate-100 dark:border-slate-800 text-center">
+                    <ShieldAlert size={40} className="text-slate-100 mx-auto mb-4" />
+                    <p className="text-xs font-bold text-slate-300 uppercase mb-6">Chưa có vai trò</p>
+                    <button onClick={handleSeedRoles} className="px-6 py-3 bg-blue-50 text-blue-600 rounded-xl font-black text-[10px] uppercase">Khởi tạo</button>
+                 </div>
+              ) : roles.map(role => (
+                <div key={role.id} onClick={() => setSelectedRole(role)} className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all ${selectedRole?.id === role.id ? 'border-[#00459a] bg-blue-50/50 dark:bg-blue-900/10 shadow-lg' : 'border-slate-50 dark:border-slate-800 bg-white dark:bg-[#1e293b] hover:border-slate-200 shadow-sm'}`}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center shadow-inner">
+                      {getRoleIcon(role.roleValue)}
+                    </div>
+                    <h3 className="font-black text-[#0b1c30] dark:text-white uppercase tracking-tight text-xs truncate">{role.name}</h3>
+                  </div>
+                  <div className="flex justify-between items-center border-t border-slate-50 dark:border-slate-800 pt-4">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID: {role.roleValue}</p>
+                     <button onClick={(e) => { e.stopPropagation(); setRoleForm({ name: role.name, description: role.description, roleValue: Number(role.roleValue), permissions: role.permissions || [] }); setModalMode('edit'); setSelectedRole(role); setIsRoleModalOpen(true); }} className="text-slate-300 hover:text-blue-500 bg-slate-50 dark:bg-slate-900 p-1.5 rounded-lg"><Edit2 size={14} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
 
-      {/* --- ADD/EDIT MODAL --- */}
+            {/* Chi tiết quyền hạn */}
+            <div className="flex-1 w-full overflow-hidden">
+              {selectedRole ? (
+                <div className="bg-white dark:bg-[#1e293b] rounded-[3rem] border border-slate-100 dark:border-slate-800 p-8 shadow-xl animate-in fade-in duration-300 w-full">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10 pb-8 border-b border-slate-50 dark:border-slate-800">
+                    <div className="text-left">
+                      <h2 className="text-3xl font-black text-[#0b1c30] dark:text-white uppercase tracking-tighter">{selectedRole.name}</h2>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase mt-2 flex items-center gap-2 tracking-widest"><Lock size={14} className="text-[#00459a]" /> Quyền hạn đặc biệt ({(selectedRole.permissions || []).length})</p>
+                    </div>
+                    <div className="p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] text-[#00459a] shrink-0 border border-slate-100 dark:border-slate-800 shadow-inner"><ShieldCheck size={36} /></div>
+                  </div>
+
+                  <div className="space-y-12">
+                    {Object.entries(allPermissions.reduce((acc: any, p) => ({ ...acc, [p.module]: [...(acc[p.module] || []), p] }), {})).map(([module, perms]: any) => (
+                      <div key={module}>
+                        <div className="flex items-center gap-4 mb-6">
+                          <div className="px-5 py-2 bg-[#0b1c30] text-white rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap">Hệ thống: {module}</div>
+                          <div className="flex-1 h-px bg-slate-100 dark:bg-slate-800" />
+                        </div>
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5 text-left">
+                          {perms.map((p: any) => {
+                            const has = (selectedRole.permissions || []).includes(p.id);
+                            return (
+                              <button
+                                key={p.id} onClick={() => handleQuickTogglePermission(selectedRole.id, p.id, has)}
+                                className={`p-6 rounded-2xl border-2 flex items-center justify-between transition-all group ${has ? 'border-[#00459a]/10 bg-blue-50/10' : 'border-slate-50 dark:border-slate-800 bg-slate-50/30 hover:border-blue-100 shadow-sm'}`}
+                              >
+                                <div className="min-w-0 pr-4 text-left">
+                                  <p className={`text-[12px] font-black uppercase truncate ${has ? 'text-[#00459a] dark:text-blue-400' : 'text-slate-400'}`}>{p.name}</p>
+                                  <p className="text-[9px] text-slate-400 mt-1 font-bold line-clamp-1">{p.description}</p>
+                                </div>
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shrink-0 ${has ? 'bg-[#00459a] text-white shadow-lg shadow-blue-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-300'}`}>
+                                  {has ? <Check size={18} strokeWidth={3} /> : <Plus size={18} strokeWidth={3} />}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="h-full min-h-[550px] bg-white dark:bg-[#1e293b] rounded-[3rem] border-2 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center justify-center p-20 text-center w-full">
+                   <Layers size={84} className="text-slate-100 mb-8" />
+                   <h3 className="text-2xl font-black text-slate-300 uppercase tracking-widest">Chọn vai trò để quản lý đặc quyền</h3>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* --- MODALS (Optimized for width) --- */}
       {isUserModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 text-left">
-          <div className="bg-white dark:bg-[#1e293b] rounded-[3rem] w-full max-w-lg p-10 shadow-2xl animate-in zoom-in duration-200 border border-slate-100 dark:border-slate-800">
-            <div className="flex justify-between items-center mb-10">
-               <h2 className="text-2xl font-black text-[#0b1c30] dark:text-white uppercase tracking-tight">{modalMode === 'create' ? 'Tạo nhân sự mới' : 'Cập nhật tài khoản'}</h2>
-               <button onClick={() => setIsUserModalOpen(false)} className="text-slate-300 hover:text-rose-500 transition-colors"><X size={32} /></button>
+          <div className="bg-white dark:bg-[#1e293b] rounded-[3rem] w-full max-w-2xl p-10 shadow-2xl animate-in zoom-in duration-200 border border-slate-100 dark:border-slate-800">
+            <div className="flex justify-between items-center mb-10 text-left">
+               <h2 className="text-2xl font-black text-[#0b1c30] dark:text-white uppercase tracking-tight">{modalMode === 'create' ? 'Cấp tài khoản mới' : 'Sửa tài khoản'}</h2>
+               <button onClick={() => setIsUserModalOpen(false)} className="text-slate-300 hover:text-rose-500"><X size={32} /></button>
             </div>
             <form onSubmit={handleUserSubmit} className="space-y-6">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Họ tên nhân viên</label>
-                <input required type="text" placeholder="NGUYỄN VĂN A" value={userForm.displayName} onChange={e => setUserForm({ ...userForm, displayName: e.target.value })} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-black text-xs uppercase dark:text-white" />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Email đăng nhập</label>
-                  <input required disabled={modalMode === 'edit'} type="email" placeholder="email@aquacare.vn" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold text-xs dark:text-white disabled:opacity-50" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1.5 text-left">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Họ tên nhân viên</label>
+                  <input required type="text" placeholder="NGUYỄN VĂN A" value={userForm.displayName} onChange={e => setUserForm({ ...userForm, displayName: e.target.value })} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-black text-xs uppercase dark:text-white" />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 text-left">
                   <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Số điện thoại</label>
                   <input required type="text" placeholder="09xxxxxxxx" value={userForm.phoneNumber} onChange={e => setUserForm({ ...userForm, phoneNumber: e.target.value })} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold text-xs dark:text-white" />
                 </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-blue-500 uppercase ml-1 tracking-widest">Chọn vai trò công việc</label>
-                <div className="relative">
-                   <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: Number(e.target.value) })} className="w-full px-6 py-4 bg-blue-50/50 dark:bg-slate-900 border-2 border-blue-50 dark:border-slate-800 rounded-2xl font-black text-[11px] uppercase text-slate-700 dark:text-white outline-none appearance-none">
-                     {roles.map(r => <option key={r.id} value={r.roleValue}>{r.name} (Mã: {r.roleValue})</option>)}
-                   </select>
-                   <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-blue-400 pointer-events-none" size={18} />
+                <div className="space-y-1.5 text-left">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Email đăng nhập</label>
+                  <input required disabled={modalMode === 'edit'} type="email" placeholder="email@aquacare.vn" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold text-xs dark:text-white disabled:opacity-50" />
                 </div>
-                {userForm.role && (
-                   <div className="mt-3 p-4 bg-blue-50/30 dark:bg-blue-900/10 rounded-2xl border border-blue-50/50 dark:border-blue-900/20 shadow-inner">
-                      <p className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase flex items-center gap-2"><Info size={10} /> Chức năng chính:</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 font-medium leading-relaxed italic">{roles.find(r => r.roleValue === userForm.role)?.description || 'Đã phân quyền trong tab vai trò.'}</p>
-                   </div>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">{modalMode === 'create' ? 'Mật khẩu khởi tạo' : 'Mật khẩu mới (Để trống nếu không đổi)'}</label>
-                <div className="relative">
-                  <input required={modalMode === 'create'} type="password" placeholder="••••••••" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold pr-14 text-slate-700 dark:text-white" />
-                  <Key className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
+                <div className="space-y-1.5 text-left">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Mật khẩu</label>
+                  <input required={modalMode === 'create'} type="password" placeholder="••••••••" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold text-xs dark:text-white" />
                 </div>
               </div>
-              <button disabled={isActionLoading} type="submit" className="w-full py-5 bg-[#00459a] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-6 flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 text-left">
+                <div className="space-y-1.5 text-left">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1 flex items-center gap-2"><Wallet size={12} className="text-emerald-500" /> Lương cơ bản</label>
+                  <input type="number" value={userForm.baseSalary} onChange={e => setUserForm({ ...userForm, baseSalary: Number(e.target.value) })} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl outline-none font-black text-xs dark:text-white shadow-sm" />
+                </div>
+                <div className="space-y-1.5 text-left">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1 flex items-center gap-2"><TrendingUp size={12} className="text-blue-500" /> Hoa hồng / Đơn</label>
+                  <input type="number" value={userForm.commissionPerOrder} onChange={e => setUserForm({ ...userForm, commissionPerOrder: Number(e.target.value) })} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl outline-none font-black text-xs dark:text-white shadow-sm" />
+                </div>
+              </div>
+              <div className="space-y-1.5 text-left">
+                <label className="text-[10px] font-black text-[#00459a] uppercase ml-1 tracking-widest">Vai trò hệ thống</label>
+                <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: Number(e.target.value) })} className="w-full px-6 py-4 bg-blue-50 dark:bg-slate-900 border-none rounded-2xl font-black text-[11px] uppercase text-slate-700 dark:text-white outline-none shadow-inner">
+                  {roles.map(r => <option key={r.id} value={r.roleValue}>{r.name}</option>)}
+                </select>
+              </div>
+              <button disabled={isActionLoading} type="submit" className="w-full py-5 bg-[#00459a] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-6 flex items-center justify-center gap-3 active:scale-95 transition-all">
                 {isActionLoading ? <Loader size={20} className="animate-spin" /> : <CheckCircle size={20} />}
-                {modalMode === 'create' ? 'Khởi tạo tài khoản' : 'Lưu thay đổi'}
+                {modalMode === 'create' ? 'Khởi tạo nhân sự' : 'Lưu thay đổi'}
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* --- ROLE MODAL --- */}
+      {/* Role Modal */}
       {isRoleModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 text-left">
-          <div className="bg-white dark:bg-[#1e293b] rounded-[3rem] w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl p-10 border border-slate-100 dark:border-slate-800">
+          <div className="bg-white dark:bg-[#1e293b] rounded-[3rem] w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl p-10 border border-slate-100 dark:border-slate-800 text-left">
             <div className="flex justify-between items-center mb-10 shrink-0">
-               <h2 className="text-2xl font-black text-[#0b1c30] dark:text-white uppercase tracking-tight">{modalMode === 'create' ? 'Định nghĩa vai trò' : 'Cập nhật vai trò'}</h2>
-               <button onClick={() => setIsRoleModalOpen(false)} className="text-slate-300 hover:text-rose-500 transition-colors"><X size={32} /></button>
+               <h2 className="text-2xl font-black text-[#0b1c30] dark:text-white uppercase tracking-tight">{modalMode === 'create' ? 'Định nghĩa vai trò' : 'Sửa vai trò'}</h2>
+               <button onClick={() => setIsRoleModalOpen(false)} className="text-slate-300 hover:text-rose-500"><X size={32} /></button>
             </div>
-            <div className="flex-1 overflow-y-auto space-y-8 pr-4 custom-scrollbar">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="space-y-1.5">
-                     <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Tên hiển thị</label>
-                     <input required type="text" placeholder="TÊN VAI TRÒ" value={roleForm.name} onChange={e => setRoleForm({ ...roleForm, name: e.target.value })} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-black text-xs uppercase dark:text-white shadow-inner" />
-                  </div>
-                  <div className="space-y-1.5">
-                     <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Mã định danh số</label>
-                     <input required type="number" placeholder="Mã số" value={roleForm.roleValue} onChange={e => setRoleForm({ ...roleForm, roleValue: Number(e.target.value) })} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold text-xs dark:text-white shadow-inner" />
-                  </div>
-               </div>
-               <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Mô tả chức năng chi tiết</label>
-                  <textarea placeholder="Giải thích về trách nhiệm của vai trò này..." value={roleForm.description} onChange={e => setRoleForm({ ...roleForm, description: e.target.value })} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold text-xs h-24 resize-none dark:text-white shadow-inner" />
-               </div>
-               <div className="space-y-8">
-                  {Object.entries(allPermissions.reduce((acc: any, p) => ({ ...acc, [p.module]: [...(acc[p.module] || []), p] }), {})).map(([module, perms]: any) => (
-                    <div key={module} className="text-left">
-                      <h4 className="text-[11px] font-black text-[#00459a] dark:text-blue-400 uppercase mb-5 px-2 tracking-widest flex items-center gap-3"><div className="w-2 h-2 rounded-full bg-blue-500" /> Module: {module}</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {perms.map((p: any) => {
-                          const isSelected = roleForm.permissions.includes(p.id);
-                          return (
-                            <button key={p.id} type="button" onClick={() => setRoleForm({ ...roleForm, permissions: isSelected ? roleForm.permissions.filter(id => id !== p.id) : [...roleForm.permissions, p.id] })} className={`p-5 rounded-2xl border-2 text-[10px] font-black uppercase transition-all flex items-center justify-between group ${isSelected ? 'border-[#00459a] bg-blue-50/50 text-[#00459a] dark:text-blue-400' : 'border-slate-50 dark:border-slate-800 text-slate-400 hover:border-blue-100 shadow-sm'}`}>
-                               <div className="text-left flex-1 min-w-0 pr-2"><p className="truncate font-black">{p.name}</p><p className="text-[7px] opacity-60 lowercase mt-0.5">{p.id}</p></div>
-                               <div className={`w-5 h-5 rounded-lg flex items-center justify-center transition-colors shrink-0 ${isSelected ? 'bg-[#00459a] text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-300'}`}>{isSelected ? <Check size={12} /> : <Plus size={10} />}</div>
-                            </button>
-                          );
-                        })}
-                      </div>
+            <form onSubmit={handleRoleSubmit} className="flex-1 overflow-hidden flex flex-col text-left">
+              <div className="flex-1 overflow-y-auto space-y-8 pr-4 custom-scrollbar text-left">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-left">
+                    <div className="space-y-1.5 text-left">
+                      <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Tên vai trò</label>
+                      <input required type="text" placeholder="VD: KỸ THUẬT" value={roleForm.name} onChange={e => setRoleForm({ ...roleForm, name: e.target.value })} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-black text-xs uppercase dark:text-white shadow-inner" />
                     </div>
-                  ))}
-               </div>
-            </div>
-            <div className="pt-8 flex gap-5 shrink-0">
-               <button onClick={() => setIsRoleModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all shadow-sm">Đóng</button>
-               <button onClick={handleRoleSubmit} className="flex-[2] py-4 bg-[#00459a] text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:scale-[1.02] active:scale-95 transition-all">Lưu cấu hình vai trò</button>
-            </div>
+                    <div className="space-y-1.5 text-left">
+                      <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Mã định danh (Value)</label>
+                      <input required type="number" value={roleForm.roleValue} onChange={e => setRoleForm({ ...roleForm, roleValue: Number(e.target.value) })} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold text-xs dark:text-white shadow-inner" />
+                    </div>
+                </div>
+                <div className="space-y-1.5 text-left">
+                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Mô tả đặc quyền</label>
+                    <textarea value={roleForm.description} onChange={e => setRoleForm({ ...roleForm, description: e.target.value })} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold text-xs h-24 resize-none dark:text-white" />
+                </div>
+                <div className="space-y-8 text-left mt-4">
+                    {Object.entries(allPermissions.reduce((acc: any, p) => ({ ...acc, [p.module]: [...(acc[p.module] || []), p] }), {})).map(([module, perms]: any) => (
+                      <div key={module} className="text-left">
+                        <h4 className="text-[11px] font-black text-[#00459a] uppercase mb-5 flex items-center gap-2 text-left"><div className="w-2 h-2 rounded-full bg-blue-500" /> Phân hệ: {module}</h4>
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-4 text-left">
+                          {perms.map((p: any) => {
+                            const isSelected = (roleForm.permissions || []).includes(p.id);
+                            return (
+                              <button
+                                key={p.id} type="button" onClick={() => { const current = roleForm.permissions || []; const updated = isSelected ? current.filter(id => id !== p.id) : [...current, p.id]; setRoleForm({ ...roleForm, permissions: updated }); }}
+                                className={`p-5 rounded-2xl border-2 text-[10px] font-black uppercase transition-all flex items-center justify-between ${isSelected ? 'border-[#00459a] bg-blue-50/50 text-[#00459a]' : 'border-slate-50 dark:border-slate-800 text-slate-400 hover:border-blue-100 shadow-sm'}`}
+                              >
+                                <div className="text-left flex-1 pr-2"><p className="truncate">{p.name}</p></div>
+                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-[#00459a] text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-300'}`}>{isSelected ? <Check size={14} /> : <Plus size={12} />}</div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+              <div className="pt-8 flex gap-5 shrink-0">
+                <button type="button" onClick={() => setIsRoleModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all shadow-sm">Đóng</button>
+                <button type="submit" disabled={isActionLoading} className="flex-[2] py-4 bg-[#00459a] text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+                  {isActionLoading && <Loader size={16} className="animate-spin" />}
+                  Lưu cấu hình vai trò
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

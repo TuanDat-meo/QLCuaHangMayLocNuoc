@@ -9,12 +9,23 @@ import {
   query,
   orderBy,
   serverTimestamp,
-  writeBatch
+  writeBatch,
+  Timestamp,
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
 import { getDb } from './authService';
 import { Role, Permission, APP_PERMISSIONS } from '../types/role';
 
 const ROLES_COLLECTION = 'roles';
+
+const safeToDate = (value: any): Date => {
+  if (!value) return new Date();
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  if (value && typeof value === 'object' && value.seconds) return new Date(value.seconds * 1000);
+  return new Date(value) || new Date();
+};
 
 export const getAllPermissions = (): Permission[] => {
   return APP_PERMISSIONS;
@@ -31,8 +42,9 @@ export const getAllRoles = async (): Promise<Role[]> => {
       return {
         id: doc.id,
         ...data,
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(),
+        permissions: data.permissions || [],
+        createdAt: safeToDate(data.createdAt),
+        updatedAt: safeToDate(data.updatedAt),
       } as Role;
     });
   } catch (error) {
@@ -42,88 +54,109 @@ export const getAllRoles = async (): Promise<Role[]> => {
 };
 
 export const createRole = async (roleData: Omit<Role, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
-  try {
-    const db = getDb();
-    const roleId = roleData.name.toLowerCase().replace(/\s+/g, '_');
-    const roleRef = doc(db, ROLES_COLLECTION, roleId);
+  const db = getDb();
+  const roleId = roleData.name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, '_');
 
-    const newRole = {
-      ...roleData,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
+  const roleRef = doc(db, ROLES_COLLECTION, roleId);
+  const newRole = {
+    ...roleData,
+    permissions: roleData.permissions || [],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
 
-    await setDoc(roleRef, newRole);
-    return roleId;
-  } catch (error) {
-    throw error;
-  }
+  await setDoc(roleRef, newRole);
+  return roleId;
 };
 
-/**
- * Khởi tạo danh sách vai trò chuẩn theo yêu cầu nghiệp vụ AquaCare của bạn
- */
-export const seedStandardRoles = async () => {
+export const updateRole = async (roleId: string, roleData: Partial<Role>): Promise<void> => {
+  const db = getDb();
+  const roleRef = doc(db, ROLES_COLLECTION, roleId);
+  const cleanData = { ...roleData };
+  delete (cleanData as any).id;
+  delete (cleanData as any).createdAt;
+  delete (cleanData as any).updatedAt;
+
+  return await updateDoc(roleRef, {
+    ...cleanData,
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const toggleRolePermission = async (roleId: string, permissionId: string, hasPermission: boolean): Promise<void> => {
+  const db = getDb();
+  const roleRef = doc(db, ROLES_COLLECTION, roleId);
+
+  return await updateDoc(roleRef, {
+    permissions: hasPermission ? arrayRemove(permissionId) : arrayUnion(permissionId),
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const deleteRole = async (roleId: string): Promise<void> => {
+  const db = getDb();
+  return await deleteDoc(doc(db, ROLES_COLLECTION, roleId));
+};
+
+export const seedStandardRoles = async (): Promise<void> => {
   const db = getDb();
   const batch = writeBatch(db);
 
   const standardRoles = [
     {
       id: 'admin',
-      name: 'Quản trị viên (Admin)',
+      name: 'Quản trị viên',
+      description: 'Toàn quyền hệ thống, báo cáo tài chính, phê duyệt đặc biệt',
       roleValue: 1,
-      description: 'Nắm toàn quyền kiểm soát hệ thống. Phân quyền cho nhân viên, quản lý danh mục sản phẩm và giá. Theo dõi các báo cáo tài chính, biểu đồ doanh thu và quản lý cấu hình hệ thống. Phê duyệt các yêu cầu bảo hành đặc biệt hoặc khiếu nại từ khách hàng.',
-      permissions: APP_PERMISSIONS.map(p => p.id)
+      permissions: ['users_manage', 'roles_manage', 'audit_view', 'settings_manage', 'orders_manage', 'orders_dispatch', 'schedule_view', 'finance_cod', 'finance_reports', 'inventory_manage', 'task_execute', 'warranty_approve']
     },
     {
       id: 'coordinator',
-      name: 'Nhân viên Điều phối',
+      name: 'Điều phối',
+      description: 'Tiếp nhận đơn, xác nhận khách, sắp xếp lịch KTV',
       roleValue: 2,
-      description: 'Điều phối: Tiếp nhận đơn hàng, gọi điện xác nhận và sắp xếp lịch làm việc cho KTV trên bản đồ số.',
-      permissions: ['orders_view', 'orders_manage', 'orders_dispatch', 'tech_view']
+      permissions: ['orders_manage', 'orders_dispatch', 'schedule_view']
     },
     {
-      id: 'technician',
-      name: 'Kỹ thuật viên',
-      roleValue: 4,
-      description: 'Sử dụng app kỹ thuật viên để nhận phiếu việc (lắp đặt/bảo trì). Xem thông tin khách hàng và vị trí trên bản đồ. Cập nhật trạng thái công việc: "Đang đến", "Đang xử lý", "Hoàn thành", "Sự cố". Chụp ảnh xác nhận, quét mã QR kích hoạt bảo hành và thu COD.',
-      permissions: ['orders_view', 'tech_view']
+      id: 'staff',
+      name: 'Nhân viên nghiệp vụ',
+      description: 'Xử lý đơn hàng và hỗ trợ khách hàng chung',
+      roleValue: 3,
+      permissions: ['orders_manage', 'schedule_view']
     },
     {
       id: 'accountant',
-      name: 'Kế toán hệ thống',
+      name: 'Kế toán',
+      description: 'Kiểm soát COD, xác nhận hóa đơn, báo cáo tài chính',
       roleValue: 6,
-      description: 'Kế toán: Kiểm soát dòng tiền từ các đơn hàng COD do KTV nộp về, xác nhận hóa đơn, quản lý chi phí nhập hàng và xuất các báo cáo tài chính định kỳ cho Admin.',
-      permissions: ['orders_view', 'finance_cod', 'finance_reports']
+      permissions: ['finance_cod', 'finance_reports', 'inventory_manage']
     },
     {
-      id: 'customer',
-      name: 'Khách hàng',
-      roleValue: 5,
-      description: 'Sử dụng app khách hàng để tìm kiếm, xem thông số và đặt mua. Theo dõi lịch trình di chuyển của KTV. Quản lý thiết bị đã mua, tra cứu bảo hành. Nhận thông báo nhắc bảo trì và gửi yêu cầu sửa chữa.',
-      permissions: ['orders_view']
+      id: 'technician',
+      name: 'Kỹ thuật',
+      description: 'Nhận phiếu việc, cập nhật tiến độ, xác nhận COD',
+      roleValue: 4,
+      permissions: ['task_execute', 'warranty_approve']
     }
   ];
+
+  const timestamp = serverTimestamp();
 
   standardRoles.forEach(role => {
     const roleRef = doc(db, ROLES_COLLECTION, role.id);
     batch.set(roleRef, {
-      ...role,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+      name: role.name,
+      description: role.description,
+      roleValue: role.roleValue,
+      permissions: role.permissions,
+      createdAt: timestamp,
+      updatedAt: timestamp
     });
   });
 
   await batch.commit();
-};
-
-export const updateRole = async (roleId: string, roleData: Partial<Role>): Promise<void> => {
-  const db = getDb();
-  const roleRef = doc(db, ROLES_COLLECTION, roleId);
-  return await updateDoc(roleRef, { ...roleData, updatedAt: serverTimestamp() });
-};
-
-export const deleteRole = async (roleId: string): Promise<void> => {
-  const db = getDb();
-  return await deleteDoc(doc(db, ROLES_COLLECTION, roleId));
 };

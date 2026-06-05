@@ -10,6 +10,8 @@ import 'controllers/product_controller.dart';
 import 'controllers/cart_controller.dart';
 import 'controllers/order_controller.dart';
 import 'controllers/notification_controller.dart';
+import 'controllers/favorites_controller.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +23,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
+  await initializeDateFormatting('vi', null);
   runApp(const MyApp());
 }
 
@@ -37,6 +39,10 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CartController()),
         ChangeNotifierProvider(create: (_) => OrderController()),
         ChangeNotifierProvider(create: (_) => NotificationController()),
+        ChangeNotifierProxyProvider<AuthController, FavoritesController>(
+          create: (context) => FavoritesController(context.read<AuthController>()),
+          update: (context, auth, favorites) => FavoritesController(auth),
+        ),
       ],
       child: MaterialApp(
         title: 'AquaCare - Customer App',

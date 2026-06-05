@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:customer_app/models/product_model.dart';
 import 'package:customer_app/controllers/cart_controller.dart';
+import 'package:customer_app/controllers/favorites_controller.dart';
 
 class ProductDetailScreen extends StatelessWidget {
   final Product product;
@@ -10,6 +11,8 @@ class ProductDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String? imageUrl = product.imageUrls.isNotEmpty ? product.imageUrls.first : null;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: CustomScrollView(
@@ -24,14 +27,13 @@ class ProductDetailScreen extends StatelessWidget {
               onPressed: () => Navigator.pop(context),
             ),
             flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: NetworkImage(product.imageUrls.isNotEmpty ? product.imageUrls.first : 'https://via.placeholder.com/400'),
+              background: imageUrl != null 
+                ? Image.network(
+                    imageUrl,
                     fit: BoxFit.cover,
-                  ),
-                ),
-              ),
+                    errorBuilder: (context, error, stackTrace) => _buildImagePlaceholder(),
+                  )
+                : _buildImagePlaceholder(),
             ),
           ),
           
@@ -116,11 +118,25 @@ class ProductDetailScreen extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
-              height: 56,
-              width: 56,
-              decoration: BoxDecoration(color: const Color(0xfff1f5f9), borderRadius: BorderRadius.circular(16)),
-              child: const Icon(Icons.favorite_border, color: Color(0xff00459a)),
+            Consumer<FavoritesController>(
+              builder: (context, favorites, _) {
+                final isFav = favorites.isFavorite(product.id);
+                return GestureDetector(
+                  onTap: () => favorites.toggleFavorite(product.id),
+                  child: Container(
+                    height: 56,
+                    width: 56,
+                    decoration: BoxDecoration(
+                      color: isFav ? const Color(0xffeff6ff) : const Color(0xfff1f5f9),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      isFav ? Icons.favorite : Icons.favorite_border,
+                      color: isFav ? Colors.redAccent : const Color(0xff00459a),
+                    ),
+                  ),
+                );
+              },
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -147,6 +163,15 @@ class ProductDetailScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildImagePlaceholder() {
+    return Container(
+      color: const Color(0xfff1f5f9),
+      child: const Center(
+        child: Icon(Icons.water_drop_outlined, size: 80, color: Color(0xff00459a)),
       ),
     );
   }

@@ -6,6 +6,8 @@
     "start": "firebase emulators:start --only firestore",
     "start:all": "firebase emulators:start",
     "seed": "node seed_firestore.js",
+    "seed:2months": "node seed_2_months_data.js",
+    "seed:2months:clear": "node seed_2_months_data.js --clear",
     "seed:clear": "node -e \"require('firebase-admin').initializeApp({projectId:'demo-aquacare-local'}); require('firebase-admin').firestore().recursiveDelete(require('firebase-admin').firestore().collection('nguoiDung').parent).catch(e=>console.log(e))\"",
     "seed:reset": "npm run seed",
     "deploy": "firebase deploy",

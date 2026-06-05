@@ -1,5 +1,5 @@
 /**
- * Sidebar Navigation Component - Full Features with RBAC
+ * Sidebar Navigation Component - Đã Việt hóa hoàn toàn
  */
 
 import React from 'react';
@@ -12,13 +12,11 @@ import {
   BarChart3,
   Zap,
   Calendar,
-  Smartphone,
   Shield,
   ShoppingCart,
   ShieldCheck,
   Menu,
   Activity,
-  ClipboardCheck,
   Database
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
@@ -115,7 +113,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
   ];
 
   const filteredItems = navItems.filter(item =>
-    !item.roles || (user?.role && item.roles.includes(user.role))
+    !item.roles || (user?.role && item.roles.includes(Number(user.role)))
   );
 
   const isActive = (href: string) => {
@@ -132,7 +130,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
           {isOpen && (
             <div className="flex flex-col text-left">
               <span className="text-sm font-black text-[#0b1c30] dark:text-white uppercase tracking-tighter leading-none">Aquacare</span>
-              <span className="text-[9px] font-bold text-[#00459a] dark:text-blue-400 tracking-widest uppercase mt-1">Admin Center</span>
+              <span className="text-[9px] font-bold text-[#00459a] dark:text-blue-400 tracking-widest uppercase mt-1">Hệ thống Quản trị</span>
             </div>
           )}
         </button>
@@ -160,7 +158,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
             <div className="flex flex-col min-w-0 text-left">
               <span className="text-[10px] font-black text-[#0b1c30] dark:text-white truncate uppercase">{user?.displayName}</span>
               <span className="flex items-center gap-1.5 text-[8px] font-bold text-emerald-500 uppercase tracking-widest">
-                <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" /> Online
+                <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" /> Trực tuyến
               </span>
             </div>
           )}

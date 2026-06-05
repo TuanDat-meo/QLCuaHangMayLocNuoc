@@ -17,17 +17,17 @@ extension JobStatusExtension on JobStatus {
   String get rawValue {
     switch (this) {
       case JobStatus.waiting:
-        return 'da_phan_cong';
+        return 'assigned';
       case JobStatus.onTheWay:
-        return 'dang_di';
+        return 'processing'; // Bắt đầu xử lý
       case JobStatus.arrived:
-        return 'da_den_noi';
+        return 'arrived';
       case JobStatus.installing:
-        return 'dang_lap';
+        return 'installing';
       case JobStatus.completed:
-        return 'hoan_thanh';
+        return 'completed';
       case JobStatus.needSupport:
-        return 'su_co';
+        return 'incident';
     }
   }
 
@@ -96,6 +96,7 @@ class JobModel {
   final double tipAmount;
   final JobStatus status;
   final DateTime date;
+  final DateTime? scheduledDate;
   final List<String> images;
   final List<String> imagesBefore;
   final List<String> imagesAfter;
@@ -120,6 +121,7 @@ class JobModel {
     required this.tipAmount,
     required this.status,
     required this.date,
+    this.scheduledDate,
     required this.images,
     this.imagesBefore = const [],
     this.imagesAfter = const [],
@@ -131,6 +133,14 @@ class JobModel {
     this.customerLongitude,
     this.customerSignature,
   });
+
+  bool get isLocked {
+    if (scheduledDate == null) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final schedDay = DateTime(scheduledDate!.year, scheduledDate!.month, scheduledDate!.day);
+    return today.isBefore(schedDay);
+  }
 
   JobModel copyWith({
     JobStatus? status,
@@ -160,6 +170,7 @@ class JobModel {
       tipAmount: tipAmount ?? this.tipAmount,
       status: status ?? this.status,
       date: date,
+      scheduledDate: scheduledDate,
       images: images ?? this.images,
       imagesBefore: imagesBefore ?? this.imagesBefore,
       imagesAfter: imagesAfter ?? this.imagesAfter,
@@ -242,6 +253,7 @@ class JobController extends ChangeNotifier {
         tipAmount: 0,
         status: JobStatus.waiting,
         date: today,
+        scheduledDate: today,
         images: [],
         timeline: [
           {
@@ -256,17 +268,83 @@ class JobController extends ChangeNotifier {
       ),
       JobModel(
         id: 'JOB-002',
-        customerName: 'Trần Thị Hoa',
-        customerPhone: '0912345678',
-        address: '456 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP.HCM',
-        appointmentTime: '14:00 - ${today.day}/${today.month}/${today.year}',
-        productName: 'Máy lọc nước Alkaline AquaPure',
-        productSpecs: 'Model: AP-700, 9 lõi lọc, ion kiềm',
-        adminNotes: '',
-        codAmount: 0,
-        tipAmount: 100000,
+        customerName: 'Trần Thị Mai',
+        customerPhone: '0912.345.678',
+        address: 'Biệt thự B2-15, KĐT Vinhomes Riverside, Sài Đồng, Long Biên, Hà Nội',
+        appointmentTime: '13:30 - 15:30',
+        productName: 'Máy lọc nước nóng lạnh Karofi KAD-D66',
+        productSpecs: 'Model: KAD-D66 • Chế độ: Nóng - Lạnh - Nguội • 11 lõi lọc Smax',
+        adminNotes: 'Liên hệ trước khi đến 30 phút. Lắp đặt trong hốc bếp, cần đi dây ống âm thẩm mỹ.',
+        codAmount: 11200000.0,
+        tipAmount: 0.0,
+        status: JobStatus.onTheWay,
+        date: today,
+        scheduledDate: today,
+        images: [],
+        timeline: [
+          {'status': 'da_phan_cong', 'time': today.subtract(const Duration(hours: 3)), 'title': 'Đã phân công', 'desc': 'Quản trị viên đã phân công công việc'},
+          {'status': 'dang_di', 'time': today.subtract(const Duration(minutes: 15)), 'title': 'Đang di chuyển', 'desc': 'Bắt đầu di chuyển từ cửa hàng'},
+        ],
+      ),
+      JobModel(
+        id: 'JOB-003',
+        customerName: 'Phạm Minh Hoàng',
+        customerPhone: '0904.789.012',
+        address: 'Phòng 1804, Chung cư HH2B Linh Đàm, Hoàng Liệt, Hoàng Mai, Hà Nội',
+        appointmentTime: '16:00 - 18:00',
+        productName: 'Máy lọc nước ion kiềm Panasonic TK-AS45',
+        productSpecs: 'Model: TK-AS45-W • Công nghệ điện phân • 3 tấm điện cực',
+        adminNotes: 'Cần kiểm tra độ pH nước đầu vào và sau khi lọc. Khách hàng đã thanh toán trước qua chuyển khoản ngân hàng.',
+        codAmount: 0.0,
+        tipAmount: 0.0,
+        status: JobStatus.installing,
+        date: today,
+        scheduledDate: today,
+        images: [],
+        timeline: [
+          {'status': 'da_phan_cong', 'time': today.subtract(const Duration(hours: 5)), 'title': 'Đã phân công', 'desc': 'Bàn giao công việc'},
+          {'status': 'dang_di', 'time': today.subtract(const Duration(hours: 1)), 'title': 'Đang di chuyển', 'desc': 'Kỹ thuật viên đang di chuyển'},
+          {'status': 'da_den_noi', 'time': today.subtract(const Duration(minutes: 45)), 'title': 'Đã đến nơi', 'desc': 'Đã có mặt tại địa chỉ lắp đặt'},
+          {'status': 'dang_lap', 'time': today.subtract(const Duration(minutes: 35)), 'title': 'Đang tiến hành', 'desc': 'Bắt đầu lắp đặt máy lọc nước'},
+        ],
+      ),
+      JobModel(
+        id: 'JOB-004',
+        customerName: 'Hoàng Thị Cúc',
+        customerPhone: '0975.123.456',
+        address: 'Số 42, Ngõ 102 Khuất Duy Tiến, Nhân Chính, Thanh Xuân, Hà Nội',
+        appointmentTime: '10:00 - 12:00',
+        productName: 'Hệ thống lọc nước đầu nguồn AquaCare GW-03',
+        productSpecs: 'Model: AC-GW03 • 3 cột lọc composite composite • Van tự động sục rửa',
+        adminNotes: 'Lắp đặt trên tầng thượng. Cần mang dây bảo hiểm và thang chữ A dài.',
+        codAmount: 24500000.0,
+        tipAmount: 50000.0,
         status: JobStatus.completed,
+        date: today,
+        scheduledDate: today,
+        images: ['https://dummyimage.com/600x400/00459a/fff.png&text=Lap+Dat+1', 'https://dummyimage.com/600x400/00459a/fff.png&text=Lap+Dat+2'],
+        timeline: [
+          {'status': 'da_phan_cong', 'time': today.subtract(const Duration(hours: 8)), 'title': 'Đã phân công', 'desc': 'Bàn giao công việc'},
+          {'status': 'dang_di', 'time': today.subtract(const Duration(hours: 7)), 'title': 'Đang di chuyển', 'desc': 'Kỹ thuật viên đang di chuyển'},
+          {'status': 'da_den_noi', 'time': today.subtract(const Duration(hours: 6)), 'title': 'Đã đến nơi', 'desc': 'Có mặt tại nhà khách hàng'},
+          {'status': 'dang_lap', 'time': today.subtract(const Duration(hours: 5, minutes: 45)), 'title': 'Đang lắp đặt', 'desc': 'Bắt đầu thi công lắp đặt'},
+          {'status': 'hoan_thanh', 'time': today.subtract(const Duration(hours: 4)), 'title': 'Hoàn thành', 'desc': 'Đã lắp đặt xong và bàn giao sản phẩm'},
+        ],
+      ),
+      JobModel(
+        id: 'JOB-005',
+        customerName: 'Lê Hoàng Long',
+        customerPhone: '0868.999.888',
+        address: 'Số 15, Hẻm 2/12 Hoàng Hoa Thám, Thụy Khuê, Tây Hồ, Hà Nội',
+        appointmentTime: '08:00 - 09:30',
+        productName: 'Máy lọc nước nóng lạnh Kangaroo KG10A3',
+        productSpecs: 'Model: KG10A3 • 10 cấp lọc • Tích hợp 2 vòi nóng lạnh',
+        adminNotes: 'Thay lõi lọc định kỳ số 1, 2, 3 và màng RO.',
+        codAmount: 650000.0,
+        tipAmount: 0.0,
+        status: JobStatus.needSupport,
         date: today.subtract(const Duration(days: 1)),
+        scheduledDate: today.subtract(const Duration(days: 1)),
         images: [],
         timeline: [
           {
@@ -315,30 +393,60 @@ class JobController extends ChangeNotifier {
 
     _jobsSub1 = _firestore
         .collection('donHang')
-        .where('ktvId', isEqualTo: uid)
+        .where('technicians', arrayContains: {'id': uid, 'name': _auth.currentUser?.displayName ?? ''})
+        .orderBy('createdAt', descending: true)
         .snapshots()
-        .listen(
-          handleSnapshot,
-          onError: (e) => debugPrint('Firestore job stream 1 error: $e'),
-        );
+        .listen((snapshot) {
+      final List<JobModel> firestoreJobs = [];
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        
+        // Convert status string to JobStatus
+        final statusString = data['status'] ?? '';
+        JobStatus status = JobStatus.waiting;
+        if (statusString == 'processing') status = JobStatus.onTheWay;
+        if (statusString == 'installing') status = JobStatus.installing;
+        if (statusString == 'completed') status = JobStatus.completed;
+        if (statusString == 'incident') status = JobStatus.needSupport;
 
-    _jobsSub2 = _firestore
-        .collection('donHang')
-        .where('technicianId', isEqualTo: uid)
-        .snapshots()
-        .listen(
-          handleSnapshot,
-          onError: (e) => debugPrint('Firestore job stream 2 error: $e'),
-        );
+        final fullAddress = data['address'] ?? 'Chưa có địa chỉ';
 
-    _jobsSub3 = _firestore
-        .collection('donHang')
-        .where('technicians', arrayContains: uid)
-        .snapshots()
-        .listen(
-          handleSnapshot,
-          onError: (e) => debugPrint('Firestore job stream 3 error: $e'),
-        );
+        // Extract products
+        final prodName = data['productName'] ?? 'Máy lọc nước';
+
+        firestoreJobs.add(JobModel(
+          id: doc.id,
+          customerName: data['customerName'] ?? 'Khách hàng',
+          customerPhone: data['phoneNumber'] ?? '',
+          address: fullAddress,
+          appointmentTime: data['scheduledDate'] != null 
+              ? DateFormat('HH:mm').format((data['scheduledDate'] as Timestamp).toDate())
+              : 'Trong ngày',
+          productName: prodName,
+          productSpecs: 'Sản phẩm chính hãng',
+          adminNotes: data['note'] ?? 'Không có ghi chú',
+          codAmount: (data['totalAmount'] as num?)?.toDouble() ?? 0.0,
+          tipAmount: (data['tipAmount'] as num?)?.toDouble() ?? 0.0,
+          status: status,
+          date: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          scheduledDate: (data['scheduledDate'] as Timestamp?)?.toDate(),
+          images: List<String>.from(data['anhHoanThanh'] ?? []),
+          timeline: [],
+        ));
+      }
+
+      // Hợp nhất dữ liệu Firestore vào danh sách
+      final List<JobModel> merged = [...firestoreJobs];
+      for (var mock in _jobs) {
+        if (!merged.any((j) => j.id == mock.id) && !mock.id.startsWith('JOB-')) {
+          merged.add(mock);
+        }
+      }
+      _jobs = merged;
+      notifyListeners();
+    }, onError: (e) {
+      debugPrint('Firestore error listing jobs: $e');
+    });
 
     _notisSub = _firestore
         .collection('thongBao')
@@ -491,6 +599,13 @@ class JobController extends ChangeNotifier {
     if (idx == -1) return false;
 
     final job = _jobs[idx];
+
+    // Kiểm tra khóa theo ngày hẹn
+    if (job.isLocked && newStatus != JobStatus.waiting) {
+       debugPrint('LOCKED: Cannot update status before scheduled date');
+       return false;
+    }
+
     final updatedTimeline = List<Map<String, dynamic>>.from(job.timeline);
     
     String descText = 'Trạng thái cập nhật bởi kỹ thuật viên';
@@ -544,6 +659,12 @@ class JobController extends ChangeNotifier {
           'ngayTao': FieldValue.serverTimestamp(),
         });
       }
+
+      // Cập nhật trạng thái đơn hàng
+      await _firestore.collection('donHang').doc(jobId).update({
+        'status': newStatus.rawValue,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
       return true;
     } catch (e) {
       debugPrint('Firestore status sync warning: $e');
@@ -560,7 +681,23 @@ class JobController extends ChangeNotifier {
     final idx = _jobs.indexWhere((j) => j.id == jobId);
     if (idx == -1) return false;
 
-    _jobs[idx] = _jobs[idx].copyWith(
+    final job = _jobs[idx];
+    
+    // Kiểm tra khóa theo ngày hẹn
+    if (job.isLocked) {
+       debugPrint('LOCKED: Cannot report issue before scheduled date');
+       return false;
+    }
+
+    final updatedTimeline = List<Map<String, dynamic>>.from(job.timeline);
+    updatedTimeline.add({
+      'status': 'su_co',
+      'time': DateTime.now(),
+      'title': 'Báo cáo sự cố',
+      'desc': '$reason: $description',
+    });
+
+    _jobs[idx] = job.copyWith(
       status: JobStatus.needSupport,
       issueReason: reason,
       issueDesc: description,
@@ -570,12 +707,9 @@ class JobController extends ChangeNotifier {
     try {
       final uid = _auth.currentUser?.uid;
       await _firestore.collection('donHang').doc(jobId).update({
-        'trangThai': 'su_co',
-        'status': 'failed',
-        'lyDoSuCo': reason,
-        'moTaSuCo': description,
+        'status': 'incident',
         'lyDoHuy': '$reason: $description',
-        'ngayCapNhat': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
       if (uid != null) {
         await _firestore.collection('nhatKyHoatDong').add({
@@ -605,6 +739,13 @@ class JobController extends ChangeNotifier {
     if (idx == -1) return false;
 
     final job = _jobs[idx];
+
+    // Kiểm tra khóa theo ngày hẹn
+    if (job.isLocked) {
+       debugPrint('LOCKED: Cannot complete job before scheduled date');
+       return false;
+    }
+
     final updatedTimeline = List<Map<String, dynamic>>.from(job.timeline);
     updatedTimeline.add({
       'status': 'hoan_thanh',
@@ -626,14 +767,13 @@ class JobController extends ChangeNotifier {
     try {
       final uid = _auth.currentUser?.uid;
       await _firestore.collection('donHang').doc(jobId).update({
-        'trangThai': 'hoan_thanh',
         'status': 'completed',
-        'soTienCOD': codCollected,
-        'soTienTip': tipAmount,
+        'totalAmount': codCollected,
+        'tipAmount': tipAmount,
         'anhHoanThanh': photos,
         'chuKyKhachHang': customerSignature,
         'hoanThanhVao': FieldValue.serverTimestamp(),
-        'ngayCapNhat': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
       if (uid != null) {
         await _firestore.collection('nhatKyHoatDong').add({

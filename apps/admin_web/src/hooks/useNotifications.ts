@@ -1,67 +1,75 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from './useAuth';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  subscribeToNotifications,
+  markNotificationAsRead,
+  markAllAsRead // Đảm bảo hàm này tồn tại trong notificationService.ts
+} from '../services/notificationService';
 import { AppNotification } from '../types/notification';
-import { subscribeToNotifications, markNotificationAsRead, markAllAsRead } from '../services/notificationService';
+import { useAuth } from './useAuth';
+import { UserRole } from '../types/auth';
 
 export const useNotifications = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [retryCount, setRetryCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Chỉ chạy khi đã xác thực và có thông tin user/role
-    if (!isAuthenticated || !user || !user.role) return;
+    if (!user || user.role === undefined || user.role === null) {
+      setIsLoading(false);
+      return;
+    }
 
     let isMounted = true;
-
-    // Thêm một khoảng trễ nhỏ 500ms để đảm bảo Firestore Auth State đã sẵn sàng
-    const timer = setTimeout(() => {
-      if (!isMounted) return;
-
-      const unsubscribe = subscribeToNotifications(
-        user.uid,
-        user.role,
-        (data) => {
-          if (isMounted) {
-            setNotifications(data);
-            setUnreadCount(data.filter(n => !n.is_read).length);
-          }
-        },
-        (error) => {
-          console.warn("🔔 Notification Error:", error.code);
-          // Nếu bị từ chối quyền, thử lại tối đa 3 lần
-          if (error.code === 'permission-denied' && retryCount < 3) {
-            setTimeout(() => setRetryCount(prev => prev + 1), 2000);
-          }
+    const unsubscribe = subscribeToNotifications(
+      user.uid,
+      user.role as UserRole,
+      (data) => {
+        if (isMounted) {
+          setNotifications(data);
+          setUnreadCount(data.filter(n => !n.is_read).length);
+          setIsLoading(false);
         }
-      );
-
-      return () => {
-        if (typeof unsubscribe === 'function') unsubscribe();
-      };
-    }, 500);
+      },
+      (err) => {
+        if (isMounted) {
+          console.warn("Notification error:", err.code);
+          setError(err.message);
+          setIsLoading(false);
+        }
+      }
+    );
 
     return () => {
       isMounted = false;
-      clearTimeout(timer);
+      if (unsubscribe) unsubscribe();
     };
-  }, [user, isAuthenticated, retryCount]);
+  }, [user]);
 
-  const markAsRead = async (nid: string) => {
-    await markNotificationAsRead(nid);
-  };
-
-  const markAllRead = async () => {
-    if (user && user.role) {
-      await markAllAsRead(user.role);
+  const markRead = useCallback(async (nid: string) => {
+    try {
+      await markNotificationAsRead(nid);
+    } catch (err) {
+      console.error(err);
     }
-  };
+  }, []);
+
+  const markAllReadAction = useCallback(async () => {
+    if (!user?.role) return;
+    try {
+      await markAllAsRead(user.role);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [user]);
 
   return {
     notifications,
     unreadCount,
-    markAsRead,
-    markAllRead
+    isLoading,
+    error,
+    markAsRead: markRead,
+    markAllRead: markAllReadAction
   };
 };

@@ -1,6 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 
-export type OrderStatus = 'pending' | 'assigned' | 'processing' | 'completed' | 'incident' | 'paid' | 'cancelled' | 'deleted';
+export type OrderStatus = 'pending' | 'approved' | 'assigned' | 'processing' | 'completed' | 'incident' | 'paid' | 'cancelled' | 'deleted';
 
 export type OrderType = 'installation' | 'maintenance' | 'repair';
 
@@ -9,6 +9,13 @@ export interface OrderItem {
   name: string;
   price: number;
   quantity: number;
+  imageUrl?: string;
+  thoiGianBaoHanh?: number; // Thời gian bảo hành của sản phẩm (tháng)
+}
+
+export interface OrderTechnician {
+  id: string;
+  name: string;
 }
 
 export interface Order {
@@ -27,8 +34,10 @@ export interface Order {
   totalAmount: number;
   status: OrderStatus;
   orderType: OrderType;
-  technicianId?: string;
-  technicianName?: string;
+  technicians?: OrderTechnician[]; // Danh sách kỹ thuật viên
+  technicianId?: string;   // Giữ lại để tương thích ngược nếu cần
+  technicianName?: string; // Giữ lại để tương thích ngược nếu cần
+  scheduledDate?: any;     // Lịch hẹn đến nhà khách hàng (Lịch làm việc)
   createdAt: any;
   updatedAt: any;
   createdBy?: string;
