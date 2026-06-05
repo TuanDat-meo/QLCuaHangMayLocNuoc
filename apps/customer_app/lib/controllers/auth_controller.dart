@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared/services/auth_service.dart';
 import 'package:customer_app/models/user_model.dart';
+import 'package:customer_app/models/order_model.dart';
 import 'package:customer_app/services/firestore_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:uuid/uuid.dart';
 
 class AuthController extends ChangeNotifier {
   final AuthService _authService = AuthService();
@@ -64,27 +66,11 @@ class AuthController extends ChangeNotifier {
 
     try {
       await FirestoreService.updateUserData(user.uid, {
-        'displayName': displayName,
-        'phoneNumber': phoneNumber,
+        'name': displayName,
+        'phone': phoneNumber,
       });
       await user.updateDisplayName(displayName);
       await loadUserProfile();
-      
-      // Update local AuthUser if needed
-      if (_currentUser != null) {
-        _currentUser = AuthUser(
-          uid: _currentUser!.uid,
-          email: _currentUser!.email,
-          displayName: displayName,
-          phoneNumber: phoneNumber,
-          role: _currentUser!.role,
-          createdAt: _currentUser!.createdAt,
-          updatedAt: DateTime.now(),
-          isVerified: _currentUser!.isVerified,
-          status: _currentUser!.status,
-          avatar: _currentUser!.avatar,
-        );
-      }
       
       _isLoading = false;
       notifyListeners();
@@ -92,6 +78,78 @@ class AuthController extends ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Address Management
+  Future<bool> addAddress(Address address, bool isDefault) async {
+    if (_customerUser == null) return false;
+    
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final List<Address> updatedAddresses = List.from(_customerUser!.addresses);
+      final newAddressWithId = Address(
+        id: const Uuid().v4(),
+        recipientName: address.recipientName,
+        phoneNumber: address.phoneNumber,
+        street: address.street,
+        ward: address.ward,
+        district: address.district,
+        city: address.city,
+        type: address.type,
+      );
+      
+      updatedAddresses.add(newAddressWithId);
+      
+      Map<String, dynamic> updateData = {
+        'addresses': updatedAddresses.map((a) => a.toMap()).toList(),
+      };
+
+      if (isDefault || _customerUser!.defaultAddress == null) {
+        updateData['defaultAddress'] = newAddressWithId.toMap();
+      }
+
+      await FirestoreService.updateUserData(_customerUser!.uid, updateData);
+      await loadUserProfile();
+      
+      _isLoading = false;
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> deleteAddress(String addressId) async {
+    if (_customerUser == null) return false;
+
+    try {
+      final List<Address> updatedAddresses = _customerUser!.addresses
+          .where((a) => a.id != addressId)
+          .toList();
+      
+      Map<String, dynamic> updateData = {
+        'addresses': updatedAddresses.map((a) => a.toMap()).toList(),
+      };
+
+      // If deleted address was default, pick another one or set null
+      if (_customerUser!.defaultAddress?.id == addressId) {
+        updateData['defaultAddress'] = updatedAddresses.isNotEmpty 
+            ? updatedAddresses.first.toMap() 
+            : null;
+      }
+
+      await FirestoreService.updateUserData(_customerUser!.uid, updateData);
+      await loadUserProfile();
+      return true;
+    } catch (e) {
+      _error = e.toString();
       notifyListeners();
       return false;
     }

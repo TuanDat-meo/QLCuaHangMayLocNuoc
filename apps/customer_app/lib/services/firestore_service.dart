@@ -12,6 +12,7 @@ class FirestoreService {
       // Lấy tất cả sản phẩm để hiển thị được cả sản phẩm hết hàng
       QuerySnapshot snapshot = await _firestore
           .collection('sanPham')
+          .where('trangThai', isEqualTo: 'Active')
           .get();
 
       return snapshot.docs.map((doc) {
@@ -22,7 +23,7 @@ class FirestoreService {
     } catch (e) {
       logger.e('Error fetching products: $e');
       rethrow;
-    }
+    } 
   }
 
   // ============ USERS ============

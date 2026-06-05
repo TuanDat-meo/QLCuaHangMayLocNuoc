@@ -7,7 +7,7 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/signup_screen.dart';
 import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/auth/screens/reset_password_screen.dart';
-import '../../features/home/screens/home_screen.dart';
+import '../../features/home/home_screen.dart';
 
 /// AuthGate widget to handle auth state and routing
 class AuthGate extends flutter_material.StatelessWidget {

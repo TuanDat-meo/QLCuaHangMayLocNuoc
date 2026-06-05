@@ -8,10 +8,9 @@ class ProductController extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
-  List<Product> get products => _filteredProducts.isEmpty && _products.isNotEmpty 
-      ? _products 
-      : (_filteredProducts.isEmpty ? [] : _filteredProducts);
-      
+  List<Product> get products =>
+      _filteredProducts.isNotEmpty ? _filteredProducts : _products;
+
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -21,11 +20,11 @@ class ProductController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // FirestoreService.getProducts() trả về List<Map<String, dynamic>>
+      // mỗi map phải có key 'id' hoặc truyền id riêng
       final data = await FirestoreService.getProducts();
-      // Chỉ lấy các sản phẩm không ở trạng thái Inactive
       _products = data
-          .map((map) => Product.fromMap(map))
-          .where((p) => p.status.toLowerCase() != 'inactive')
+          .map((map) => Product.fromMap(map, id: map['id'] ?? ''))
           .toList();
       _filteredProducts = [];
     } catch (e) {
@@ -36,30 +35,33 @@ class ProductController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> searchProducts(String query) async {
+  void searchProducts(String query) {
     if (query.isEmpty) {
       _filteredProducts = [];
     } else {
       _filteredProducts = _products
-          .where((p) => p.name.toLowerCase().contains(query.toLowerCase()) || 
-                       p.description.toLowerCase().contains(query.toLowerCase()))
+          .where((p) =>
+              p.name.toLowerCase().contains(query.toLowerCase()) ||
+              p.description.toLowerCase().contains(query.toLowerCase()))
           .toList();
     }
     notifyListeners();
   }
 
-  Future<void> filterByCategory(String category) async {
+  void filterByCategory(String category) {
     if (category == 'Tất cả') {
       _filteredProducts = [];
     } else {
-      _filteredProducts = _products.where((p) => p.category == category).toList();
+      _filteredProducts =
+          _products.where((p) => p.category == category).toList();
     }
     notifyListeners();
   }
 
   void sortProducts(String sortBy) {
-    final listToSort = _filteredProducts.isEmpty ? _products : _filteredProducts;
-    
+    final listToSort =
+        _filteredProducts.isNotEmpty ? _filteredProducts : _products;
+
     switch (sortBy) {
       case 'price_low':
         listToSort.sort((a, b) => a.price.compareTo(b.price));
@@ -68,7 +70,8 @@ class ProductController extends ChangeNotifier {
         listToSort.sort((a, b) => b.price.compareTo(a.price));
         break;
       case 'popular':
-        listToSort.sort((a, b) => (b.averageRating ?? 0).compareTo(a.averageRating ?? 0));
+        listToSort.sort(
+            (a, b) => (b.averageRating ?? 0).compareTo(a.averageRating ?? 0));
         break;
       default:
         listToSort.sort((a, b) => b.createdAt.compareTo(a.createdAt));
