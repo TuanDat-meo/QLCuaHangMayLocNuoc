@@ -40,7 +40,6 @@ export const addOrder = async (orderData: any) => {
   const db = getDb();
   if (!db) throw new Error("Kết nối Firestore thất bại");
 
-  // Ép kiểu dữ liệu chuẩn để Firestore không từ chối
   const docData = {
     tenKhachHang: String(orderData.customerName || 'Khách hàng'),
     phoneNumber: String(orderData.phoneNumber || ''),
@@ -57,7 +56,8 @@ export const addOrder = async (orderData: any) => {
       name: String(item.name || 'Sản phẩm'),
       price: Number(item.price) || 0,
       quantity: Number(item.quantity) || 1,
-      imageUrl: item.imageUrl || null
+      imageUrl: item.imageUrl || null,
+      thoiGianBaoHanh: Number(item.thoiGianBaoHanh) || 0
     })),
     technicians: orderData.technicians || [],
     tongTien: Number(orderData.totalAmount) || 0,
@@ -72,7 +72,6 @@ export const addOrder = async (orderData: any) => {
     ngayBaoTriTiepTheo: Timestamp.fromDate(new Date(Date.now() + 180 * 24 * 60 * 60 * 1000))
   };
 
-  console.log("DEBUG: Gửi đơn hàng lên Firestore", docData);
   return addDoc(collection(db, COLLECTION_NAME), docData);
 };
 
@@ -81,8 +80,14 @@ export const subscribeToOrders = (callback: (orders: Order[]) => void, statusFil
   const constraints: QueryConstraint[] = [orderBy('ngayTao', 'desc')];
   if (statusFilter && statusFilter !== 'Tất cả') {
     const statusMap: Record<string, string> = {
-      'Chờ duyệt': 'pending', 'Đã phân công': 'assigned', 'Đang xử lý': 'processing',
-      'Hoàn tất': 'completed', 'Sự cố': 'incident', 'Đã tất toán': 'paid', 'Đã hủy': 'cancelled'
+      'Chờ duyệt': 'pending',
+      'Đã duyệt': 'approved',
+      'Đã phân công': 'assigned',
+      'Đang xử lý': 'processing',
+      'Hoàn tất': 'completed',
+      'Sự cố': 'incident',
+      'Đã tất toán': 'paid',
+      'Đã hủy': 'cancelled'
     };
     if (statusMap[statusFilter]) constraints.push(where('trangThai', '==', statusMap[statusFilter]));
   }
@@ -111,7 +116,6 @@ export const updateOrder = async (orderId: string, orderData: Partial<Order>) =>
   const db = getDb();
   const updateData: any = { ...orderData, updatedAt: serverTimestamp() };
 
-  // Xử lý các trường mapping ngược nếu cần
   if (orderData.customerName) updateData.tenKhachHang = orderData.customerName;
   if (orderData.productName) updateData.tenSanPham = orderData.productName;
   if (orderData.totalAmount !== undefined) updateData.tongTien = orderData.totalAmount;
@@ -131,12 +135,18 @@ export const updateOrderStatus = async (orderId: string, status: OrderStatus) =>
   return updateDoc(doc(getDb(), COLLECTION_NAME, orderId), { trangThai: status, updatedAt: serverTimestamp() });
 };
 
-export const assignTechnicians = async (orderId: string, technicians: OrderTechnician[]) => {
-  return updateDoc(doc(getDb(), COLLECTION_NAME, orderId), {
+export const assignTechnicians = async (orderId: string, technicians: OrderTechnician[], scheduledDate?: Date) => {
+  const updateData: any = {
     technicians,
-    trangThai: 'assigned', // Tự động chuyển trạng thái khi phân công
+    trangThai: 'assigned',
     updatedAt: serverTimestamp()
-  });
+  };
+
+  if (scheduledDate) {
+    updateData.scheduledDate = Timestamp.fromDate(scheduledDate);
+  }
+
+  return updateDoc(doc(getDb(), COLLECTION_NAME, orderId), updateData);
 };
 
 export const deleteOrder = async (orderId: string, status: OrderStatus) => {

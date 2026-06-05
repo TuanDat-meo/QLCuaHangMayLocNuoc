@@ -125,6 +125,7 @@ export const createImportVoucher = async (voucher: any) => {
           nhaCungCap: finalSupplierName,
           sku: item.sku?.trim() || ('SKU-' + Math.random().toString(36).substring(7).toUpperCase()),
           imageUrl: item.imageUrl || '',
+          thoiGianBaoHanh: Number(item.thoiGianBaoHanh) || 0,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
@@ -158,6 +159,11 @@ export const createImportVoucher = async (voucher: any) => {
             updateData.giaBan = item.sellingPrice;
           }
 
+          // Cập nhật bảo hành nếu có nhập mới
+          if (item.thoiGianBaoHanh !== undefined) {
+             updateData.thoiGianBaoHanh = Number(item.thoiGianBaoHanh) || 0;
+          }
+
           transaction.update(productRef, updateData);
 
           // Cập nhật local list để dòng tiếp theo (nếu có) cộng dồn chính xác
@@ -171,7 +177,8 @@ export const createImportVoucher = async (voucher: any) => {
         productName: iName,
         quantity: item.quantity,
         importPrice: item.importPrice,
-        sku: item.sku?.trim() || ''
+        sku: item.sku?.trim() || '',
+        thoiGianBaoHanh: Number(item.thoiGianBaoHanh) || 0
       });
     }
 
