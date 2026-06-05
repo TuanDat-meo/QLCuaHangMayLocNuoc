@@ -71,10 +71,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         CircleAvatar(
                           radius: 50,
                           backgroundColor: const Color(0xffeff6ff),
-                          backgroundImage: user?.avatar != null
+                          backgroundImage: (user?.avatar != null)
                               ? NetworkImage(user!.avatar!)
                               : null,
-                          child: user?.avatar == null
+                          child: (user?.avatar == null)
                               ? const Icon(Icons.person,
                                   size: 50, color: Color(0xff00459a))
                               : null,
@@ -120,7 +120,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ]),
                   const SizedBox(height: 16),
                   _buildMenuSection([
-                    _MenuItem(Icons.help_outline_rounded, 'Trung tâm hỗ trợ', () {}),
+                    _MenuItem(Icons.help_outline_rounded, 'Trung tâm hỗ trợ', 
+                        () => Navigator.pushNamed(context, '/support')),
                     _MenuItem(Icons.info_outline_rounded, 'Về Aquacare', () {}),
                   ]),
                   const SizedBox(height: 24),

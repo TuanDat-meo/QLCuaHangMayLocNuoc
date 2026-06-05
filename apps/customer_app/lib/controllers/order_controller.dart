@@ -41,7 +41,7 @@ class OrderController extends ChangeNotifier {
       final orderCode =
           'ORD-${DateTime.now().year}-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
 
-      final orderRef = _firestore.collection('donHang').doc(); // ✅ đổi
+      final orderRef = _firestore.collection('donHang').doc();
 
       final orderData = {
         'id': orderRef.id,
@@ -57,7 +57,7 @@ class OrderController extends ChangeNotifier {
         'notes': notes ?? '',
         'subtotal': subtotal,
         'discount': discount,
-        'shippingFee': shippingFee,
+        'Shipping fee': shippingFee,
         'totalAmount': totalAmount,
         'status': 'pending',
         'technicianId': null,
@@ -96,73 +96,82 @@ class OrderController extends ChangeNotifier {
     }
   }
 
-  Stream<Map<String, dynamic>?> watchOrder(String orderId) {
-    return _firestore
-        .collection('donHang') // ✅ đổi
-        .doc(orderId)
-        .snapshots()
-        .map((snap) => snap.data());
+  Future<void> fetchMyOrders() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      final snap = await _firestore
+          .collection('donHang')
+          .where('customerId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      _orders = snap.docs.map((doc) {
+        final d = doc.data();
+        return Order(
+          id: doc.id,
+          orderCode: d['orderCode'] ?? '',
+          items: (d['items'] as List? ?? [])
+              .map((e) => OrderItem.fromMap(e as Map<String, dynamic>))
+              .toList(),
+          deliveryAddress: Address.fromMap(d['deliveryAddress'] as Map<String, dynamic>),
+          scheduledDate: (d['scheduledDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          scheduledSlot: ScheduleSlot(
+            id: d['scheduledSlotId'] ?? '',
+            label: d['scheduledSlotLabel'] ?? '',
+            startHour: 0,
+            endHour: 0,
+          ),
+          notes: d['notes'],
+          subtotal: (d['subtotal'] as num?)?.toDouble() ?? 0.0,
+          discount: (d['discount'] as num?)?.toDouble() ?? 0.0,
+          shippingFee: (d['Shipping fee'] ?? d['shippingFee'] as num? ?? 0).toDouble(),
+          totalAmount: (d['totalAmount'] as num?)?.toDouble() ?? 0.0,
+          status: d['status'] ?? 'pending',
+          technicianId: d['technicianId'],
+          technicianName: d['technicianName'],
+          technicianPhone: d['technicianPhone'],
+          createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        );
+      }).toList();
+
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching orders: $e');
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
-Future<void> fetchMyOrders() async {
-  _isLoading = true;
-  notifyListeners();
-
-  try {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    final snap = await _firestore
-        .collection('donHang')
-        .where('customerId', isEqualTo: user.uid)
-        .orderBy('createdAt', descending: true)
-        .get();
-
-    _orders = snap.docs.map((doc) {
-      final d = doc.data();
-      return Order(
-        id: doc.id,
-        orderCode: d['orderCode'] ?? '',
-        items: (d['items'] as List? ?? [])
-            .map((e) => OrderItem(
-                  id: e['id'] ?? '',
-                  productId: e['productId'] ?? '',
-                  productName: e['productName'] ?? '',
-                  price: (e['price'] as num).toDouble(),
-                  quantity: e['quantity'] as int,
-                  subtotal: (e['subtotal'] as num).toDouble(),
-                  imageUrl: e['imageUrl'],
-                ))
-            .toList(),
-        deliveryAddress: Address.fromMap(d['deliveryAddress']),
-        scheduledDate: (d['scheduledDate'] as Timestamp).toDate(),
-        scheduledSlot: ScheduleSlot(
-          id: d['scheduledSlotId'] ?? '',
-          label: d['scheduledSlotLabel'] ?? '',
-          startHour: 0,
-          endHour: 0,
-        ),
-        notes: d['notes'],
-        subtotal: (d['subtotal'] as num).toDouble(),
-        discount: (d['discount'] as num).toDouble(),
-        shippingFee: (d['shippingFee'] as num).toDouble(),
-        totalAmount: (d['totalAmount'] as num).toDouble(),
-        status: d['status'] ?? 'pending',
-        technicianId: d['technicianId'],
-        technicianName: d['technicianName'],
-        technicianPhone: d['technicianPhone'],
-        createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      );
-    }).toList();
-
-    _isLoading = false;
+  Future<bool> cancelOrder(String orderId) async {
+    _isLoading = true;
     notifyListeners();
-  } catch (e) {
-    _error = e.toString();
-    _isLoading = false;
-    notifyListeners();
+    try {
+      await _firestore.collection('donHang').doc(orderId).update({
+        'status': 'cancelled',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      await fetchMyOrders();
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
   }
-}
 
   void setCurrentOrder(Order order) {
     _currentOrder = order;

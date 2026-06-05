@@ -9,6 +9,7 @@ class CustomerUser {
   final String? avatarUrl;
   final Address? defaultAddress;
   final List<Address> addresses;
+  final List<String> favoriteProductIds; // Added favorites
   final String status; // active, inactive, banned
   final int orderCount;
   final double totalSpent;
@@ -24,6 +25,7 @@ class CustomerUser {
     this.avatarUrl,
     this.defaultAddress,
     this.addresses = const [],
+    this.favoriteProductIds = const [], // Added favorites
     this.status = 'active',
     this.orderCount = 0,
     this.totalSpent = 0.0,
@@ -47,6 +49,7 @@ class CustomerUser {
       addresses: List<Address>.from(
         (map['addresses'] as List?)?.map((x) => Address.fromMap(x)) ?? [],
       ),
+      favoriteProductIds: List<String>.from(map['favoriteProductIds'] ?? []), // Added favorites
       status: map['status'] as String? ?? 'active',
       orderCount: map['orderCount'] as int? ?? 0,
       totalSpent: (map['totalSpent'] as num?)?.toDouble() ?? 0.0,
@@ -65,6 +68,7 @@ class CustomerUser {
       'avatarUrl': avatarUrl,
       'defaultAddress': defaultAddress?.toMap(),
       'addresses': addresses.map((a) => a.toMap()).toList(),
+      'favoriteProductIds': favoriteProductIds, // Added favorites
       'status': status,
       'orderCount': orderCount,
       'totalSpent': totalSpent,
