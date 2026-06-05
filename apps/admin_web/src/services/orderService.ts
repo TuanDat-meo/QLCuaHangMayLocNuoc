@@ -41,6 +41,33 @@ const createCustomerNotification = async (userId: string, title: string, body: s
 };
 
 /**
+ * Hàm hỗ trợ tạo thông báo cho kỹ thuật viên
+ */
+const createTechnicianNotification = async (
+  ktvId: string,
+  title: string,
+  body: string,
+  jobId: string,
+  type: string
+) => {
+  const db = getDb();
+  if (!db || !ktvId) return;
+  try {
+    await addDoc(collection(db, 'thongBao'), {
+      ktvId,
+      tieuDe: title,
+      noiDung: body,
+      loai: type,
+      donHangId: jobId,
+      daDoc: false,
+      ngayTao: serverTimestamp()
+    });
+  } catch (e) {
+    console.error("Error creating technician notification:", e);
+  }
+};
+
+/**
  * Hàm ép kiểu ngày tháng an toàn
  */
 export const safeToDate = (value: any): Date => {
@@ -227,14 +254,31 @@ export const assignTechnicians = async (orderId: string, technicians: OrderTechn
   const orderDoc = await getDoc(doc(db, COLLECTION_NAME, orderId));
   if (orderDoc.exists()) {
     const data = orderDoc.data();
+    const orderCode = data.orderCode || orderId;
+    const customerName = data.tenKhachHang || '';
     const uid = data.customerId || data.khachHangId;
+    
     if (uid) {
       await createCustomerNotification(
         uid,
         'Kỹ thuật viên đã được phân công',
-        `Đơn hàng ${data.orderCode} sẽ được xử lý bởi ${technicians.length} kỹ thuật viên vào lúc ${scheduledDate.toLocaleString('vi-VN')}.`,
+        `Đơn hàng ${orderCode} sẽ được xử lý bởi ${technicians.length} kỹ thuật viên vào lúc ${scheduledDate.toLocaleString('vi-VN')}.`,
         { orderId, status: 'assigned' }
       );
+    }
+
+    // Gửi thông báo cho từng KTV được phân công
+    for (const tech of technicians) {
+      if (tech.id) {
+        const formattedDate = scheduledDate ? scheduledDate.toLocaleString('vi-VN') : '';
+        await createTechnicianNotification(
+          tech.id,
+          '🔧 Bạn có công việc mới được phân công!',
+          `Bạn được phân công đơn hàng ${orderCode} (KH: ${customerName}). Lịch hẹn: ${formattedDate}.`,
+          orderId,
+          'new_job'
+        );
+      }
     }
   }
 };
@@ -247,7 +291,7 @@ export const deleteOrder = async (orderId: string, status: OrderStatus) => {
 export const updateOrder = async (orderId: string, orderData: any) => {
   const db = getDb();
   
-  // Lấy đơn hàng hiện tại để so sánh trạng thái
+  // Lấy đơn hàng hiện tại để so sánh trạng thái và lịch hẹn
   const orderDoc = await getDoc(doc(db, COLLECTION_NAME, orderId));
   if (orderDoc.exists()) {
     const oldData = orderDoc.data();
@@ -272,6 +316,36 @@ export const updateOrder = async (orderId: string, orderData: any) => {
         );
       }
     }
+
+    // Kiểm tra dời lịch hẹn (reschedule) để thông báo cho KTV
+    if (orderData.scheduledDate) {
+      const oldSched = oldData.scheduledDate ? (oldData.scheduledDate.toDate ? oldData.scheduledDate.toDate() : new Date(oldData.scheduledDate)) : null;
+      const newSched = new Date(orderData.scheduledDate);
+      
+      if (oldSched && oldSched.getTime() !== newSched.getTime()) {
+        const techs = oldData.technicians || [];
+        const orderCode = oldData.orderCode || orderId;
+        const customerName = oldData.tenKhachHang || '';
+        const formattedDate = newSched.toLocaleString('vi-VN');
+        
+        for (const tech of techs) {
+          if (tech.id) {
+            await createTechnicianNotification(
+              tech.id,
+              '⏰ Lịch hẹn công việc đã thay đổi!',
+              `Đơn hàng ${orderCode} (KH: ${customerName}) đã được dời lịch hẹn sang: ${formattedDate}.`,
+              orderId,
+              'reschedule_job'
+            );
+          }
+        }
+      }
+    }
+  }
+
+  // Chuyển đổi scheduledDate sang Timestamp để lưu đồng nhất trong Firestore
+  if (orderData.scheduledDate) {
+    orderData.scheduledDate = Timestamp.fromDate(new Date(orderData.scheduledDate));
   }
 
   // Cập nhật dữ liệu
@@ -282,3 +356,4 @@ export const updateOrder = async (orderId: string, orderData: any) => {
   };
   await updateDoc(doc(db, COLLECTION_NAME, orderId), updatePayload);
 };
+
