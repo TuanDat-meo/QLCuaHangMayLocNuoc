@@ -3,16 +3,15 @@ import {
   Calendar as CalendarIcon, Clock, User, MapPin, Search, ChevronRight,
   RefreshCcw, AlertCircle, Phone, Package,
   ChevronLeft, ChevronRight as ChevronRightIcon, CalendarDays,
-  UserCheck, Timer, Briefcase, Info, CheckCircle2,
+  Timer, CheckCircle2,
   Wrench, ShieldCheck, X, CheckCircle, AlertTriangle, Users,
-  ClipboardCheck, ArrowRight
+  ClipboardCheck
 } from 'lucide-react';
 import { subscribeToOrders, updateOrder } from '../../services/orderService';
 import { getTechnicians } from '../../services/userService';
 import { Order } from '../../types/order';
 import { AuthUser } from '../../types/auth';
-import { format, isSameDay, addDays, subDays, isBefore, startOfHour, setHours, setMinutes, startOfDay, startOfWeek, eachDayOfInterval } from 'date-fns';
-import { vi } from 'date-fns/locale';
+import { format, isSameDay, addDays, subDays, isBefore, startOfWeek, eachDayOfInterval } from 'date-fns';
 import { toast, Toaster } from 'react-hot-toast';
 
 const SchedulePage: React.FC = () => {
@@ -85,7 +84,7 @@ const SchedulePage: React.FC = () => {
 
   const backlogOrders = useMemo(() => {
     return filteredOrders.filter(o =>
-      (o.status === 'assigned' || o.status === 'pending') && !o.scheduledDate && o.status !== 'cancelled'
+      (o.status === 'assigned' || o.status === 'pending') && !o.scheduledDate
     );
   }, [filteredOrders]);
 
