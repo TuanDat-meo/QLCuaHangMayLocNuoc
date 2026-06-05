@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:customer_app/controllers/order_controller.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
   const OrderTrackingScreen({super.key});
@@ -14,6 +16,7 @@ class OrderTrackingScreen extends StatefulWidget {
 class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   late String _orderId;
   late String _orderCode;
+  bool _isCancelling = false;
 
   String _formatCurrency(double value) => value
       .toStringAsFixed(0)
@@ -27,6 +30,43 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
         ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
     _orderId = args['orderId'];
     _orderCode = args['orderCode'];
+  }
+
+  Future<void> _handleCancelOrder() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận hủy'),
+        content: const Text('Bạn có chắc chắn muốn hủy đơn hàng này không?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('QUAY LẠI'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('HỦY ĐƠN', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isCancelling = true);
+      final success = await context.read<OrderController>().cancelOrder(_orderId);
+      if (mounted) {
+        setState(() => _isCancelling = false);
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã hủy đơn hàng thành công')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(context.read<OrderController>().error ?? 'Không thể hủy đơn hàng')),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -49,6 +89,12 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             fontSize: 18,
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pushNamed(context, '/orders'),
+            child: const Text('LỊCH SỬ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          ),
+        ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
@@ -66,6 +112,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
           final status = data['status'] as String? ?? 'pending';
+          final technicianId = data['technicianId'];
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -283,10 +330,48 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                 ),
 
                 const SizedBox(height: 24),
+                
+                // Cancel button - Only show if pending and no technician assigned
+                if (status == 'pending' && technicianId == null)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _isCancelling ? null : _handleCancelOrder,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: const BorderSide(color: Colors.redAccent),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: _isCancelling 
+                        ? const CircularProgressIndicator(color: Colors.redAccent)
+                        : const Text('HỦY ĐƠN HÀNG', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+
+                const SizedBox(height: 40),
               ],
             ),
           );
         },
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+          boxShadow: [BoxShadow(color: Color(0x0f000000), blurRadius: 20, offset: Offset(0, -4))],
+        ),
+        child: SafeArea(
+          child: ElevatedButton(
+            onPressed: () => Navigator.pushNamed(context, '/orders'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xff0b1c30),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: const Text('XEM LỊCH SỬ ĐƠN HÀNG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ),
       ),
     );
   }
@@ -346,11 +431,13 @@ class _StatusBadge extends StatelessWidget {
           'color': const Color(0xfff97316),
         };
       case 'confirmed':
+      case 'assigned':
         return {
           'label': 'Đã xác nhận',
           'bg': const Color(0xffeff6ff),
           'color': const Color(0xff3b82f6),
         };
+      case 'processing':
       case 'in_progress':
         return {
           'label': 'Đang lắp đặt',
@@ -358,10 +445,23 @@ class _StatusBadge extends StatelessWidget {
           'color': const Color(0xff22c55e),
         };
       case 'completed':
+      case 'settled':
         return {
           'label': 'Hoàn thành',
           'bg': const Color(0xfff0fdf4),
           'color': const Color(0xff16a34a),
+        };
+      case 'cancelled':
+        return {
+          'label': 'Đã hủy',
+          'bg': const Color(0xfffee2e2),
+          'color': const Color(0xffef4444),
+        };
+      case 'issue':
+        return {
+          'label': 'Sự cố',
+          'bg': const Color(0xfffef2f2),
+          'color': const Color(0xffb91c1c),
         };
       default:
         return {
@@ -383,6 +483,22 @@ class _TrackingTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (status == 'cancelled') {
+       return Container(
+         padding: const EdgeInsets.all(16),
+         decoration: BoxDecoration(
+           color: Colors.red.withOpacity(0.05),
+           borderRadius: BorderRadius.circular(12),
+         ),
+         child: const Row(
+           children: [
+             Icon(Icons.cancel_outlined, color: Colors.redAccent),
+             SizedBox(width: 12),
+             Text('Đơn hàng đã được hủy bởi khách hàng', style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold)),
+           ],
+         ),
+       );
+    }
     final steps = _buildSteps(status, data);
     return Column(
       children: steps.asMap().entries.map((entry) {
@@ -396,8 +512,12 @@ class _TrackingTimeline extends StatelessWidget {
 
   List<_StepData> _buildSteps(
       String status, Map<String, dynamic> data) {
-    final statusOrder = ['pending', 'confirmed', 'in_progress', 'completed'];
-    final currentIndex = statusOrder.indexOf(status);
+    
+    // Normalize status index mapping
+    int currentIndex = 0;
+    if (['confirmed', 'assigned'].contains(status)) currentIndex = 1;
+    if (['processing', 'in_progress', 'issue'].contains(status)) currentIndex = 2;
+    if (['completed', 'settled'].contains(status)) currentIndex = 3;
 
     return [
       _StepData(
@@ -414,16 +534,16 @@ class _TrackingTimeline extends StatelessWidget {
         subtitle: 'Đã lên lịch và chuẩn bị thiết bị.',
         isCompleted: currentIndex >= 2,
         isActive: currentIndex == 1,
-        timestamp: currentIndex >= 1 ? _formatTs(data['confirmedAt']) : null,
+        timestamp: currentIndex >= 1 ? _formatTs(data['confirmedAt'] ?? data['assignedAt']) : null,
       ),
       _StepData(
         title: 'Đang giao hàng & Lắp đặt',
         subtitle:
-            'Kỹ thuật viên đang di chuyển đến địa chỉ của bạn. Dự kiến đến trong 30 phút.',
+            'Kỹ thuật viên đang di chuyển đến địa chỉ của bạn.',
         isCompleted: currentIndex >= 3,
         isActive: currentIndex == 2,
         timestamp:
-            currentIndex >= 2 ? _formatTs(data['inProgressAt']) : null,
+            currentIndex >= 2 ? _formatTs(data['processingAt'] ?? data['inProgressAt']) : null,
       ),
       _StepData(
         title: 'Hoàn thành',
@@ -431,7 +551,7 @@ class _TrackingTimeline extends StatelessWidget {
         isCompleted: currentIndex >= 3,
         isActive: false,
         timestamp:
-            currentIndex >= 3 ? _formatTs(data['completedAt']) : null,
+            currentIndex >= 3 ? _formatTs(data['completedAt'] ?? data['settledAt']) : null,
       ),
     ];
   }

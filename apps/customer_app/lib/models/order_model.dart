@@ -21,7 +21,7 @@ class Address {
     this.type = 'home',
   });
 
-  String get fullAddress => '$street, $ward, $district, $city';
+  String get fullAddress => '$street, Phường $ward, $district, $city';
 
   Map<String, dynamic> toMap() => {
         'id': id,
@@ -31,7 +31,7 @@ class Address {
         'ward': ward,
         'district': district,
         'city': city,
-        'type': type,
+        'kind': type, // Matching user's 'kind' field
       };
 
   factory Address.fromMap(Map<String, dynamic> map) => Address(
@@ -42,7 +42,7 @@ class Address {
         ward: map['ward'] ?? '',
         district: map['district'] ?? '',
         city: map['city'] ?? '',
-        type: map['type'] ?? 'home',
+        type: map['kind'] ?? map['type'] ?? 'home',
       );
 }
 
@@ -74,6 +74,16 @@ class OrderItem {
         'subtotal': subtotal,
         'imageUrl': imageUrl,
       };
+
+  factory OrderItem.fromMap(Map<String, dynamic> map) => OrderItem(
+        id: map['id'] ?? '',
+        productId: map['productId'] ?? '',
+        productName: map['productName'] ?? '',
+        price: (map['price'] as num?)?.toDouble() ?? 0.0,
+        quantity: (map['quantity'] as num?)?.toInt() ?? 0,
+        subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0.0,
+        imageUrl: map['imageUrl'],
+      );
 }
 
 class ScheduleSlot {
@@ -183,8 +193,7 @@ class Order {
         'notes': notes,
         'subtotal': subtotal,
         'discount': discount,
-        'shippingFee': shippingFee,
-        'totalAmount': totalAmount,
+        'Shipping fee': shippingFee, // Matching user's field
         'status': status,
         'technicianId': technicianId,
         'technicianName': technicianName,

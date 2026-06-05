@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:customer_app/controllers/cart_controller.dart';
+import 'package:customer_app/controllers/auth_controller.dart';
 import 'package:customer_app/models/order_model.dart';
 
 class AddressScheduleScreen extends StatefulWidget {
@@ -13,31 +13,7 @@ class AddressScheduleScreen extends StatefulWidget {
 }
 
 class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
-  // ── Mock saved addresses ─────────────────────────────────────────────────
-  final List<Address> _savedAddresses = [
-    Address(
-      id: '1',
-      recipientName: 'Nhà riêng',
-      phoneNumber: '0912 345 678',
-      street: '123 Đường Lê Lợi',
-      ward: 'Phường Bến Thành',
-      district: 'Quận 1',
-      city: 'TP. HCM',
-      type: 'home',
-    ),
-    Address(
-      id: '2',
-      recipientName: 'Công ty',
-      phoneNumber: '0987 654 321',
-      street: '516 Tòa nhà Bitexco, Nguyễn Huệ',
-      ward: 'Phường Bến Nghé',
-      district: 'Quận 1',
-      city: 'TP. HCM',
-      type: 'company',
-    ),
-  ];
-
-  String _selectedAddressId = '1';
+  String? _selectedAddressId;
   final TextEditingController _searchController = TextEditingController();
 
   // ── Schedule data ────────────────────────────────────────────────────────
@@ -58,7 +34,22 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
     if (_selectedDate.weekday == DateTime.sunday) {
       _selectedDate = _selectedDate.add(const Duration(days: 1));
     }
-    _searchController.text = '123 Đường Lê Lợi, Quận 1';
+    
+    // Set initial selected address from AuthController if possible
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthController>();
+      if (auth.customerUser?.defaultAddress != null) {
+        setState(() {
+          _selectedAddressId = auth.customerUser!.defaultAddress!.id;
+          _searchController.text = auth.customerUser!.defaultAddress!.fullAddress;
+        });
+      } else if (auth.customerUser?.addresses.isNotEmpty ?? false) {
+        setState(() {
+          _selectedAddressId = auth.customerUser!.addresses.first.id;
+          _searchController.text = auth.customerUser!.addresses.first.fullAddress;
+        });
+      }
+    });
   }
 
   // Generate next 14 days (excluding Sundays)
@@ -81,9 +72,16 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
 
   String _monthLabel(DateTime date) => 'Tháng ${date.month}';
 
-  void _goToConfirmation() {
+  void _goToConfirmation(List<Address> addresses) {
+    if (_selectedAddressId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn địa chỉ lắp đặt')),
+      );
+      return;
+    }
+
     final selectedAddress =
-        _savedAddresses.firstWhere((a) => a.id == _selectedAddressId);
+        addresses.firstWhere((a) => a.id == _selectedAddressId);
     final selectedSlot =
         _timeSlots.firstWhere((s) => s.id == _selectedSlotId);
 
@@ -120,387 +118,388 @@ class _AddressScheduleScreenState extends State<AddressScheduleScreen> {
           ),
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Địa chỉ lắp đặt ──────────────────────────────────
-                  _SectionCard(
-                    icon: Icons.location_on_outlined,
-                    iconColor: const Color(0xff3b82f6),
-                    title: 'Địa chỉ lắp đặt',
-                    child: Column(
-                      children: [
-                        // Search bar (Google Map style)
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xfff8fafc),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xffe2e8f0)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Padding(
-                                padding: EdgeInsets.only(left: 12),
-                                child: Icon(Icons.search,
-                                    color: Color(0xff94a3b8), size: 20),
-                              ),
-                              Expanded(
-                                child: TextField(
-                                  controller: _searchController,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Tìm địa chỉ...',
-                                    border: InputBorder.none,
-                                    contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 12),
-                                    hintStyle: TextStyle(
-                                        color: Color(0xffb0bec5), fontSize: 13),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+      body: Consumer<AuthController>(
+        builder: (context, auth, _) {
+          final addresses = auth.customerUser?.addresses ?? [];
 
-                        // Map placeholder
-                        const SizedBox(height: 12),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            height: 130,
-                            color: const Color(0xffe8f4fd),
-                            child: Stack(
-                              children: [
-                                // Simple map grid lines
-                                CustomPaint(
-                                  size: const Size(double.infinity, 130),
-                                  painter: _MapGridPainter(),
-                                ),
-                                const Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.location_pin,
-                                          color: Color(0xffef4444), size: 36),
-                                      Text(
-                                        '123 Đường Lê Lợi, Quận 1',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Color(0xff374151),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Địa chỉ đã lưu',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xff374151),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Saved addresses
-                        ..._savedAddresses.map((address) => _AddressCard(
-                              address: address,
-                              isSelected: _selectedAddressId == address.id,
-                              onTap: () => setState(
-                                  () => _selectedAddressId = address.id),
-                            )),
-
-                        // Add new address button
-                        const SizedBox(height: 8),
-                        InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () {},
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 14, horizontal: 16),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: const Color(0xff3b82f6),
-                                style: BorderStyle.solid,
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.add,
-                                    color: Color(0xff3b82f6), size: 18),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Thêm địa chỉ mới',
-                                  style: TextStyle(
-                                    color: Color(0xff3b82f6),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // ── Thời gian hẹn ─────────────────────────────────────
-                  _SectionCard(
-                    icon: Icons.calendar_month_outlined,
-                    iconColor: const Color(0xff3b82f6),
-                    title: 'Thời gian hẹn',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Month header
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          return Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Địa chỉ lắp đặt ──────────────────────────────────
+                      _SectionCard(
+                        icon: Icons.location_on_outlined,
+                        iconColor: const Color(0xff3b82f6),
+                        title: 'Địa chỉ lắp đặt',
+                        child: Column(
                           children: [
-                            Text(
-                              _monthLabel(_selectedDate),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: Color(0xff374151),
+                            // Search bar (Google Map style)
+                            Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xfff8fafc),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xffe2e8f0)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 12),
+                                    child: Icon(Icons.search,
+                                        color: Color(0xff94a3b8), size: 20),
+                                  ),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _searchController,
+                                      readOnly: true,
+                                      decoration: const InputDecoration(
+                                        hintText: 'Chọn địa chỉ bên dưới...',
+                                        border: InputBorder.none,
+                                        contentPadding: EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 12),
+                                        hintStyle: TextStyle(
+                                            color: Color(0xffb0bec5), fontSize: 13),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            Row(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.chevron_left,
-                                      size: 20, color: Color(0xff94a3b8)),
-                                  onPressed: () {},
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(
-                                      minWidth: 32, minHeight: 32),
+
+                            // Map placeholder
+                            const SizedBox(height: 12),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                height: 130,
+                                color: const Color(0xffe8f4fd),
+                                child: Stack(
+                                  children: [
+                                    CustomPaint(
+                                      size: const Size(double.infinity, 130),
+                                      painter: _MapGridPainter(),
+                                    ),
+                                    Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.location_pin,
+                                              color: Color(0xffef4444), size: 36),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                                            child: Text(
+                                              _searchController.text.isEmpty 
+                                                ? 'Chưa chọn địa chỉ' 
+                                                : _searchController.text,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: Color(0xff374151),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.chevron_right,
-                                      size: 20, color: Color(0xff374151)),
-                                  onPressed: () {},
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(
-                                      minWidth: 32, minHeight: 32),
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+                            const Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Địa chỉ đã lưu',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xff374151),
                                 ),
-                              ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+
+                            // Saved addresses from Firebase
+                            if (addresses.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 10),
+                                child: Text('Bạn chưa có địa chỉ nào được lưu.', 
+                                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              ),
+                              
+                            ...addresses.map((address) => _AddressCard(
+                                  address: address,
+                                  isSelected: _selectedAddressId == address.id,
+                                  onTap: () => setState(() {
+                                      _selectedAddressId = address.id;
+                                      _searchController.text = address.fullAddress;
+                                  }),
+                                )),
+
+                            // Add new address button
+                            const SizedBox(height: 8),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () => Navigator.pushNamed(context, '/add-address'),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 14, horizontal: 16),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: const Color(0xff3b82f6),
+                                    style: BorderStyle.solid,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.add,
+                                        color: Color(0xff3b82f6), size: 18),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Thêm địa chỉ mới',
+                                      style: TextStyle(
+                                        color: Color(0xff3b82f6),
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ],
                         ),
+                      ),
 
-                        const SizedBox(height: 12),
+                      const SizedBox(height: 16),
 
-                        // Date picker
-                        SizedBox(
-                          height: 72,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: availableDates.length,
-                            itemBuilder: (context, index) {
-                              final date = availableDates[index];
-                              final isSelected = date.day == _selectedDate.day &&
-                                  date.month == _selectedDate.month;
-                              return GestureDetector(
-                                onTap: () =>
-                                    setState(() => _selectedDate = date),
-                                child: Container(
-                                  width: 46,
-                                  margin: const EdgeInsets.only(right: 8),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? const Color(0xff00459a)
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        _dayLabel(date),
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: isSelected
-                                              ? Colors.white70
-                                              : const Color(0xff94a3b8),
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '${date.day}',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: isSelected
-                                              ? Colors.white
-                                              : const Color(0xff374151),
-                                        ),
-                                      ),
-                                    ],
+                      // ── Thời gian hẹn ─────────────────────────────────────
+                      _SectionCard(
+                        icon: Icons.calendar_month_outlined,
+                        iconColor: const Color(0xff3b82f6),
+                        title: 'Thời gian hẹn',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Month header
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _monthLabel(_selectedDate),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: Color(0xff374151),
                                   ),
                                 ),
-                              );
-                            },
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        const Text(
-                          'Giờ khả dụng',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xff374151),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Time slots grid
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 3.5,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                          ),
-                          itemCount: _timeSlots.length,
-                          itemBuilder: (context, index) {
-                            final slot = _timeSlots[index];
-                            final isSelected = _selectedSlotId == slot.id;
-                            return GestureDetector(
-                              onTap: () =>
-                                  setState(() => _selectedSlotId = slot.id),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? const Color(0xff00459a)
-                                      : const Color(0xfff1f5f9),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  slot.label,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: isSelected
-                                        ? Colors.white
-                                        : const Color(0xff64748b),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xfffff7ed),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.info_outline,
-                                  color: Color(0xfff97316), size: 16),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Ghi chú cho kỹ thuật viên',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xff92400e),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          maxLines: 2,
-                          decoration: InputDecoration(
-                            hintText:
-                                'Ví dụ: Điện trước khi đến trước 30 phút...',
-                            filled: true,
-                            fillColor: const Color(0xfff8fafc),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
+                              ],
                             ),
-                            hintStyle: const TextStyle(
-                                fontSize: 12, color: Color(0xffb0bec5)),
-                          ),
+
+                            const SizedBox(height: 12),
+
+                            // Date picker
+                            SizedBox(
+                              height: 72,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: availableDates.length,
+                                itemBuilder: (context, index) {
+                                  final date = availableDates[index];
+                                  final isSelected = date.day == _selectedDate.day &&
+                                      date.month == _selectedDate.month;
+                                  return GestureDetector(
+                                    onTap: () =>
+                                        setState(() => _selectedDate = date),
+                                    child: Container(
+                                      width: 46,
+                                      margin: const EdgeInsets.only(right: 8),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? const Color(0xff00459a)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            _dayLabel(date),
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: isSelected
+                                                  ? Colors.white70
+                                                  : const Color(0xff94a3b8),
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '${date.day}',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: isSelected
+                                                  ? Colors.white
+                                                  : const Color(0xff374151),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+
+                            const SizedBox(height: 20),
+
+                            const Text(
+                              'Giờ khả dụng',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xff374151),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+
+                            // Time slots grid
+                            GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                childAspectRatio: 3.5,
+                                crossAxisSpacing: 10,
+                                mainAxisSpacing: 10,
+                              ),
+                              itemCount: _timeSlots.length,
+                              itemBuilder: (context, index) {
+                                final slot = _timeSlots[index];
+                                final isSelected = _selectedSlotId == slot.id;
+                                return GestureDetector(
+                                  onTap: () =>
+                                      setState(() => _selectedSlotId = slot.id),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? const Color(0xff00459a)
+                                          : const Color(0xfff1f5f9),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      slot.label,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : const Color(0xff64748b),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xfffff7ed),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.info_outline,
+                                      color: Color(0xfff97316), size: 16),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Ghi chú cho kỹ thuật viên',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xff92400e),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              maxLines: 2,
+                              decoration: InputDecoration(
+                                hintText:
+                                    'Ví dụ: Điện trước khi đến trước 30 phút...',
+                                filled: true,
+                                fillColor: const Color(0xfff8fafc),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                hintStyle: const TextStyle(
+                                    fontSize: 12, color: Color(0xffb0bec5)),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
 
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
-          ),
-
-          // Bottom CTA
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(30)),
-              boxShadow: [
-                BoxShadow(
-                    color: Color(0x0f000000),
-                    blurRadius: 20,
-                    offset: Offset(0, -4))
-              ],
-            ),
-            child: SafeArea(
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _goToConfirmation,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xff00459a),
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                  ),
-                  child: const Text(
-                    'Tiếp tục',
-                    style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                      const SizedBox(height: 24),
+                    ],
                   ),
                 ),
               ),
-            ),
-          ),
-        ],
+
+              // Bottom CTA
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(30)),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Color(0x0f000000),
+                        blurRadius: 20,
+                        offset: Offset(0, -4))
+                  ],
+                ),
+                child: SafeArea(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _goToConfirmation(addresses),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xff00459a),
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text(
+                        'Tiếp tục',
+                        style:
+                            TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

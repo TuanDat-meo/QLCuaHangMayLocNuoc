@@ -15,6 +15,7 @@ import 'package:customer_app/models/order_model.dart';
 import 'package:customer_app/features/cart/screens/address_schedule_screen.dart';
 import 'package:customer_app/features/cart/screens/order_confirmation_screen.dart';
 import 'package:customer_app/features/orders/screens/order_tracking_screen.dart';
+import 'package:customer_app/features/support/screens/support_screen.dart';
 
 Route<dynamic>? mainRouteGenerator(RouteSettings settings) {
   switch (settings.name) {
@@ -56,6 +57,8 @@ Route<dynamic>? mainRouteGenerator(RouteSettings settings) {
       return MaterialPageRoute(builder: (_) => const FavoritesScreen());
     case '/profile':
       return MaterialPageRoute(builder: (_) => const ProfileScreen());
+    case '/support':
+      return MaterialPageRoute(builder: (_) => const SupportScreen());
     default:
       return null;
   }
