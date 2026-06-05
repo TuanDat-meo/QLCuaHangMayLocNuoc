@@ -1,111 +1,49 @@
-// Order & OrderItem Models
-class Order {
-  final String id;
-  final String customerId;
-  final String customerName;
-  final String customerPhone;
-  final Address deliveryAddress;
-  final List<OrderItem> items;
-  final double subtotal;
-  final double shippingFee;
-  final double tax;
-  final double totalAmount;
-  final String status; // pending, approved, assigned, in_progress, completed, cancelled
-  final String? notes;
-  final String? assignedTechnicianId;
-  final DateTime createdAt;
-  final DateTime? estimatedDeliveryDate;
-  final DateTime? completedAt;
+// lib/models/order_model.dart
 
-  Order({
+class Address {
+  final String id;
+  final String recipientName;
+  final String phoneNumber;
+  final String street;
+  final String ward;
+  final String district;
+  final String city;
+  final String type; // 'home' | 'company'
+
+  Address({
     required this.id,
-    required this.customerId,
-    required this.customerName,
-    required this.customerPhone,
-    required this.deliveryAddress,
-    required this.items,
-    required this.subtotal,
-    required this.shippingFee,
-    required this.tax,
-    required this.totalAmount,
-    required this.status,
-    this.notes,
-    this.assignedTechnicianId,
-    required this.createdAt,
-    this.estimatedDeliveryDate,
-    this.completedAt,
+    required this.recipientName,
+    required this.phoneNumber,
+    required this.street,
+    required this.ward,
+    required this.district,
+    required this.city,
+    this.type = 'home',
   });
 
-  bool get isPending => status == 'pending';
-  bool get isApproved => status == 'approved';
-  bool get isAssigned => status == 'assigned';
-  bool get isInProgress => status == 'in_progress';
-  bool get isCompleted => status == 'completed';
-  bool get isCancelled => status == 'cancelled';
-  bool get isActive => !isCancelled && !isCompleted;
+  String get fullAddress => '$street, Phường $ward, $district, $city';
 
-  String get statusDisplayText {
-    switch (status) {
-      case 'pending':
-        return 'Chờ duyệt';
-      case 'approved':
-        return 'Đã duyệt';
-      case 'assigned':
-        return 'Đã phân công';
-      case 'in_progress':
-        return 'Đang thực hiện';
-      case 'completed':
-        return 'Hoàn tất';
-      case 'cancelled':
-        return 'Đã hủy';
-      default:
-        return status;
-    }
-  }
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'recipientName': recipientName,
+        'phoneNumber': phoneNumber,
+        'street': street,
+        'ward': ward,
+        'district': district,
+        'city': city,
+        'kind': type, // Matching user's 'kind' field
+      };
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'customerId': customerId,
-      'customerName': customerName,
-      'customerPhone': customerPhone,
-      'deliveryAddress': deliveryAddress.toMap(),
-      'items': items.map((e) => e.toMap()).toList(),
-      'subtotal': subtotal,
-      'shippingFee': shippingFee,
-      'tax': tax,
-      'totalAmount': totalAmount,
-      'status': status,
-      'notes': notes,
-      'assignedTechnicianId': assignedTechnicianId,
-      'createdAt': createdAt,
-      'estimatedDeliveryDate': estimatedDeliveryDate,
-      'completedAt': completedAt,
-    };
-  }
-
-  factory Order.fromMap(Map<String, dynamic> map) {
-    return Order(
-      id: map['id'] as String? ?? '',
-      customerId: map['customerId'] as String? ?? '',
-      customerName: map['customerName'] as String? ?? '',
-      customerPhone: map['customerPhone'] as String? ?? '',
-      deliveryAddress: Address.fromMap(map['deliveryAddress'] as Map<String, dynamic>? ?? {}),
-      items: List<OrderItem>.from(
-        (map['items'] as List?)?.map((x) => OrderItem.fromMap(x)) ?? [],
-      ),
-      subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0.0,
-      shippingFee: (map['shippingFee'] as num?)?.toDouble() ?? 0.0,
-      tax: (map['tax'] as num?)?.toDouble() ?? 0.0,
-      totalAmount: (map['totalAmount'] as num?)?.toDouble() ?? 0.0,
-      status: map['status'] as String? ?? 'pending',
-      notes: map['notes'] as String?,
-      assignedTechnicianId: map['assignedTechnicianId'] as String?,
-      createdAt: (map['createdAt'] as dynamic)?.toDate() ?? DateTime.now(),
-      estimatedDeliveryDate: (map['estimatedDeliveryDate'] as dynamic)?.toDate(),
-      completedAt: (map['completedAt'] as dynamic)?.toDate(),
-    );
-  }
+  factory Address.fromMap(Map<String, dynamic> map) => Address(
+        id: map['id'] ?? '',
+        recipientName: map['recipientName'] ?? '',
+        phoneNumber: map['phoneNumber'] ?? '',
+        street: map['street'] ?? '',
+        ward: map['ward'] ?? '',
+        district: map['district'] ?? '',
+        city: map['city'] ?? '',
+        type: map['kind'] ?? map['type'] ?? 'home',
+      );
 }
 
 class OrderItem {
@@ -127,81 +65,139 @@ class OrderItem {
     this.imageUrl,
   });
 
-  factory OrderItem.fromMap(Map<String, dynamic> map) {
-    return OrderItem(
-      id: map['id'] as String? ?? '',
-      productId: map['productId'] as String? ?? '',
-      productName: map['productName'] as String? ?? '',
-      price: (map['price'] as num?)?.toDouble() ?? 0.0,
-      quantity: map['quantity'] as int? ?? 1,
-      subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0.0,
-      imageUrl: map['imageUrl'] as String?,
-    );
-  }
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'productId': productId,
+        'productName': productName,
+        'price': price,
+        'quantity': quantity,
+        'subtotal': subtotal,
+        'imageUrl': imageUrl,
+      };
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'productId': productId,
-      'productName': productName,
-      'price': price,
-      'quantity': quantity,
-      'subtotal': subtotal,
-      'imageUrl': imageUrl,
-    };
-  }
+  factory OrderItem.fromMap(Map<String, dynamic> map) => OrderItem(
+        id: map['id'] ?? '',
+        productId: map['productId'] ?? '',
+        productName: map['productName'] ?? '',
+        price: (map['price'] as num?)?.toDouble() ?? 0.0,
+        quantity: (map['quantity'] as num?)?.toInt() ?? 0,
+        subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0.0,
+        imageUrl: map['imageUrl'],
+      );
 }
 
-class Address {
+class ScheduleSlot {
   final String id;
-  final String street;
-  final String ward;
-  final String district;
-  final String city;
-  final double? latitude;
-  final double? longitude;
-  final String? notes;
-  final bool isDefault;
+  final String label; // e.g. '08:00 - 10:00'
+  final int startHour;
+  final int endHour;
 
-  Address({
+  const ScheduleSlot({
     required this.id,
-    required this.street,
-    required this.ward,
-    required this.district,
-    required this.city,
-    this.latitude,
-    this.longitude,
+    required this.label,
+    required this.startHour,
+    required this.endHour,
+  });
+}
+
+class OrderTrackingStep {
+  final String title;
+  final String subtitle;
+  final bool isCompleted;
+  final bool isActive;
+  final DateTime? timestamp;
+
+  const OrderTrackingStep({
+    required this.title,
+    required this.subtitle,
+    this.isCompleted = false,
+    this.isActive = false,
+    this.timestamp,
+  });
+}
+
+class Order {
+  final String id;
+  final String orderCode;
+  final List<OrderItem> items;
+  final Address deliveryAddress;
+  final DateTime scheduledDate;
+  final ScheduleSlot scheduledSlot;
+  final String? notes;
+  final double subtotal;
+  final double discount;
+  final double shippingFee;
+  final double totalAmount;
+  final String status; // 'pending' | 'confirmed' | 'in_progress' | 'completed'
+  final String? technicianId;
+  final String? technicianName;
+  final String? technicianPhone;
+  final DateTime createdAt;
+
+  Order({
+    required this.id,
+    required this.orderCode,
+    required this.items,
+    required this.deliveryAddress,
+    required this.scheduledDate,
+    required this.scheduledSlot,
     this.notes,
-    this.isDefault = false,
+    required this.subtotal,
+    required this.discount,
+    required this.shippingFee,
+    required this.totalAmount,
+    required this.status,
+    this.technicianId,
+    this.technicianName,
+    this.technicianPhone,
+    required this.createdAt,
   });
 
-  String get fullAddress => '$street, $ward, $district, $city';
+  List<OrderTrackingStep> get trackingSteps => [
+        OrderTrackingStep(
+          title: 'Chờ xác nhận',
+          subtitle: 'Đơn hàng đã được tiếp nhận.',
+          isCompleted: ['confirmed', 'in_progress', 'completed'].contains(status),
+          isActive: status == 'pending',
+          timestamp: createdAt,
+        ),
+        OrderTrackingStep(
+          title: 'Đã xác nhận',
+          subtitle: 'Đã lên lịch và chuẩn bị thiết bị.',
+          isCompleted: ['in_progress', 'completed'].contains(status),
+          isActive: status == 'confirmed',
+        ),
+        OrderTrackingStep(
+          title: 'Đang giao hàng & Lắp đặt',
+          subtitle:
+              'Kỹ thuật viên đang di chuyển đến địa chỉ của bạn. Dự kiến đến trong 30 phút.',
+          isCompleted: status == 'completed',
+          isActive: status == 'in_progress',
+        ),
+        OrderTrackingStep(
+          title: 'Hoàn thành',
+          subtitle: 'Lắp đặt thành công và kích hoạt thiết bị.',
+          isCompleted: status == 'completed',
+          isActive: false,
+        ),
+      ];
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'street': street,
-      'ward': ward,
-      'district': district,
-      'city': city,
-      'latitude': latitude,
-      'longitude': longitude,
-      'notes': notes,
-      'isDefault': isDefault,
-    };
-  }
-
-  factory Address.fromMap(Map<String, dynamic> map) {
-    return Address(
-      id: map['id'] as String? ?? '',
-      street: map['street'] as String? ?? '',
-      ward: map['ward'] as String? ?? '',
-      district: map['district'] as String? ?? '',
-      city: map['city'] as String? ?? '',
-      latitude: (map['latitude'] as num?)?.toDouble(),
-      longitude: (map['longitude'] as num?)?.toDouble(),
-      notes: map['notes'] as String?,
-      isDefault: map['isDefault'] as bool? ?? false,
-    );
-  }
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'orderCode': orderCode,
+        'items': items.map((e) => e.toMap()).toList(),
+        'deliveryAddress': deliveryAddress.toMap(),
+        'scheduledDate': scheduledDate.toIso8601String(),
+        'scheduledSlotId': scheduledSlot.id,
+        'scheduledSlotLabel': scheduledSlot.label,
+        'notes': notes,
+        'subtotal': subtotal,
+        'discount': discount,
+        'Shipping fee': shippingFee, // Matching user's field
+        'status': status,
+        'technicianId': technicianId,
+        'technicianName': technicianName,
+        'technicianPhone': technicianPhone,
+        'createdAt': createdAt.toIso8601String(),
+      };
 }

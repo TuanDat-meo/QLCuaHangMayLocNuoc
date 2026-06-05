@@ -1,78 +1,90 @@
+// lib/controllers/order_controller.dart
+
 import 'package:flutter/material.dart';
-import 'package:customer_app/models/order_model.dart';
-import 'package:customer_app/services/firestore_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:customer_app/models/order_model.dart';
 
 class OrderController extends ChangeNotifier {
-  List<Order> _orders = [];
-  List<Order> _filteredOrders = [];
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
   bool _isLoading = false;
   String? _error;
+  Order? _currentOrder;
+  List<Order> _orders = [];
 
-  List<Order> get orders => _filteredOrders.isEmpty && _orders.isNotEmpty ? _orders : (_filteredOrders.isEmpty ? [] : _filteredOrders);
   bool get isLoading => _isLoading;
   String? get error => _error;
+  Order? get currentOrder => _currentOrder;
+  List<Order> get orders => _orders;
 
-  Future<void> loadOrders() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
+  Future<bool> createOrder({
+    required List<OrderItem> items,
+    required Address deliveryAddress,
+    required DateTime scheduledDate,
+    required ScheduleSlot scheduledSlot,
+    String? notes,
+    required double subtotal,
+    required double discount,
+    required double shippingFee,
+    required double totalAmount,
+  }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final data = await FirestoreService.getUserOrders(user.uid);
-      _orders = data.map((map) => Order.fromMap(map)).toList();
-      _filteredOrders = [];
-    } catch (e) {
-      _error = e.toString();
-    }
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('Chưa đăng nhập');
 
-    _isLoading = false;
-    notifyListeners();
-  }
+      final orderCode =
+          'ORD-${DateTime.now().year}-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
 
-  void filterOrders(String status) {
-    if (status == 'Tất cả' || status.isEmpty) {
-      _filteredOrders = [];
-    } else {
-      // Mapping display status to internal status if needed
-      _filteredOrders = _orders.where((o) => o.status == status).toList();
-    }
-    notifyListeners();
-  }
+      final orderRef = _firestore.collection('donHang').doc();
 
-  Future<bool> createOrder({
-    required List<OrderItem> items,
-    required Address deliveryAddress,
-    String? notes,
-    required double subtotal,
-    required double shippingFee,
-    required double totalAmount,
-  }) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return false;
-
-    _isLoading = true;
-    notifyListeners();
-
-    try {
       final orderData = {
-        'khachHangId': user.uid,
-        'khachHangTen': user.displayName ?? 'Khách hàng',
-        'khachHangSdt': '', // Should come from user profile
-        'diaChiGiaoHang': deliveryAddress.toMap(),
+        'id': orderRef.id,
+        'orderCode': orderCode,
+        'customerId': user.uid,
+        'customerName': user.displayName ?? '',
+        'customerEmail': user.email ?? '',
         'items': items.map((e) => e.toMap()).toList(),
+        'deliveryAddress': deliveryAddress.toMap(),
+        'scheduledDate': Timestamp.fromDate(scheduledDate),
+        'scheduledSlotId': scheduledSlot.id,
+        'scheduledSlotLabel': scheduledSlot.label,
+        'notes': notes ?? '',
         'subtotal': subtotal,
-        'shippingFee': shippingFee,
+        'discount': discount,
+        'Shipping fee': shippingFee,
         'totalAmount': totalAmount,
-        'trangThai': 'pending',
-        'ghiChu': notes,
+        'status': 'pending',
+        'technicianId': null,
+        'technicianName': null,
+        'technicianPhone': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      await FirestoreService.createOrder(orderData);
-      await loadOrders();
+      await orderRef.set(orderData);
+
+      _currentOrder = Order(
+        id: orderRef.id,
+        orderCode: orderCode,
+        items: items,
+        deliveryAddress: deliveryAddress,
+        scheduledDate: scheduledDate,
+        scheduledSlot: scheduledSlot,
+        notes: notes,
+        subtotal: subtotal,
+        discount: discount,
+        shippingFee: shippingFee,
+        totalAmount: totalAmount,
+        status: 'pending',
+        createdAt: DateTime.now(),
+      );
+
       _isLoading = false;
       notifyListeners();
       return true;
@@ -84,7 +96,85 @@ class OrderController extends ChangeNotifier {
     }
   }
 
-  Future<void> cancelOrder(String orderId) async {
-    // TODO: Implement cancel order in FirestoreService and call it here
+  Future<void> fetchMyOrders() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      final snap = await _firestore
+          .collection('donHang')
+          .where('customerId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      _orders = snap.docs.map((doc) {
+        final d = doc.data();
+        return Order(
+          id: doc.id,
+          orderCode: d['orderCode'] ?? '',
+          items: (d['items'] as List? ?? [])
+              .map((e) => OrderItem.fromMap(e as Map<String, dynamic>))
+              .toList(),
+          deliveryAddress: Address.fromMap(d['deliveryAddress'] as Map<String, dynamic>),
+          scheduledDate: (d['scheduledDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          scheduledSlot: ScheduleSlot(
+            id: d['scheduledSlotId'] ?? '',
+            label: d['scheduledSlotLabel'] ?? '',
+            startHour: 0,
+            endHour: 0,
+          ),
+          notes: d['notes'],
+          subtotal: (d['subtotal'] as num?)?.toDouble() ?? 0.0,
+          discount: (d['discount'] as num?)?.toDouble() ?? 0.0,
+          shippingFee: (d['Shipping fee'] ?? d['shippingFee'] as num? ?? 0).toDouble(),
+          totalAmount: (d['totalAmount'] as num?)?.toDouble() ?? 0.0,
+          status: d['status'] ?? 'pending',
+          technicianId: d['technicianId'],
+          technicianName: d['technicianName'],
+          technicianPhone: d['technicianPhone'],
+          createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        );
+      }).toList();
+
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching orders: $e');
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> cancelOrder(String orderId) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await _firestore.collection('donHang').doc(orderId).update({
+        'status': 'cancelled',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      await fetchMyOrders();
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void setCurrentOrder(Order order) {
+    _currentOrder = order;
+    notifyListeners();
   }
 }

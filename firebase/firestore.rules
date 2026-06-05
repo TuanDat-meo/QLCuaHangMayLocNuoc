@@ -9,10 +9,25 @@ service cloud.firestore {
              get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role == 1;
     }
 
+    // Hàm kiểm tra quyền nhân viên (Role <= 3: Admin, Coordinator, Staff)
+    function isStaff() {
+      return request.auth != null &&
+             exists(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role <= 3;
+    }
+
     // Quy tắc đọc: Cho phép tất cả người dùng đã đăng nhập đọc mọi dữ liệu
-    // Cần thiết để Dashboard, danh sách Nhân sự và Vai trò hoạt động
     match /{document=**} {
       allow read: if request.auth != null;
+    }
+
+    // Nhà cung cấp & Phiếu nhập (Thêm mới)
+    match /suppliers/{document=**} {
+      allow write: if isStaff();
+    }
+
+    match /importVouchers/{document=**} {
+      allow write: if isStaff();
     }
 
     // Bộ sưu tập Vai trò (Roles)
@@ -27,17 +42,29 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Đơn hàng & Sản phẩm
-    match /donHang/{document=**} {
-      allow write: if request.auth != null &&
-                   exists(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)) &&
-                   get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role <= 3;
+    // Đơn hàng 
+    match /donHang/{orderId} {
+      allow create: if request.auth != null 
+        && request.resource.data.customerId == request.auth.uid;
+
+      // Customer chỉ được cancel đơn của mình khi còn pending
+      allow update: if request.auth != null
+        && resource.data.customerId == request.auth.uid
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'cancelled';
+
+      // Staff update/delete toàn quyền
+      allow update, delete: if isStaff();
     }
 
+    // Xóa hoặc giữ wildcard nếu cần sub-collections
+    match /donHang/{orderId}/{document=**} {
+      allow write: if isStaff();
+    }
+
+    // Sản phẩm (Cho phép Staff/Accountant nhập kho thì nên để <= 3 hoặc cho phép update cụ thể)
     match /sanPham/{document=**} {
-      allow write: if request.auth != null &&
-                   exists(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)) &&
-                   get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role <= 2;
+      allow write: if isStaff(); 
     }
 
     // Nhật ký hoạt động

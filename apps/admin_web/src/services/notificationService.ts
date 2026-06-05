@@ -28,7 +28,6 @@ export const subscribeToNotifications = (
 ) => {
   try {
     const db = getDb();
-    // Chú ý: Truy vấn này yêu cầu Composite Index trên Firebase Console
     const q = query(
       collection(db, NOTIFICATION_COLLECTION),
       where('recipient_role', 'array-contains', role),
@@ -52,6 +51,9 @@ export const subscribeToNotifications = (
   }
 };
 
+/**
+ * Đánh dấu một thông báo là đã đọc
+ */
 export const markNotificationAsRead = async (nid: string) => {
   try {
     const db = getDb();
@@ -66,6 +68,9 @@ export const markNotificationAsRead = async (nid: string) => {
   }
 };
 
+/**
+ * Đánh dấu TẤT CẢ thông báo là đã đọc
+ */
 export const markAllAsRead = async (role: UserRole) => {
   try {
     const db = getDb();
@@ -76,7 +81,10 @@ export const markAllAsRead = async (role: UserRole) => {
     );
 
     const snapshot = await getDocs(q);
-    const promises = snapshot.docs.map(d => updateDoc(d.ref, { is_read: true }));
+    const promises = snapshot.docs.map(d => updateDoc(d.ref, {
+      is_read: true,
+      updated_at: serverTimestamp()
+    }));
     await Promise.all(promises);
   } catch (error) {
     console.error("Error marking all notifications as read:", error);
@@ -84,6 +92,9 @@ export const markAllAsRead = async (role: UserRole) => {
   }
 };
 
+/**
+ * Tạo thông báo mới
+ */
 export const createNotification = async (notification: Omit<AppNotification, 'nid' | 'created_at' | 'is_read'>) => {
   try {
     const db = getDb();
@@ -94,6 +105,5 @@ export const createNotification = async (notification: Omit<AppNotification, 'ni
     });
   } catch (error) {
     console.error("Error creating notification:", error);
-    throw error;
   }
 };
