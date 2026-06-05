@@ -732,6 +732,8 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
           const SizedBox(height: 12),
           TextFormField(
             controller: _notesController,
+            enableSuggestions: false,
+            autocorrect: false,
             maxLines: 4,
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, height: 1.4),
             decoration: const InputDecoration(

@@ -1,7 +1,11 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared/theme/app_colors.dart';
 import '../../../controllers/job_controller.dart';
+import '../../../core/services/image_upload_service.dart';
 
 class ReportIssueScreen extends StatefulWidget {
   final String jobId;
@@ -16,7 +20,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   late final TextEditingController _descriptionController;
 
   String? _selectedReason;
-  final List<String> _issuePhotos = [];
+  final List<XFile> _pickedFiles = [];
   bool _isSubmitting = false;
   bool _showSuccessState = false;
 
@@ -41,25 +45,68 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
     super.dispose();
   }
 
-  void _simulateTakePhoto() {
-    if (_issuePhotos.length >= 3) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tối đa 3 ảnh minh chứng sự cố!')),
-      );
-      return;
-    }
+  void _showImageSourcePicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (!kIsWeb)
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: AppColors.error),
+                title: const Text('Chụp ảnh bằng camera',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined,
+                  color: AppColors.error),
+              title: const Text('Chọn từ thư viện',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
 
-    setState(() {
-      final index = _issuePhotos.length + 1;
-      _issuePhotos.add(
-        'https://dummyimage.com/600x400/ef4444/fff.png&text=Anh+Su+Co+$index',
-      );
-    });
+  Future<void> _pickImage(ImageSource source) async {
+    final files = await ImageUploadService.pickImages(
+      source: source,
+      maxImages: 3 - _pickedFiles.length,
+    );
+    if (files.isNotEmpty) {
+      setState(() {
+        _pickedFiles.addAll(files);
+      });
+    }
   }
 
   void _removePhoto(int index) {
     setState(() {
-      _issuePhotos.removeAt(index);
+      _pickedFiles.removeAt(index);
     });
   }
 
@@ -73,20 +120,50 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSubmitting = true);
-    
-    final controller = context.read<JobController>();
-    final success = await controller.reportIssue(
-      jobId: widget.jobId,
-      reason: _selectedReason!,
-      description: _descriptionController.text,
-    );
 
-    if (mounted) {
-      setState(() => _isSubmitting = false);
-      if (success) {
-        setState(() {
-          _showSuccessState = true;
-        });
+    try {
+      // 1. Upload picked images to Cloudinary (folder 'issue')
+      List<String> imageUrls = [];
+      if (_pickedFiles.isNotEmpty) {
+        imageUrls = await ImageUploadService.uploadImages(
+          files: _pickedFiles,
+          jobId: widget.jobId,
+          folder: 'issue',
+        );
+      }
+      
+      final controller = context.read<JobController>();
+      final success = await controller.reportIssue(
+        jobId: widget.jobId,
+        reason: _selectedReason!,
+        description: _descriptionController.text,
+        photos: imageUrls,
+      );
+
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        if (success) {
+          setState(() {
+            _showSuccessState = true;
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Không thể nộp báo cáo: ${controller.lastError ?? "Lỗi không xác định"}'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi trong quá trình gửi báo cáo: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
     }
   }
@@ -220,6 +297,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
           const SizedBox(height: 12),
           TextFormField(
             controller: _descriptionController,
+            enableSuggestions: false,
+            autocorrect: false,
             maxLines: 4,
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, height: 1.4),
             decoration: const InputDecoration(
@@ -262,11 +341,11 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
               mainAxisSpacing: 12,
               childAspectRatio: 1,
             ),
-            itemCount: _issuePhotos.length < 3 ? _issuePhotos.length + 1 : 3,
+            itemCount: _pickedFiles.length < 3 ? _pickedFiles.length + 1 : 3,
             itemBuilder: (context, index) {
-              if (index == _issuePhotos.length && _issuePhotos.length < 3) {
+              if (index == _pickedFiles.length && _pickedFiles.length < 3) {
                 return InkWell(
-                  onTap: _simulateTakePhoto,
+                  onTap: _showImageSourcePicker,
                   child: Container(
                     decoration: BoxDecoration(
                       color: const Color(0xfff8fafc),
@@ -290,14 +369,25 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
                 );
               }
 
+              final file = _pickedFiles[index];
               return Stack(
                 children: [
-                  Container(
-                    decoration: BoxDecoration(
+                  Positioned.fill(
+                    child: ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      image: DecorationImage(
-                        image: NetworkImage(_issuePhotos[index]),
-                        fit: BoxFit.cover,
+                      child: FutureBuilder<Uint8List>(
+                        future: file.readAsBytes(),
+                        builder: (_, snap) {
+                          if (snap.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (snap.hasData && snap.data != null) {
+                            return Image.memory(snap.data!, fit: BoxFit.cover);
+                          }
+                          return const Center(
+                            child: Icon(Icons.broken_image, color: Colors.grey),
+                          );
+                        },
                       ),
                     ),
                   ),

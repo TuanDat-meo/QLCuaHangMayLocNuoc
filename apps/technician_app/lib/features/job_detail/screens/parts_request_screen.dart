@@ -21,6 +21,7 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
   final _noteCtrl = TextEditingController();
   bool _isSaving = false;
   int? _editingIndex;
+  int? _selectedAvailableStock;
 
   @override
   void dispose() {
@@ -39,10 +40,11 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         return _CatalogSelectorSheet(
-          onSelect: (name, price) {
+          onSelect: (name, price, tonKho) {
             setState(() {
               _nameCtrl.text = name;
               _priceCtrl.text = price.toInt().toString();
+              _selectedAvailableStock = tonKho;
             });
           },
           fetchProducts: ctrl.fetchStandardProducts,
@@ -59,6 +61,7 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
       _qtyCtrl.text = (item['soLuong'] ?? 1).toString();
       _priceCtrl.text = (item['donGia'] ?? 0).toInt().toString();
       _noteCtrl.text = item['ghiChu'] ?? '';
+      _selectedAvailableStock = null; // Reset when editing existing
     });
   }
 
@@ -69,6 +72,7 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
       _qtyCtrl.text = '1';
       _priceCtrl.text = '0';
       _noteCtrl.clear();
+      _selectedAvailableStock = null;
     });
   }
 
@@ -83,8 +87,13 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
             index: _editingIndex!,
             tenVatTu: _nameCtrl.text.trim(),
             soLuong: int.tryParse(_qtyCtrl.text.trim()) ?? 1,
-            donGia: double.tryParse(
-                    _priceCtrl.text.trim().replaceAll('.', '').replaceAll(',', '')) ??
+            donGia:
+                double.tryParse(
+                  _priceCtrl.text
+                      .trim()
+                      .replaceAll('.', '')
+                      .replaceAll(',', ''),
+                ) ??
                 0,
             ghiChu: _noteCtrl.text.trim(),
           )
@@ -92,8 +101,13 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
             jobId: widget.jobId,
             tenVatTu: _nameCtrl.text.trim(),
             soLuong: int.tryParse(_qtyCtrl.text.trim()) ?? 1,
-            donGia: double.tryParse(
-                    _priceCtrl.text.trim().replaceAll('.', '').replaceAll(',', '')) ??
+            donGia:
+                double.tryParse(
+                  _priceCtrl.text
+                      .trim()
+                      .replaceAll('.', '')
+                      .replaceAll(',', ''),
+                ) ??
                 0,
             ghiChu: _noteCtrl.text.trim(),
           );
@@ -176,14 +190,12 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
     final ctrl = context.watch<JobController>();
     final idx = ctrl.jobs.indexWhere((j) => j.id == widget.jobId);
     final job = idx != -1 ? ctrl.jobs[idx] : null;
-    final vatTuList =
-        job?.vatTuPhatSinh ?? <Map<String, dynamic>>[];
+    final vatTuList = job?.vatTuPhatSinh ?? <Map<String, dynamic>>[];
 
     // Tính tổng chi phí vật tư phát sinh
     final tongVatTu = vatTuList.fold<double>(
       0,
-      (sum, item) =>
-          sum + ((item['thanhTien'] as num?)?.toDouble() ?? 0),
+      (sum, item) => sum + ((item['thanhTien'] as num?)?.toDouble() ?? 0),
     );
 
     return Scaffold(
@@ -221,12 +233,14 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
             Container(
               width: double.infinity,
               color: const Color(0xffea580c).withValues(alpha: 0.08),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      color: Color(0xffea580c), size: 20),
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Color(0xffea580c),
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
@@ -277,32 +291,99 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),
+                      side: BorderSide(
+                        color: AppColors.primary.withValues(alpha: 0.2),
+                      ),
                     ),
                     child: ListTile(
                       dense: true,
-                      leading: const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
+                      leading: const Icon(
+                        Icons.inventory_2_outlined,
+                        color: AppColors.primary,
+                      ),
                       title: const Text(
                         'Chọn từ danh mục chuẩn',
-                        style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.primary, fontSize: 13),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary,
+                          fontSize: 13,
+                        ),
                       ),
-                      subtitle: const Text('Đồng bộ giá & thông số trực tiếp từ kho'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.primary),
+                      subtitle: const Text(
+                        'Đồng bộ giá & thông số trực tiếp từ kho',
+                      ),
+                      trailing: const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 12,
+                        color: AppColors.primary,
+                      ),
                       onTap: _showCatalogDialog,
                     ),
                   ),
                   // Tên vật tư
                   TextFormField(
                     controller: _nameCtrl,
+                    enableSuggestions: false,
+                    autocorrect: false,
                     decoration: const InputDecoration(
                       labelText: 'Tên vật tư / linh kiện *',
                       hintText: 'VD: Lõi lọc RO, Đầu nối chữ T...',
                       prefixIcon: Icon(Icons.build_outlined),
                     ),
+                    onChanged: (val) {
+                      if (_selectedAvailableStock != null) {
+                        setState(() {
+                          _selectedAvailableStock = null;
+                        });
+                      }
+                    },
                     validator: (v) => (v == null || v.trim().isEmpty)
                         ? 'Vui lòng nhập tên vật tư'
                         : null,
                   ),
+                  if (_selectedAvailableStock != null) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _selectedAvailableStock! > 0
+                            ? const Color(0xff10b981).withValues(alpha: 0.08)
+                            : const Color(0xffef4444).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _selectedAvailableStock! > 0
+                                ? Icons.info_outline
+                                : Icons.error_outline,
+                            color: _selectedAvailableStock! > 0
+                                ? const Color(0xff10b981)
+                                : const Color(0xffef4444),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _selectedAvailableStock! > 0
+                                  ? 'Sản phẩm tiêu chuẩn. Số lượng tồn kho: $_selectedAvailableStock sản phẩm'
+                                  : '⚠️ Sản phẩm này hiện đã HẾT HÀNG trong kho!',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: _selectedAvailableStock! > 0
+                                    ? const Color(0xff10b981)
+                                    : const Color(0xffef4444),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   // Số lượng + Đơn giá (2 cột)
                   Row(
@@ -313,7 +394,7 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                           controller: _qtyCtrl,
                           keyboardType: TextInputType.number,
                           inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly
+                            FilteringTextInputFormatter.digitsOnly,
                           ],
                           onTap: () => _qtyCtrl.selection = TextSelection(
                             baseOffset: 0,
@@ -326,6 +407,14 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                           validator: (v) {
                             final n = int.tryParse(v ?? '');
                             if (n == null || n <= 0) return 'SL >= 1';
+                            if (_selectedAvailableStock != null) {
+                              if (_selectedAvailableStock! <= 0) {
+                                return 'Hết hàng!';
+                              }
+                              if (n > _selectedAvailableStock!) {
+                                return 'Kho chỉ còn $_selectedAvailableStock sp';
+                              }
+                            }
                             return null;
                           },
                         ),
@@ -337,7 +426,7 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                           controller: _priceCtrl,
                           keyboardType: TextInputType.number,
                           inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly
+                            FilteringTextInputFormatter.digitsOnly,
                           ],
                           onTap: () => _priceCtrl.selection = TextSelection(
                             baseOffset: 0,
@@ -356,6 +445,8 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                   // Ghi chú
                   TextFormField(
                     controller: _noteCtrl,
+                    enableSuggestions: false,
+                    autocorrect: false,
                     maxLines: 2,
                     decoration: const InputDecoration(
                       labelText: 'Ghi chú (tuỳ chọn)',
@@ -373,16 +464,22 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
-                          : Icon(_editingIndex != null
-                              ? Icons.check_circle_outline
-                              : Icons.add_circle_outline),
-                      label: Text(_isSaving
-                          ? 'Đang lưu...'
-                          : (_editingIndex != null
-                              ? 'CẬP NHẬT VẬT TƯ'
-                              : 'THÊM VẬT TƯ')),
+                          : Icon(
+                              _editingIndex != null
+                                  ? Icons.check_circle_outline
+                                  : Icons.add_circle_outline,
+                            ),
+                      label: Text(
+                        _isSaving
+                            ? 'Đang lưu...'
+                            : (_editingIndex != null
+                                  ? 'CẬP NHẬT VẬT TƯ'
+                                  : 'THÊM VẬT TƯ'),
+                      ),
                     ),
                   ),
                   if (_editingIndex != null) ...[
@@ -411,8 +508,7 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
           // ── Divider ─────────────────────────────────────────────────────
           Container(
             color: const Color(0xfff1f5f9),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             width: double.infinity,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -446,8 +542,11 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.inventory_2_outlined,
-                            size: 56, color: Colors.grey.shade300),
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 56,
+                          color: Colors.grey.shade300,
+                        ),
                         const SizedBox(height: 12),
                         Text(
                           'Chưa có vật tư phát sinh',
@@ -463,18 +562,16 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                     itemBuilder: (context, i) {
                       final item = vatTuList[i];
                       final soLuong = (item['soLuong'] as num?)?.toInt() ?? 1;
-                      final donGia =
-                          (item['donGia'] as num?)?.toDouble() ?? 0;
+                      final donGia = (item['donGia'] as num?)?.toDouble() ?? 0;
                       final thanhTien =
                           (item['thanhTien'] as num?)?.toDouble() ??
-                              soLuong * donGia;
+                          soLuong * donGia;
                       return Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
-                          border:
-                              Border.all(color: const Color(0xffe2e8f0)),
+                          border: Border.all(color: const Color(0xffe2e8f0)),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.04),
@@ -492,8 +589,11 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                                 color: AppColors.primary.withValues(alpha: 0.1),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.build,
-                                  color: AppColors.primary, size: 18),
+                              child: const Icon(
+                                Icons.build,
+                                color: AppColors.primary,
+                                size: 18,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -510,18 +610,20 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                                   const SizedBox(height: 6),
                                   Row(
                                     children: [
-                                      _badge('x$soLuong',
-                                          const Color(0xffea580c)),
+                                      _badge(
+                                        'x$soLuong',
+                                        const Color(0xffea580c),
+                                      ),
                                       if (donGia > 0) ...[
                                         const SizedBox(width: 6),
                                         _badge(
-                                            '${_formatCurrency(donGia)}/cái',
-                                            const Color(0xff0284c7)),
+                                          '${_formatCurrency(donGia)}/cái',
+                                          const Color(0xff0284c7),
+                                        ),
                                       ],
                                     ],
                                   ),
-                                  if ((item['ghiChu'] as String?)
-                                          ?.isNotEmpty ==
+                                  if ((item['ghiChu'] as String?)?.isNotEmpty ==
                                       true) ...[
                                     const SizedBox(height: 4),
                                     Text(
@@ -560,11 +662,16 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                                         child: Container(
                                           padding: const EdgeInsets.all(6),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xff0284c7).withValues(alpha: 0.1),
+                                            color: const Color(
+                                              0xff0284c7,
+                                            ).withValues(alpha: 0.1),
                                             shape: BoxShape.circle,
                                           ),
-                                          child: const Icon(Icons.edit_outlined,
-                                              size: 15, color: Color(0xff0284c7)),
+                                          child: const Icon(
+                                            Icons.edit_outlined,
+                                            size: 15,
+                                            color: Color(0xff0284c7),
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -577,11 +684,16 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                                         child: Container(
                                           padding: const EdgeInsets.all(6),
                                           decoration: BoxDecoration(
-                                            color: Colors.red.withValues(alpha: 0.1),
+                                            color: Colors.red.withValues(
+                                              alpha: 0.1,
+                                            ),
                                             shape: BoxShape.circle,
                                           ),
-                                          child: const Icon(Icons.delete_outline,
-                                              size: 15, color: Colors.red),
+                                          child: const Icon(
+                                            Icons.delete_outline,
+                                            size: 15,
+                                            color: Colors.red,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -616,7 +728,8 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                   ),
                 ),
@@ -647,7 +760,7 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
 }
 
 class _CatalogSelectorSheet extends StatefulWidget {
-  final void Function(String name, double price) onSelect;
+  final void Function(String name, double price, int tonKho) onSelect;
   final Future<List<Map<String, dynamic>>> Function() fetchProducts;
   final Future<List<Map<String, dynamic>>> Function() fetchCategories;
 
@@ -664,26 +777,37 @@ class _CatalogSelectorSheet extends StatefulWidget {
 class _CatalogSelectorSheetState extends State<_CatalogSelectorSheet> {
   bool _loading = true;
   List<Map<String, dynamic>> _products = [];
-  List<Map<String, dynamic>> _categories = [];
+  final List<Map<String, dynamic>> _categories = const [
+    {'id': 'Máy lọc RO', 'name': 'Máy lọc RO', 'icon': '🚰'},
+    {'id': 'Máy Nano', 'name': 'Máy Nano', 'icon': '🔬'},
+    {'id': 'Máy Ion Kiềm', 'name': 'Máy Ion Kiềm', 'icon': '🧪'},
+    {'id': 'Linh kiện', 'name': 'Linh kiện', 'icon': '⚙️'},
+    {'id': 'Lõi lọc', 'name': 'Lõi lọc', 'icon': '🌀'},
+    {'id': 'Khác', 'name': 'Khác', 'icon': '📦'},
+  ];
   String _searchQuery = '';
   String _selectedCategoryId = '';
+  late final TextEditingController _searchCtrl;
 
   @override
   void initState() {
     super.initState();
+    _searchCtrl = TextEditingController();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
     try {
-      final res = await Future.wait([
-        widget.fetchProducts(),
-        widget.fetchCategories(),
-      ]);
+      final res = await widget.fetchProducts();
       if (mounted) {
         setState(() {
-          _products = res[0];
-          _categories = res[1];
+          _products = res;
           _loading = false;
         });
       }
@@ -693,18 +817,47 @@ class _CatalogSelectorSheetState extends State<_CatalogSelectorSheet> {
   }
 
   String _formatCurrency(double value) {
-    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ', decimalDigits: 0);
+    final formatter = NumberFormat.currency(
+      locale: 'vi_VN',
+      symbol: 'đ',
+      decimalDigits: 0,
+    );
     return formatter.format(value);
   }
 
   @override
   Widget build(BuildContext context) {
     final filtered = _products.where((p) {
-      final matchesSearch = p['name'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          p['brand'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          p['sku'].toString().toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchesCategory = _selectedCategoryId.isEmpty || p['category'] == _selectedCategoryId;
-      return matchesSearch && matchesCategory;
+      final matchesSearch =
+          p['name'].toString().toLowerCase().contains(
+            _searchQuery.toLowerCase(),
+          ) ||
+          p['brand'].toString().toLowerCase().contains(
+            _searchQuery.toLowerCase(),
+          ) ||
+          p['sku'].toString().toLowerCase().contains(
+            _searchQuery.toLowerCase(),
+          );
+
+      if (_selectedCategoryId.isEmpty) {
+        return matchesSearch;
+      }
+
+      final prodCat = p['category'].toString().toLowerCase().trim();
+      final selCat = _selectedCategoryId.toLowerCase().trim();
+
+      if (selCat == 'khác') {
+        final knownCats = [
+          'máy lọc ro',
+          'máy nano',
+          'máy ion kiềm',
+          'linh kiện',
+          'lõi lọc',
+        ];
+        return matchesSearch && !knownCats.contains(prodCat);
+      }
+
+      return matchesSearch && prodCat == selCat;
     }).toList();
 
     return Container(
@@ -752,11 +905,17 @@ class _CatalogSelectorSheetState extends State<_CatalogSelectorSheet> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: TextField(
+              controller: _searchCtrl,
+              enableSuggestions: false,
+              autocorrect: false,
               onChanged: (val) => setState(() => _searchQuery = val),
               decoration: InputDecoration(
                 hintText: 'Tìm kiếm vật tư, linh kiện...',
                 prefixIcon: const Icon(Icons.search),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 0,
+                  horizontal: 16,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -775,7 +934,9 @@ class _CatalogSelectorSheetState extends State<_CatalogSelectorSheet> {
                 itemBuilder: (context, idx) {
                   final isAll = idx == 0;
                   final cat = isAll ? null : _categories[idx - 1];
-                  final isSelected = isAll ? _selectedCategoryId.isEmpty : _selectedCategoryId == cat!['id'];
+                  final isSelected = isAll
+                      ? _selectedCategoryId.isEmpty
+                      : _selectedCategoryId == cat!['id'];
 
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
@@ -784,7 +945,9 @@ class _CatalogSelectorSheetState extends State<_CatalogSelectorSheet> {
                       label: Text(
                         isAll ? 'Tất cả' : '${cat!['icon']} ${cat['name']}',
                         style: TextStyle(
-                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.normal,
+                          fontWeight: isSelected
+                              ? FontWeight.w800
+                              : FontWeight.normal,
                           color: isSelected ? Colors.white : Colors.black87,
                         ),
                       ),
@@ -807,90 +970,133 @@ class _CatalogSelectorSheetState extends State<_CatalogSelectorSheet> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : filtered.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey[300]),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Không tìm thấy vật tư phù hợp',
-                              style: TextStyle(color: Colors.grey[500]),
-                            ),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 48,
+                          color: Colors.grey[300],
                         ),
-                      )
-                    : ListView.separated(
-                        itemCount: filtered.length,
-                        separatorBuilder: (context, idx) => const Divider(height: 1),
-                        itemBuilder: (context, idx) {
-                          final prod = filtered[idx];
-                          return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                            title: Text(
-                              prod['name'],
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                                color: AppColors.onSurface,
-                              ),
-                            ),
-                            subtitle: Row(
-                              children: [
-                                if (prod['brand'].toString().isNotEmpty) ...[
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color: Colors.blue[50],
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      prod['brand'],
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.blue[800],
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                ],
-                                Text(
-                                  'SKU: ${prod['sku']}',
-                                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Không tìm thấy vật tư phù hợp',
+                          style: TextStyle(color: Colors.grey[500]),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: filtered.length,
+                    separatorBuilder: (context, idx) =>
+                        const Divider(height: 1),
+                    itemBuilder: (context, idx) {
+                      final prod = filtered[idx];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 8,
+                        ),
+                        title: Text(
+                          prod['name'],
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: AppColors.onSurface,
+                          ),
+                        ),
+                        subtitle: Row(
+                          children: [
+                            if (prod['brand'].toString().isNotEmpty) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1,
                                 ),
-                              ],
-                            ),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  _formatCurrency(prod['price']),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 14,
-                                    color: AppColors.primary,
-                                  ),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Chọn ➜',
+                                child: Text(
+                                  prod['brand'],
                                   style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.primary.withValues(alpha: 0.8),
+                                    fontSize: 10,
+                                    color: Colors.blue[800],
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                              ],
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(
+                              'SKU: ${prod['sku']}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[500],
+                              ),
                             ),
-                            onTap: () {
-                              widget.onSelect(prod['name'], prod['price']);
-                              Navigator.pop(context);
-                            },
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: (prod['tonKho'] ?? 0) > 0
+                                    ? const Color(0xffecfdf5)
+                                    : const Color(0xfffff1f2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                (prod['tonKho'] ?? 0) > 0
+                                    ? 'Kho: ${prod['tonKho']}'
+                                    : 'Hết hàng',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: (prod['tonKho'] ?? 0) > 0
+                                      ? const Color(0xff065f46)
+                                      : const Color(0xff9f1239),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              _formatCurrency(prod['price']),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Chọn ➜',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.primary.withValues(alpha: 0.8),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          widget.onSelect(
+                            prod['name'],
+                            prod['price'],
+                            prod['tonKho'] ?? 0,
                           );
+                          Navigator.pop(context);
                         },
-                      ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),

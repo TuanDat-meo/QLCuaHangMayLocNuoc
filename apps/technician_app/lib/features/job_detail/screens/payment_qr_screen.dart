@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:shared/theme/app_colors.dart';
+import '../../../controllers/job_controller.dart';
 
 /// Màn hình QR Thanh toán — hiển thị QR VietQR với TK cửa hàng cố định.
 /// Argument (route): Map {'jobId': String, 'amount': double, 'desc': String}
@@ -30,6 +32,7 @@ class _PaymentQRScreenState extends State<PaymentQRScreen> {
   String _accountName = 'CỬA HÀNG MÁY LỌC NƯỚC';
   bool _loading = true;
   bool _confirmed = false;
+  bool _confirming = false;
 
   final _currFmt = NumberFormat.currency(
     locale: 'vi_VN',
@@ -398,6 +401,52 @@ class _PaymentQRScreenState extends State<PaymentQRScreen> {
     );
   }
 
+  Future<void> _handleConfirmPayment() async {
+    setState(() => _confirming = true);
+    
+    final jobController = context.read<JobController>();
+    final ok = await jobController.confirmPayment(
+      jobId: widget.jobId,
+      method: 'QR',
+      amount: widget.amount,
+    );
+
+    if (mounted) {
+      setState(() {
+        _confirming = false;
+        if (ok) {
+          _confirmed = true;
+        }
+      });
+
+      if (ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '✅ Đã xác nhận thanh toán thành công qua QR đơn #${widget.jobId}',
+            ),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: const Color(0xff10b981),
+          ),
+        );
+        // Đóng màn hình sau 1.5 giây để KTV quay lại hóa đơn/chi tiết
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted) {
+            Navigator.pop(context, true);
+          }
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Có lỗi xảy ra khi xác nhận thanh toán'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildConfirmButton() {
     if (_confirmed) {
       return Container(
@@ -430,23 +479,17 @@ class _PaymentQRScreenState extends State<PaymentQRScreen> {
       width: double.infinity,
       height: 56,
       child: ElevatedButton.icon(
-        onPressed: () {
-          setState(() => _confirmed = true);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '✅ Đã ghi nhận thanh toán ${_currFmt.format(widget.amount)} cho đơn #${widget.jobId}',
-              ),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: const Color(0xff10b981),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        },
-        icon: const Icon(Icons.check_circle_outline, size: 20),
-        label: const Text(
-          'KHÁCH ĐÃ THANH TOÁN',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+        onPressed: _confirming ? null : _handleConfirmPayment,
+        icon: _confirming
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : const Icon(Icons.check_circle_outline, size: 20),
+        label: Text(
+          _confirming ? 'ĐANG GHI NHẬN...' : 'KHÁCH ĐÃ THANH TOÁN',
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xff10b981),

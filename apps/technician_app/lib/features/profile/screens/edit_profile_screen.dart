@@ -236,6 +236,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         keyboardType: keyboardType,
         maxLines: maxLines,
         validator: validator,
+        enableSuggestions: false,
+        autocorrect: false,
         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         decoration: InputDecoration(
           labelText: label,

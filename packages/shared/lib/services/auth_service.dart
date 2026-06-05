@@ -130,8 +130,13 @@ class AuthService {
     return _auth.authStateChanges().asyncMap((firebaseUser) async {
       if (firebaseUser == null) return null;
       try {
-        final userDoc = await _firestore.collection('nguoiDung').doc(firebaseUser.uid).get();
-        return userDoc.exists ? AuthUser.fromFirestore(userDoc, firebaseUser) : null;
+        final userDoc = await _firestore
+            .collection('nguoiDung')
+            .doc(firebaseUser.uid)
+            .get();
+        return userDoc.exists
+            ? AuthUser.fromFirestore(userDoc, firebaseUser)
+            : null;
       } catch (e) {
         return null;
       }
@@ -146,13 +151,16 @@ class AuthService {
           .collection('nguoiDung')
           .doc(firebaseUser.uid)
           .get(fromServer ? const GetOptions(source: Source.server) : null);
-      return userDoc.exists ? AuthUser.fromFirestore(userDoc, firebaseUser) : null;
+      return userDoc.exists
+          ? AuthUser.fromFirestore(userDoc, firebaseUser)
+          : null;
     } catch (e) {
       return null;
     }
   }
 
-  Future<AuthUser> loginWithEmail({required String email, required String password}) async {
+  Future<AuthUser> loginWithEmail(
+      {required String email, required String password}) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
       final authUser = await getCurrentUser(fromServer: true);
@@ -162,7 +170,8 @@ class AuthService {
       }
       if (authUser.status != 'active') {
         await _auth.signOut();
-        throw AuthException('Tài khoản của bạn đang chờ quản trị viên phê duyệt.');
+        throw AuthException(
+            'Tài khoản của bạn đang chờ quản trị viên phê duyệt.');
       }
       return authUser;
     } on FirebaseAuthException catch (e) {
@@ -221,12 +230,17 @@ class AuthService {
     required String source,
   }) async {
     try {
-      final userCredential = await _auth.createUserWithEmailAndPassword(email: email, password: password);
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+          email: email, password: password);
       await userCredential.user!.updateDisplayName(displayName);
-      
-      final String initialStatus = (source == 'customer_app') ? 'active' : 'pending';
-      
-      await _firestore.collection('nguoiDung').doc(userCredential.user!.uid).set({
+
+      final String initialStatus =
+          (source == 'customer_app') ? 'active' : 'pending';
+
+      await _firestore
+          .collection('nguoiDung')
+          .doc(userCredential.user!.uid)
+          .set({
         'uid': userCredential.user!.uid,
         'email': email,
         'displayName': displayName,
@@ -237,16 +251,32 @@ class AuthService {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      
+
       if (initialStatus == 'pending') {
         await _auth.signOut();
-        throw AuthException('Đăng ký thành công! Vui lòng chờ quản trị viên kích hoạt tài khoản.');
+        return AuthUser(
+          uid: userCredential.user!.uid,
+          email: email,
+          displayName: displayName,
+          phoneNumber: phoneNumber,
+          role: role,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          isVerified: false,
+          status: 'pending',
+          source: source,
+        );
       }
-      
+
       final authUser = await getCurrentUser(fromServer: true);
-      return authUser ?? (throw AuthException('Lỗi đồng bộ dữ liệu sau đăng ký.'));
+      return authUser ??
+          (throw AuthException('Lỗi đồng bộ dữ liệu sau đăng ký.'));
     } on FirebaseAuthException catch (e) {
-      throw AuthException(e.code == 'email-already-in-use' ? 'Email đã được sử dụng.' : 'Đăng ký thất bại.', code: e.code);
+      throw AuthException(
+          e.code == 'email-already-in-use'
+              ? 'Email đã được sử dụng.'
+              : 'Đăng ký thất bại.',
+          code: e.code);
     } catch (e) {
       if (e is AuthException) rethrow;
       throw AuthException('Lỗi trong quá trình đăng ký.');

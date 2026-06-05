@@ -100,13 +100,23 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                 final controller = context.read<JobController>();
                 final messenger = ScaffoldMessenger.of(context);
                 final success = await controller.updateJobStatus(widget.jobId, nextStatus);
-                if (mounted && success) {
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Đã cập nhật: ${nextStatus.displayName}'),
-                      backgroundColor: nextStatus.color,
-                    ),
-                  );
+                if (mounted) {
+                  if (success) {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text('Đã cập nhật: ${nextStatus.displayName}'),
+                        backgroundColor: nextStatus.color,
+                      ),
+                    );
+                  } else {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text('Cập nhật thất bại: ${controller.lastError ?? "Lỗi không xác định"}'),
+                        backgroundColor: Colors.redAccent,
+                        duration: const Duration(seconds: 5),
+                      ),
+                    );
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -219,16 +229,23 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
 
       if (mounted) Navigator.pop(context);
 
-      if (job.customerLatitude == null || job.customerLongitude == null) {
-        _performCheckIn(job.id, position.latitude, position.longitude);
+      final double? custLat = job.customerLatitude;
+      final double? custLng = job.customerLongitude;
+
+      if (custLat == null || custLng == null) {
+        _showOverrideDialog(
+          job,
+          'Thiếu tọa độ khách hàng',
+          'Đơn hàng này chưa có dữ liệu vị trí GPS của khách hàng. Bạn có muốn xác nhận "Đã đến nơi" thủ công không?',
+        );
         return;
       }
 
       double distanceInMeters = Geolocator.distanceBetween(
         position.latitude,
         position.longitude,
-        job.customerLatitude!,
-        job.customerLongitude!,
+        custLat,
+        custLng,
       );
 
       const double thresholdMeters = 500.0;
@@ -250,19 +267,30 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
 
   void _performCheckIn(String jobId, double lat, double lng) async {
     final controller = context.read<JobController>();
+    final messenger = ScaffoldMessenger.of(context);
     final success = await controller.updateJobStatus(
       jobId,
       JobStatus.arrived,
       ktvLatitude: lat,
       ktvLongitude: lng,
     );
-    if (mounted && success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Check-in thành công! Tọa độ GPS đã được ghi nhận: (${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)})'),
-          backgroundColor: JobStatus.arrived.color,
-        ),
-      );
+    if (mounted) {
+      if (success) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Check-in thành công! Tọa độ GPS đã được ghi nhận: (${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)})'),
+            backgroundColor: JobStatus.arrived.color,
+          ),
+        );
+      } else {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Check-in thất bại: ${controller.lastError ?? "Lỗi không xác định"}'),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     }
   }
 

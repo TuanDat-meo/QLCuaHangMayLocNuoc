@@ -182,6 +182,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       _buildLabel('Họ và tên'),
                       TextFormField(
                         controller: _displayNameController,
+                        enableSuggestions: false,
+                        autocorrect: false,
                         style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xff334155)),
                         decoration: const InputDecoration(
                           hintText: 'Nhập họ và tên của bạn',
