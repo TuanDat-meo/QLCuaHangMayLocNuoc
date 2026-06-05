@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -14,6 +15,16 @@ class InvoicePdfHelper {
     double tipAmount = 0.0,
   }) async {
     final pdf = pw.Document();
+
+    pw.MemoryImage? signatureImage;
+    if (job.customerSignature != null && job.customerSignature!.isNotEmpty) {
+      try {
+        final signatureBytes = base64Decode(job.customerSignature!);
+        signatureImage = pw.MemoryImage(signatureBytes);
+      } catch (e) {
+        // ignore
+      }
+    }
 
     // Load Vietnamese Font (Roboto) from local assets (offline-ready)
     pw.Font? ttfRegular;
@@ -357,15 +368,26 @@ class InvoicePdfHelper {
                           style: pw.TextStyle(
                             fontWeight: pw.FontWeight.bold,
                             fontSize: 8,
+                            font: ttfBold,
                           ),
                         ),
                         pw.Text(
                           '(Ky va ghi ro ho ten)',
-                          style: const pw.TextStyle(
+                          style: pw.TextStyle(
                             fontSize: 6,
                             color: PdfColors.grey600,
+                            font: ttfRegular,
                           ),
                         ),
+                        if (signatureImage != null) ...[
+                          pw.SizedBox(height: 4),
+                          pw.Container(
+                            height: 35,
+                            width: 60,
+                            child: pw.Image(signatureImage, fit: pw.BoxFit.contain),
+                          ),
+                        ] else
+                          pw.SizedBox(height: 39),
                       ],
                     ),
                     pw.Column(
@@ -375,15 +397,18 @@ class InvoicePdfHelper {
                           style: pw.TextStyle(
                             fontWeight: pw.FontWeight.bold,
                             fontSize: 8,
+                            font: ttfBold,
                           ),
                         ),
                         pw.Text(
                           '(Ky va ghi ro ho ten)',
-                          style: const pw.TextStyle(
+                          style: pw.TextStyle(
                             fontSize: 6,
                             color: PdfColors.grey600,
+                            font: ttfRegular,
                           ),
                         ),
+                        pw.SizedBox(height: 39),
                       ],
                     ),
                   ],

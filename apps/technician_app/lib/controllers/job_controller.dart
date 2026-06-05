@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 
 enum JobStatus {
   waiting,     // Đã phân công / Chờ
@@ -63,6 +64,23 @@ extension JobStatusExtension on JobStatus {
         return const Color(0xffef4444);
     }
   }
+
+  String get englishRawValue {
+    switch (this) {
+      case JobStatus.waiting:
+        return 'processing';
+      case JobStatus.onTheWay:
+        return 'shipping';
+      case JobStatus.arrived:
+        return 'arrived';
+      case JobStatus.installing:
+        return 'installing';
+      case JobStatus.completed:
+        return 'completed';
+      case JobStatus.needSupport:
+        return 'failed';
+    }
+  }
 }
 
 class JobModel {
@@ -87,6 +105,7 @@ class JobModel {
   final String? issueDesc;
   final double? customerLatitude;
   final double? customerLongitude;
+  final String? customerSignature;
 
   JobModel({
     required this.id,
@@ -110,6 +129,7 @@ class JobModel {
     this.issueDesc,
     this.customerLatitude,
     this.customerLongitude,
+    this.customerSignature,
   });
 
   JobModel copyWith({
@@ -125,6 +145,7 @@ class JobModel {
     String? issueDesc,
     double? customerLatitude,
     double? customerLongitude,
+    String? customerSignature,
   }) {
     return JobModel(
       id: id,
@@ -148,6 +169,7 @@ class JobModel {
       issueDesc: issueDesc ?? this.issueDesc,
       customerLatitude: customerLatitude ?? this.customerLatitude,
       customerLongitude: customerLongitude ?? this.customerLongitude,
+      customerSignature: customerSignature ?? this.customerSignature,
     );
   }
 }
@@ -161,7 +183,9 @@ class JobController extends ChangeNotifier {
   List<JobModel> _jobs = [];
   List<Map<String, dynamic>> _notifications = [];
 
-  StreamSubscription? _jobsSub;
+  StreamSubscription? _jobsSub1;
+  StreamSubscription? _jobsSub2;
+  StreamSubscription? _jobsSub3;
   StreamSubscription? _notisSub;
   StreamSubscription<User?>? _authSub;
 
@@ -185,9 +209,13 @@ class JobController extends ChangeNotifier {
   }
 
   void _cancelFirestoreListeners() {
-    _jobsSub?.cancel();
+    _jobsSub1?.cancel();
+    _jobsSub2?.cancel();
+    _jobsSub3?.cancel();
     _notisSub?.cancel();
-    _jobsSub = null;
+    _jobsSub1 = null;
+    _jobsSub2 = null;
+    _jobsSub3 = null;
     _notisSub = null;
   }
 
@@ -268,33 +296,49 @@ class JobController extends ChangeNotifier {
   void _listenToFirestoreJobs(String uid) {
     _cancelFirestoreListeners();
     _isLoading = true;
+    _jobs = []; // Xóa dữ liệu mock ngay khi bắt đầu đồng bộ Firestore
     notifyListeners();
 
-    _jobsSub = _firestore
+    final Map<String, JobModel> jobsMap = {};
+
+    void handleSnapshot(QuerySnapshot snapshot) {
+      _hasFirestoreData = true;
+      for (final doc in snapshot.docs) {
+        jobsMap[doc.id] = _docToJobModel(doc);
+      }
+      final sortedJobs = jobsMap.values.toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
+      _jobs = sortedJobs;
+      _isLoading = false;
+      notifyListeners();
+    }
+
+    _jobsSub1 = _firestore
         .collection('donHang')
         .where('ktvId', isEqualTo: uid)
-        .orderBy('ngayTao', descending: true)
         .snapshots()
         .listen(
-      (snapshot) {
-        if (snapshot.docs.isEmpty) {
-          _isLoading = false;
-          notifyListeners();
-          return;
-        }
-        _hasFirestoreData = true;
-        _jobs = snapshot.docs.map((doc) {
-          return _docToJobModel(doc);
-        }).toList();
-        _isLoading = false;
-        notifyListeners();
-      },
-      onError: (e) {
-        debugPrint('Firestore job stream error: $e');
-        _isLoading = false;
-        notifyListeners();
-      },
-    );
+          handleSnapshot,
+          onError: (e) => debugPrint('Firestore job stream 1 error: $e'),
+        );
+
+    _jobsSub2 = _firestore
+        .collection('donHang')
+        .where('technicianId', isEqualTo: uid)
+        .snapshots()
+        .listen(
+          handleSnapshot,
+          onError: (e) => debugPrint('Firestore job stream 2 error: $e'),
+        );
+
+    _jobsSub3 = _firestore
+        .collection('donHang')
+        .where('technicians', arrayContains: uid)
+        .snapshots()
+        .listen(
+          handleSnapshot,
+          onError: (e) => debugPrint('Firestore job stream 3 error: $e'),
+        );
 
     _notisSub = _firestore
         .collection('thongBao')
@@ -322,18 +366,49 @@ class JobController extends ChangeNotifier {
     );
   }
 
+  /// Làm mới dữ liệu từ Firestore
+  Future<void> refreshData() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid != null) {
+      _listenToFirestoreJobs(uid);
+    }
+  }
+
   JobModel _docToJobModel(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
     JobStatus status = JobStatus.waiting;
-    final rawStatus = data['trangThai'] as String? ?? '';
+    final rawStatus = (data['status'] ?? data['trangThai'] ?? '') as String;
     switch (rawStatus) {
-      case 'da_phan_cong': status = JobStatus.waiting; break;
-      case 'dang_di': status = JobStatus.onTheWay; break;
-      case 'da_den_noi': status = JobStatus.arrived; break;
-      case 'dang_lap': status = JobStatus.installing; break;
-      case 'hoan_thanh': status = JobStatus.completed; break;
-      case 'su_co': status = JobStatus.needSupport; break;
+      case 'da_phan_cong':
+      case 'processing':
+      case 'assigned':
+        status = JobStatus.waiting;
+        break;
+      case 'dang_di':
+      case 'shipping':
+        status = JobStatus.onTheWay;
+        break;
+      case 'da_den_noi':
+      case 'arrived':
+      case 'delivered':
+        status = JobStatus.arrived;
+        break;
+      case 'dang_lap':
+      case 'installing':
+        status = JobStatus.installing;
+        break;
+      case 'hoan_thanh':
+      case 'completed':
+        status = JobStatus.completed;
+        break;
+      case 'su_co':
+      case 'failed':
+      case 'needSupport':
+        status = JobStatus.needSupport;
+        break;
+      default:
+        status = JobStatus.waiting;
     }
 
     List<Map<String, dynamic>> timeline = [];
@@ -365,17 +440,36 @@ class JobController extends ChangeNotifier {
     final double? lat = _toDouble(data['diaChiViDo'] ?? data['viDo'] ?? data['latitude'] ?? data['lat']);
     final double? lng = _toDouble(data['diaChiKinhDo'] ?? data['kinhDo'] ?? data['longitude'] ?? data['lng']);
 
+    // Parse product details from nested items if present
+    String prodName = data['tenSanPham'] ?? '';
+    String prodSpecs = data['thongSoSanPham'] ?? '';
+    final itemsList = data['items'];
+    if (itemsList is List && itemsList.isNotEmpty) {
+      final firstItem = itemsList[0];
+      if (firstItem is Map) {
+        prodName = firstItem['name'] ?? '';
+        prodSpecs = 'Model: ${firstItem['id'] ?? ''}, SL: ${firstItem['quantity'] ?? 1}';
+      }
+    }
+
+    // Format appointment time from scheduledDate Timestamp if present
+    String apptTime = data['gioHen'] ?? '';
+    if (data['scheduledDate'] is Timestamp) {
+      final timestamp = data['scheduledDate'] as Timestamp;
+      apptTime = DateFormat('HH:mm - dd/MM/yyyy').format(timestamp.toDate());
+    }
+
     return JobModel(
       id: doc.id,
-      customerName: data['tenKhachHang'] ?? '',
-      customerPhone: data['soDienThoai'] ?? '',
-      address: data['diaChi'] ?? '',
-      appointmentTime: data['gioHen'] ?? '',
-      productName: data['tenSanPham'] ?? '',
-      productSpecs: data['thongSoSanPham'] ?? '',
-      adminNotes: data['ghiChuAdmin'] ?? '',
-      codAmount: (data['soTienCOD'] as num?)?.toDouble() ?? 0,
-      tipAmount: (data['soTienTip'] as num?)?.toDouble() ?? 0,
+      customerName: data['customerName'] ?? data['tenKhachHang'] ?? '',
+      customerPhone: data['phoneNumber'] ?? data['soDienThoai'] ?? '',
+      address: data['diaChiGiaoHang'] ?? data['diaChi'] ?? '',
+      appointmentTime: apptTime,
+      productName: prodName,
+      productSpecs: prodSpecs,
+      adminNotes: data['ghiChuAdmin'] ?? data['note'] ?? '',
+      codAmount: _toDouble(data['soTienCOD'] ?? data['tongTien'] ?? 0) ?? 0.0,
+      tipAmount: _toDouble(data['soTienTip'] ?? 0) ?? 0.0,
       status: status,
       date: (data['ngayTao'] as Timestamp?)?.toDate() ?? DateTime.now(),
       images: List<String>.from(data['anhHoanThanh'] ?? []),
@@ -387,6 +481,7 @@ class JobController extends ChangeNotifier {
       issueDesc: data['moTaSuCo'],
       customerLatitude: lat,
       customerLongitude: lng,
+      customerSignature: data['chuKyKhachHang'] as String?,
     );
   }
 
@@ -420,9 +515,11 @@ class JobController extends ChangeNotifier {
       final uid = _auth.currentUser?.uid;
       final Map<String, dynamic> updateData = {
         'trangThai': newStatus.rawValue,
+        'status': newStatus.englishRawValue,
         'lichSuTrangThai': FieldValue.arrayUnion([
           {
             'trangThai': newStatus.rawValue,
+            'status': newStatus.englishRawValue,
             'thoiGian': FieldValue.serverTimestamp(),
             'tieuDe': newStatus.displayName,
             'moTa': descText,
@@ -474,6 +571,7 @@ class JobController extends ChangeNotifier {
       final uid = _auth.currentUser?.uid;
       await _firestore.collection('donHang').doc(jobId).update({
         'trangThai': 'su_co',
+        'status': 'failed',
         'lyDoSuCo': reason,
         'moTaSuCo': description,
         'lyDoHuy': '$reason: $description',
@@ -501,6 +599,7 @@ class JobController extends ChangeNotifier {
     required double tipAmount,
     required List<String> photos,
     required String notes,
+    String? customerSignature,
   }) async {
     final idx = _jobs.indexWhere((j) => j.id == jobId);
     if (idx == -1) return false;
@@ -520,6 +619,7 @@ class JobController extends ChangeNotifier {
       tipAmount: tipAmount,
       images: photos,
       timeline: updatedTimeline,
+      customerSignature: customerSignature,
     );
     notifyListeners();
 
@@ -527,9 +627,11 @@ class JobController extends ChangeNotifier {
       final uid = _auth.currentUser?.uid;
       await _firestore.collection('donHang').doc(jobId).update({
         'trangThai': 'hoan_thanh',
+        'status': 'completed',
         'soTienCOD': codCollected,
         'soTienTip': tipAmount,
         'anhHoanThanh': photos,
+        'chuKyKhachHang': customerSignature,
         'hoanThanhVao': FieldValue.serverTimestamp(),
         'ngayCapNhat': FieldValue.serverTimestamp(),
       });
@@ -711,6 +813,45 @@ class JobController extends ChangeNotifier {
     } catch (e) {
       debugPrint('Firestore update vatTu error: $e');
       return true;
+    }
+  }
+
+  /// Lấy danh sách sản phẩm/vật tư tiêu chuẩn từ Firestore
+  Future<List<Map<String, dynamic>>> fetchStandardProducts() async {
+    try {
+      final snapshot = await _firestore.collection('sanPham').get();
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name': data['tenSanPham'] ?? '',
+          'price': (data['giaBan'] as num?)?.toDouble() ?? 0.0,
+          'brand': data['thuongHieu'] ?? '',
+          'sku': data['sku'] ?? '',
+          'category': data['danhMucId'] ?? '',
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('Error fetching standard products: $e');
+      return [];
+    }
+  }
+
+  /// Lấy danh sách danh mục từ Firestore
+  Future<List<Map<String, dynamic>>> fetchCategories() async {
+    try {
+      final snapshot = await _firestore.collection('danhMuc').get();
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name': data['ten'] ?? '',
+          'icon': data['icon'] ?? '⚙️',
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('Error fetching categories: $e');
+      return [];
     }
   }
 

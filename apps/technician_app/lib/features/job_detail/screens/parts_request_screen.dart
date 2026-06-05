@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import 'package:shared/theme/app_colors.dart';
 import '../../../controllers/job_controller.dart';
 
@@ -28,6 +29,27 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
     _priceCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _showCatalogDialog() async {
+    final ctrl = context.read<JobController>();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return _CatalogSelectorSheet(
+          onSelect: (name, price) {
+            setState(() {
+              _nameCtrl.text = name;
+              _priceCtrl.text = price.toInt().toString();
+            });
+          },
+          fetchProducts: ctrl.fetchStandardProducts,
+          fetchCategories: ctrl.fetchCategories,
+        );
+      },
+    );
   }
 
   void _startEdit(int index, Map<String, dynamic> item) {
@@ -248,6 +270,27 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
+                  // Nút chọn từ danh mục chuẩn
+                  Card(
+                    color: AppColors.primary.withValues(alpha: 0.06),
+                    margin: const EdgeInsets.only(bottom: 14),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),
+                    ),
+                    child: ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
+                      title: const Text(
+                        'Chọn từ danh mục chuẩn',
+                        style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.primary, fontSize: 13),
+                      ),
+                      subtitle: const Text('Đồng bộ giá & thông số trực tiếp từ kho'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.primary),
+                      onTap: _showCatalogDialog,
+                    ),
+                  ),
                   // Tên vật tư
                   TextFormField(
                     controller: _nameCtrl,
@@ -598,6 +641,258 @@ class _PartsRequestScreenState extends State<PartsRequestScreen> {
           fontWeight: FontWeight.w800,
           fontSize: 12,
         ),
+      ),
+    );
+  }
+}
+
+class _CatalogSelectorSheet extends StatefulWidget {
+  final void Function(String name, double price) onSelect;
+  final Future<List<Map<String, dynamic>>> Function() fetchProducts;
+  final Future<List<Map<String, dynamic>>> Function() fetchCategories;
+
+  const _CatalogSelectorSheet({
+    required this.onSelect,
+    required this.fetchProducts,
+    required this.fetchCategories,
+  });
+
+  @override
+  State<_CatalogSelectorSheet> createState() => _CatalogSelectorSheetState();
+}
+
+class _CatalogSelectorSheetState extends State<_CatalogSelectorSheet> {
+  bool _loading = true;
+  List<Map<String, dynamic>> _products = [];
+  List<Map<String, dynamic>> _categories = [];
+  String _searchQuery = '';
+  String _selectedCategoryId = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final res = await Future.wait([
+        widget.fetchProducts(),
+        widget.fetchCategories(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _products = res[0];
+          _categories = res[1];
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _formatCurrency(double value) {
+    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ', decimalDigits: 0);
+    return formatter.format(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _products.where((p) {
+      final matchesSearch = p['name'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          p['brand'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          p['sku'].toString().toLowerCase().contains(_searchQuery.toLowerCase());
+      final matchesCategory = _selectedCategoryId.isEmpty || p['category'] == _selectedCategoryId;
+      return matchesSearch && matchesCategory;
+    }).toList();
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      height: MediaQuery.of(context).size.height * 0.75,
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Danh mục vật tư chuẩn',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              onChanged: (val) => setState(() => _searchQuery = val),
+              decoration: InputDecoration(
+                hintText: 'Tìm kiếm vật tư, linh kiện...',
+                prefixIcon: const Icon(Icons.search),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.grey[50],
+              ),
+            ),
+          ),
+          if (_categories.isNotEmpty) ...[
+            SizedBox(
+              height: 38,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _categories.length + 1,
+                itemBuilder: (context, idx) {
+                  final isAll = idx == 0;
+                  final cat = isAll ? null : _categories[idx - 1];
+                  final isSelected = isAll ? _selectedCategoryId.isEmpty : _selectedCategoryId == cat!['id'];
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      selected: isSelected,
+                      label: Text(
+                        isAll ? 'Tất cả' : '${cat!['icon']} ${cat['name']}',
+                        style: TextStyle(
+                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.normal,
+                          color: isSelected ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      selectedColor: AppColors.primary,
+                      backgroundColor: Colors.grey[100],
+                      onSelected: (val) {
+                        setState(() {
+                          _selectedCategoryId = isAll ? '' : cat!['id'];
+                        });
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          const Divider(height: 1),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : filtered.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey[300]),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Không tìm thấy vật tư phù hợp',
+                              style: TextStyle(color: Colors.grey[500]),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: filtered.length,
+                        separatorBuilder: (context, idx) => const Divider(height: 1),
+                        itemBuilder: (context, idx) {
+                          final prod = filtered[idx];
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                            title: Text(
+                              prod['name'],
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: AppColors.onSurface,
+                              ),
+                            ),
+                            subtitle: Row(
+                              children: [
+                                if (prod['brand'].toString().isNotEmpty) ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue[50],
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      prod['brand'],
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.blue[800],
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
+                                Text(
+                                  'SKU: ${prod['sku']}',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                                ),
+                              ],
+                            ),
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  _formatCurrency(prod['price']),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 14,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Chọn ➜',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.primary.withValues(alpha: 0.8),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            onTap: () {
+                              widget.onSelect(prod['name'], prod['price']);
+                              Navigator.pop(context);
+                            },
+                          );
+                        },
+                      ),
+          ),
+        ],
       ),
     );
   }

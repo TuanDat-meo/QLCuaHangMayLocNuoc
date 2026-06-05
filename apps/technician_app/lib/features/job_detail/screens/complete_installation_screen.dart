@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:typed_data';
+import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +9,7 @@ import 'package:shared/theme/app_colors.dart';
 import '../../../controllers/job_controller.dart';
 import '../../../core/services/image_upload_service.dart';
 import '../../../core/utils/invoice_pdf_helper.dart';
+import '../../../core/widgets/signature_pad.dart';
 
 /// Formatter tự động thêm dấu chấm ngàn khi người dùng gõ số
 class _ThousandsSeparatorFormatter extends TextInputFormatter {
@@ -42,6 +43,7 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
   late final TextEditingController _collectedAmountController;
   late final TextEditingController _tipController;
   late final TextEditingController _notesController;
+  Uint8List? _customerSignatureBytes;
   final _currFmt = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ', decimalDigits: 0);
 
   final List<XFile> _pickedFiles = [];   // ảnh đã chọn, chưa upload
@@ -151,6 +153,15 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
       );
       return;
     }
+    if (_customerSignatureBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng yêu cầu khách hàng ký xác nhận nghiệm thu!'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
 
     showDialog(
       context: context,
@@ -189,6 +200,9 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
                     _collectedAmountController.text.replaceAll('.', '')) ?? 0.0;
                 final tip = double.tryParse(
                     _tipController.text.replaceAll('.', '')) ?? 0.0;
+                final base64Signature = _customerSignatureBytes != null
+                    ? base64Encode(_customerSignatureBytes!)
+                    : null;
 
                 final success = await controller.completeJob(
                   jobId: widget.jobId,
@@ -196,6 +210,7 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
                   tipAmount: tip,
                   photos: allPhotos,
                   notes: _notesController.text,
+                  customerSignature: base64Signature,
                 );
                 if (mounted) {
                   setState(() => _isSubmitting = false);
@@ -371,6 +386,10 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
 
                   // 3. Notes textarea
                   _buildNotesTextarea(),
+                  const SizedBox(height: 20),
+
+                  // 4. Customer Signature
+                  _buildSignatureSection(),
                 ],
               ),
             ),
@@ -764,19 +783,116 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
     );
   }
 
-  // Base64 encode đơn giản cho web preview local image
-  String _b64(List<int> bytes) {
-    const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    final o = StringBuffer();
-    for (int i = 0; i < bytes.length; i += 3) {
-      final b0 = bytes[i];
-      final b1 = i + 1 < bytes.length ? bytes[i + 1] : 0;
-      final b2 = i + 2 < bytes.length ? bytes[i + 2] : 0;
-      o.write(c[(b0 >> 2) & 63]);
-      o.write(c[((b0 << 4) | (b1 >> 4)) & 63]);
-      o.write(i + 1 < bytes.length ? c[((b1 << 2) | (b2 >> 6)) & 63] : '=');
-      o.write(i + 2 < bytes.length ? c[b2 & 63] : '=');
-    }
-    return o.toString();
+
+
+  Widget _buildSignatureSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xfff1f5f9)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: const [
+              Text(
+                'XÁC NHẬN CHỮ KÝ KHÁCH HÀNG',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xff94a3b8), letterSpacing: 1.0),
+              ),
+              Text(
+                'Bắt buộc',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.error),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_customerSignatureBytes == null)
+            InkWell(
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => SignaturePad(
+                    onConfirm: (bytes) {
+                      setState(() {
+                        _customerSignatureBytes = bytes;
+                      });
+                    },
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                height: 100,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xfff8fafc),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 1.5),
+                ),
+                child: const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.draw_rounded, color: AppColors.primary, size: 30),
+                      SizedBox(height: 8),
+                      Text(
+                        'Chạm để ký xác nhận nghiệm thu',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            Column(
+              children: [
+                Container(
+                  height: 120,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xfff8fafc),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xffe2e8f0)),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Center(
+                      child: Image.memory(
+                        _customerSignatureBytes!,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextButton.icon(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => SignaturePad(
+                        onConfirm: (bytes) {
+                          setState(() {
+                            _customerSignatureBytes = bytes;
+                          });
+                        },
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.refresh, size: 16, color: AppColors.primary),
+                  label: const Text(
+                    'Ký lại',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
   }
 }
