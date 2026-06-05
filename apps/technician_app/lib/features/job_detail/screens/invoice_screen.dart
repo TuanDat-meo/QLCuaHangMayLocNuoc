@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared/theme/app_colors.dart';
 import '../../../controllers/job_controller.dart';
+import '../../../core/utils/invoice_pdf_helper.dart';
 
 class InvoiceScreen extends StatelessWidget {
   final String jobId;
@@ -47,13 +48,27 @@ class InvoiceScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.share_outlined),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('📄 Tính năng xuất PDF đang phát triển'),
-                  behavior: SnackBarBehavior.floating,
+            onPressed: () async {
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (ctx) => const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
                 ),
               );
+              try {
+                await InvoicePdfHelper.generateAndShareInvoice(
+                  job,
+                  collectedAmount: job.codAmount,
+                  tipAmount: job.tipAmount,
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Lỗi xuất hóa đơn: $e'), backgroundColor: Colors.red),
+                );
+              } finally {
+                Navigator.pop(context);
+              }
             },
             tooltip: 'Chia sẻ hóa đơn',
           ),
@@ -739,13 +754,27 @@ class _ActionRow extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('📤 Tính năng chia sẻ đang phát triển'),
-                      behavior: SnackBarBehavior.floating,
+                onPressed: () async {
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (ctx) => const Center(
+                      child: CircularProgressIndicator(color: AppColors.primary),
                     ),
                   );
+                  try {
+                    await InvoicePdfHelper.generateAndShareInvoice(
+                      job,
+                      collectedAmount: job.codAmount,
+                      tipAmount: job.tipAmount,
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Lỗi xuất hóa đơn: $e'), backgroundColor: Colors.red),
+                    );
+                  } finally {
+                    Navigator.pop(context);
+                  }
                 },
                 icon: const Icon(Icons.share_outlined, size: 18),
                 label: const Text('CHIA SẺ'),

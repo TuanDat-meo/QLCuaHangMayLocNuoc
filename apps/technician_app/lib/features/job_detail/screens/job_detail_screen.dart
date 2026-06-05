@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared/theme/app_colors.dart';
 import '../../../controllers/job_controller.dart';
 
@@ -19,10 +20,16 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   // ── Deep link actions ────────────────────────────────────────────
   Future<void> _callPhone(String phone) async {
     final uri = Uri(scheme: 'tel', path: phone);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else if (mounted) {
-      _showLaunchError('Không thể mở ứng dụng điện thoại.');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        await launchUrl(uri);
+      }
+    } catch (e) {
+      if (mounted) {
+        _showLaunchError('Không thể mở ứng dụng gọi điện.');
+      }
     }
   }
 
@@ -30,19 +37,31 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
     // Chuẩn hóa số điện thoại: bỏ dấu + và khoảng trắng
     final cleaned = phone.replaceAll(RegExp(r'[^0-9]'), '');
     final uri = Uri.parse('https://zalo.me/$cleaned');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else if (mounted) {
-      _showLaunchError('Không thể mở Zalo. Vui lòng kiểm tra ứng dụng Zalo đã được cài đặt.');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (mounted) {
+        _showLaunchError('Không thể mở Zalo. Vui lòng kiểm tra ứng dụng Zalo đã được cài đặt.');
+      }
     }
   }
 
   Future<void> _sendSms(String phone) async {
     final uri = Uri(scheme: 'sms', path: phone);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else if (mounted) {
-      _showLaunchError('Không thể mở ứng dụng nhắn tin.');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        await launchUrl(uri);
+      }
+    } catch (e) {
+      if (mounted) {
+        _showLaunchError('Không thể mở ứng dụng nhắn tin.');
+      }
     }
   }
 
@@ -103,8 +122,8 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
     );
   }
 
-  void _handlePrimaryAction(JobStatus currentStatus) {
-    switch (currentStatus) {
+  void _handlePrimaryAction(JobModel job) {
+    switch (job.status) {
       case JobStatus.waiting:
         _showStatusConfirmation(
           JobStatus.onTheWay,
@@ -113,11 +132,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
         );
         break;
       case JobStatus.onTheWay:
-        _showStatusConfirmation(
-          JobStatus.arrived,
-          'Đã đến nơi?',
-          'Xác nhận bạn đã có mặt tại địa điểm lắp đặt của khách hàng.',
-        );
+        _handleArrivedCheckIn(job);
         break;
       case JobStatus.arrived:
         _showStatusConfirmation(
@@ -139,6 +154,184 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
       default:
         break;
     }
+  }
+
+  Future<void> _handleArrivedCheckIn(JobModel job) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Expanded(
+              child: Text(
+                'Đang xác thực tọa độ GPS của bạn...',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) Navigator.pop(context);
+        _showOverrideDialog(
+          job,
+          'Dịch vụ vị trí bị tắt',
+          'Vui lòng bật GPS trên thiết bị của bạn để tự động xác thực vị trí.',
+        );
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) Navigator.pop(context);
+          _showOverrideDialog(
+            job,
+            'Quyền truy cập vị trí bị từ chối',
+            'Ứng dụng cần quyền định vị để tự động check-in.',
+          );
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) Navigator.pop(context);
+        _showOverrideDialog(
+          job,
+          'Quyền định vị bị chặn vĩnh viễn',
+          'Vui lòng cấp quyền vị trí trong Cài đặt thiết bị để sử dụng tính năng này.',
+        );
+        return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 8),
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      if (job.customerLatitude == null || job.customerLongitude == null) {
+        _performCheckIn(job.id, position.latitude, position.longitude);
+        return;
+      }
+
+      double distanceInMeters = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        job.customerLatitude!,
+        job.customerLongitude!,
+      );
+
+      const double thresholdMeters = 500.0;
+
+      if (distanceInMeters <= thresholdMeters) {
+        _performCheckIn(job.id, position.latitude, position.longitude);
+      } else {
+        _showDistanceWarningDialog(job, position, distanceInMeters);
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      _showOverrideDialog(
+        job,
+        'Lỗi định vị',
+        'Không thể lấy tọa độ GPS từ thiết bị: $e. Bạn có muốn bỏ qua xác thực vị trí không?',
+      );
+    }
+  }
+
+  void _performCheckIn(String jobId, double lat, double lng) async {
+    final controller = context.read<JobController>();
+    final success = await controller.updateJobStatus(
+      jobId,
+      JobStatus.arrived,
+      ktvLatitude: lat,
+      ktvLongitude: lng,
+    );
+    if (mounted && success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Check-in thành công! Tọa độ GPS đã được ghi nhận: (${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)})'),
+          backgroundColor: JobStatus.arrived.color,
+        ),
+      );
+    }
+  }
+
+  void _showOverrideDialog(JobModel job, String title, String reason) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+        content: Text('$reason\n\nBạn có muốn BỎ QUA kiểm tra GPS để xác nhận "Đã đến nơi" thủ công không?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('HỦY', style: TextStyle(color: Color(0xff94a3b8), fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _performCheckIn(job.id, 0.0, 0.0);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xff0d9488),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('XÁC NHẬN THỦ CÔNG'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDistanceWarningDialog(JobModel job, Position position, double distanceInMeters) {
+    final km = distanceInMeters / 1000.0;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            SizedBox(width: 8),
+            Text('Cảnh báo khoảng cách', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+          ],
+        ),
+        content: Text(
+          'Khoảng cách từ vị trí hiện tại của bạn đến địa chỉ khách hàng là '
+          '${km.toStringAsFixed(2)} km (ngưỡng quy định là 0.5 km).\n\n'
+          'Bạn có chắc chắn đã đến đúng địa chỉ và muốn tiếp tục xác nhận không?',
+          style: const TextStyle(height: 1.4, fontWeight: FontWeight.w600, color: Color(0xff64748b)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('QUAY LẠI', style: TextStyle(color: Color(0xff94a3b8), fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _performCheckIn(job.id, position.latitude, position.longitude);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xff0d9488),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('BỎ QUA & CHECK-IN'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -814,7 +1007,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                 child: SizedBox(
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: () => _handlePrimaryAction(job.status),
+                    onPressed: () => _handlePrimaryAction(job),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: buttonColor,
                       shadowColor: buttonColor.withAlpha(75),

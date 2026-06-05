@@ -4,6 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:shared/theme/app_colors.dart';
 import '../../../controllers/job_controller.dart';
+import '../../profile/screens/stats_dashboard_screen.dart';
+
+enum CalendarViewMode { day, week, month }
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -17,6 +20,7 @@ class _CalendarScreenState extends State<CalendarScreen>
   DateTime _focusedDay = DateTime.now();
   DateTime _selectedDay = DateTime.now();
   CalendarFormat _calendarFormat = CalendarFormat.month;
+  CalendarViewMode _viewMode = CalendarViewMode.month;
   late AnimationController _slideController;
   late Animation<Offset> _slideAnimation;
 
@@ -121,13 +125,23 @@ class _CalendarScreenState extends State<CalendarScreen>
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
-            // ── TableCalendar ──
-            TableCalendar(
-              locale: 'vi_VN',
-              firstDay: DateTime.utc(2024, 1, 1),
-              lastDay: DateTime.utc(2026, 12, 31),
+            // Card Hiệu suất & Thu nhập (to, chi tiết chỉ số)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildStatsCard(allJobs),
+            ),
+            const SizedBox(height: 12),
+
+            // ── TableCalendar hoặc Day Navigation ──
+            if (_viewMode == CalendarViewMode.day)
+              _buildDayNavigation()
+            else
+              TableCalendar(
+                locale: 'vi_VN',
+                firstDay: DateTime.utc(2024, 1, 1),
+                lastDay: DateTime.utc(2026, 12, 31),
               focusedDay: _focusedDay,
               calendarFormat: _calendarFormat,
               selectedDayPredicate: (day) => _isSameDay(day, _selectedDay),
@@ -226,9 +240,9 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   Widget _buildFormatToggle() {
     final formats = [
-      (CalendarFormat.month, 'T'),
-      (CalendarFormat.twoWeeks, '2T'),
-      (CalendarFormat.week, 'W'),
+      (CalendarViewMode.month, 'Tháng'),
+      (CalendarViewMode.week, 'Tuần'),
+      (CalendarViewMode.day, 'Ngày'),
     ];
     return Container(
       decoration: BoxDecoration(
@@ -238,12 +252,21 @@ class _CalendarScreenState extends State<CalendarScreen>
       padding: const EdgeInsets.all(3),
       child: Row(
         children: formats.map((f) {
-          final isSelected = _calendarFormat == f.$1;
+          final isSelected = _viewMode == f.$1;
           return GestureDetector(
-            onTap: () => setState(() => _calendarFormat = f.$1),
+            onTap: () {
+              setState(() {
+                _viewMode = f.$1;
+                if (_viewMode == CalendarViewMode.month) {
+                  _calendarFormat = CalendarFormat.month;
+                } else if (_viewMode == CalendarViewMode.week) {
+                  _calendarFormat = CalendarFormat.week;
+                }
+              });
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
                 color: isSelected ? AppColors.primary : Colors.transparent,
                 borderRadius: BorderRadius.circular(9),
@@ -251,14 +274,217 @@ class _CalendarScreenState extends State<CalendarScreen>
               child: Text(
                 f.$2,
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: isSelected ? Colors.white : const Color(0xff94a3b8),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: isSelected ? Colors.white : const Color(0xff64748b),
                 ),
               ),
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildDayNavigation() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left_rounded, color: AppColors.primary, size: 28),
+            onPressed: () {
+              setState(() {
+                _selectedDay = _selectedDay.subtract(const Duration(days: 1));
+                _focusedDay = _selectedDay;
+              });
+              _slideController
+                ..reset()
+                ..forward();
+            },
+          ),
+          Column(
+            children: [
+              Text(
+                DateFormat('EEEE', 'vi_VN').format(_selectedDay).toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.primary,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                DateFormat('dd/MM/yyyy').format(_selectedDay),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.onSurface,
+                ),
+              ),
+            ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right_rounded, color: AppColors.primary, size: 28),
+            onPressed: () {
+              setState(() {
+                _selectedDay = _selectedDay.add(const Duration(days: 1));
+                _focusedDay = _selectedDay;
+              });
+              _slideController
+                ..reset()
+                ..forward();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsCard(List<JobModel> allJobs) {
+    // Thống kê cho tháng đang hiển thị (_focusedDay.month)
+    final monthJobs = allJobs.where((j) =>
+        j.date.month == _focusedDay.month &&
+        j.date.year == _focusedDay.year).toList();
+    
+    final completedCount = monthJobs.where((j) => j.status == JobStatus.completed).length;
+    final inProgressCount = monthJobs.where((j) => j.status == JobStatus.installing || j.status == JobStatus.arrived || j.status == JobStatus.onTheWay).length;
+    
+    double totalEarnings = 0;
+    for (var j in monthJobs) {
+      if (j.status == JobStatus.completed) {
+        totalEarnings += j.codAmount + j.tipAmount;
+      }
+    }
+
+    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ', decimalDigits: 0);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xff0f172a), Color(0xff1e293b)], // Modern dark slate
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const StatsDashboardScreen(),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.analytics_rounded, color: Color(0xff38bdf8), size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      'HIỆU SUẤT & THU NHẬP THÁNG ${_focusedDay.month}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xff94a3b8),
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const Spacer(),
+                    const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white60, size: 12),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    // Cột trái: Đơn hàng
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Hoàn thành',
+                            style: TextStyle(fontSize: 11, color: Colors.white60, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$completedCount đơn',
+                            style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Đang thực hiện',
+                            style: TextStyle(fontSize: 11, color: Colors.white60, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$inProgressCount đơn',
+                            style: const TextStyle(fontSize: 14, color: Color(0xff38bdf8), fontWeight: FontWeight.w900),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(height: 50, width: 1, color: Colors.white10),
+                    const SizedBox(width: 16),
+                    // Cột phải: Thu nhập
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Tổng thu nhập',
+                            style: TextStyle(fontSize: 11, color: Colors.white60, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            currencyFormatter.format(totalEarnings),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              color: Color(0xff4ade80),
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Nhận định tháng',
+                            style: TextStyle(fontSize: 10, color: Colors.white38, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            completedCount >= 10
+                                ? 'Xuất sắc'
+                                : completedCount >= 5
+                                    ? 'Ổn định'
+                                    : 'Cần nỗ lực',
+                            style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

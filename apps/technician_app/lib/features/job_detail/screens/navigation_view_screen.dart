@@ -22,9 +22,10 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
   final MapController _mapController = MapController();
 
   static const LatLng _defaultHanoi = LatLng(21.0285, 105.8542);
+  static const LatLng _defaultHCMC = LatLng(10.7769, 106.7009);
 
   LatLng? _currentPosition;
-  LatLng _destPosition = _defaultHanoi;
+  LatLng _destPosition = _defaultHCMC;
   bool _isLoadingLocation = true;
   bool _locationPermissionDenied = false;
   bool _isSatellite = false;
@@ -78,6 +79,9 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
     } else if (lower.contains('thụy khuê') || lower.contains('tây hồ')) {
       return const LatLng(21.0465, 105.8323);
     }
+    if (lower.contains('tp.hcm') || lower.contains('hồ chí minh') || lower.contains('tphcm') || lower.contains('quận 1') || lower.contains('quận 3') || lower.contains('bến nghé')) {
+      return _defaultHCMC;
+    }
     return _defaultHanoi;
   }
 
@@ -87,7 +91,13 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
         jobController.jobs.indexWhere((j) => j.id == widget.jobId);
     if (jobIndex == -1) return;
     final job = jobController.jobs[jobIndex];
-    final destLatLng = _guessLatLngFromAddress(job.address);
+    
+    LatLng destLatLng;
+    if (job.customerLatitude != null && job.customerLongitude != null) {
+      destLatLng = LatLng(job.customerLatitude!, job.customerLongitude!);
+    } else {
+      destLatLng = _guessLatLngFromAddress(job.address);
+    }
 
     if (mounted) setState(() => _destPosition = destLatLng);
 

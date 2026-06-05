@@ -45,9 +45,19 @@ dependencies:
 
   # Networking
   http: ^1.1.0
+  connectivity_plus: ^6.0.3
 
   # Calendar
   table_calendar: ^3.1.2
+
+  # Notifications
+  flutter_local_notifications: ^18.0.1
+
+  # Charts
+  fl_chart: ^0.70.2
+  pdf: ^3.12.0
+  share_plus: ^13.1.0
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
@@ -58,3 +68,5 @@ flutter:
   uses-material-design: true
   assets:
     - .env
+    - assets/fonts/Roboto-Regular.ttf
+    - assets/fonts/Roboto-Bold.ttf

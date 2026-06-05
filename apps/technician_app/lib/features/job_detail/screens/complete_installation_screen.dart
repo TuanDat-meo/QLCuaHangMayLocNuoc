@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:shared/theme/app_colors.dart';
 import '../../../controllers/job_controller.dart';
 import '../../../core/services/image_upload_service.dart';
+import '../../../core/utils/invoice_pdf_helper.dart';
 
 /// Formatter tự động thêm dấu chấm ngàn khi người dùng gõ số
 class _ThousandsSeparatorFormatter extends TextInputFormatter {
@@ -196,18 +197,134 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
                   photos: allPhotos,
                   notes: _notesController.text,
                 );
-
                 if (mounted) {
                   setState(() => _isSubmitting = false);
                   if (success) {
-                    // Hiển thị màn hình thông báo thành công hoặc quay về dashboard
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Nộp báo cáo hoàn thành lắp đặt thành công!'),
                         backgroundColor: Color(0xff10b981),
                       ),
                     );
-                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (context) {
+                        return AlertDialog(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                          title: Row(
+                            children: const [
+                              Icon(Icons.check_circle, color: Color(0xff10b981), size: 30),
+                              SizedBox(width: 10),
+                              Text('Hoàn Thành!', style: TextStyle(fontWeight: FontWeight.w900)),
+                            ],
+                          ),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Báo cáo nghiệm thu đã được gửi thành công về hệ thống AquaCare.',
+                                style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xff64748b), height: 1.4),
+                              ),
+                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xfff8fafc),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: const Color(0xffe2e8f0)),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text('Mã đơn hàng:', style: TextStyle(color: Color(0xff64748b), fontWeight: FontWeight.bold, fontSize: 13)),
+                                        Text(widget.jobId, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text('Tổng thanh toán:', style: TextStyle(color: Color(0xff64748b), fontWeight: FontWeight.bold, fontSize: 13)),
+                                        Text(
+                                          _currFmt.format(cod + tip),
+                                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          actionsAlignment: MainAxisAlignment.center,
+                          actions: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0, left: 8.0, right: 8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  ElevatedButton.icon(
+                                    onPressed: () async {
+                                      // Hiện loading indicator trong lúc tải font và tạo PDF
+                                      showDialog(
+                                        context: context,
+                                        barrierDismissible: false,
+                                        builder: (ctx) => const Center(
+                                          child: CircularProgressIndicator(color: AppColors.primary),
+                                        ),
+                                      );
+                                      
+                                      try {
+                                        final jobModel = controller.jobs.firstWhere((j) => j.id == widget.jobId);
+                                        await InvoicePdfHelper.generateAndShareInvoice(
+                                          jobModel,
+                                          collectedAmount: cod,
+                                          tipAmount: tip,
+                                        );
+                                      } catch (e) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Lỗi xuất hóa đơn: $e'), backgroundColor: Colors.red),
+                                        );
+                                      } finally {
+                                        // Đóng loading indicator
+                                        Navigator.pop(context);
+                                      }
+                                    },
+                                    icon: const Icon(Icons.share, color: Colors.white),
+                                    label: const Text('XUẤT HÓA ĐƠN & GỬI ZALO', style: TextStyle(fontWeight: FontWeight.bold)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xff0068ff), // Zalo blue color
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      elevation: 0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      Navigator.of(context).popUntil((route) => route.isFirst);
+                                    },
+                                    icon: const Icon(Icons.home, color: Color(0xff64748b)),
+                                    label: const Text('QUAY VỀ TRANG CHỦ', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xff64748b))),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                      side: const BorderSide(color: Color(0xffcbd5e1)),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      elevation: 0,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    );
                   }
                 }
               },

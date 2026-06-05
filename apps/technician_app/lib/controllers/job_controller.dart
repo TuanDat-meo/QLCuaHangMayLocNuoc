@@ -85,6 +85,8 @@ class JobModel {
   final List<Map<String, dynamic>> vatTuPhatSinh;
   final String? issueReason;
   final String? issueDesc;
+  final double? customerLatitude;
+  final double? customerLongitude;
 
   JobModel({
     required this.id,
@@ -106,6 +108,8 @@ class JobModel {
     this.vatTuPhatSinh = const [],
     this.issueReason,
     this.issueDesc,
+    this.customerLatitude,
+    this.customerLongitude,
   });
 
   JobModel copyWith({
@@ -119,6 +123,8 @@ class JobModel {
     List<Map<String, dynamic>>? vatTuPhatSinh,
     String? issueReason,
     String? issueDesc,
+    double? customerLatitude,
+    double? customerLongitude,
   }) {
     return JobModel(
       id: id,
@@ -140,6 +146,8 @@ class JobModel {
       vatTuPhatSinh: vatTuPhatSinh ?? this.vatTuPhatSinh,
       issueReason: issueReason ?? this.issueReason,
       issueDesc: issueDesc ?? this.issueDesc,
+      customerLatitude: customerLatitude ?? this.customerLatitude,
+      customerLongitude: customerLongitude ?? this.customerLongitude,
     );
   }
 }
@@ -215,12 +223,14 @@ class JobController extends ChangeNotifier {
             'desc': 'Hệ thống tự động phân công cho bạn',
           }
         ],
+        customerLatitude: 10.7769,
+        customerLongitude: 106.7009,
       ),
       JobModel(
         id: 'JOB-002',
         customerName: 'Trần Thị Hoa',
         customerPhone: '0912345678',
-        address: '456 Đường Nguyễn Huệ, Phường 1, Quận 3, TP.HCM',
+        address: '456 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP.HCM',
         appointmentTime: '14:00 - ${today.day}/${today.month}/${today.year}',
         productName: 'Máy lọc nước Alkaline AquaPure',
         productSpecs: 'Model: AP-700, 9 lõi lọc, ion kiềm',
@@ -238,6 +248,8 @@ class JobController extends ChangeNotifier {
             'desc': 'Đã bàn giao và xác nhận khách hàng hài lòng',
           }
         ],
+        customerLatitude: 10.7745,
+        customerLongitude: 106.7020,
       ),
     ];
     _notifications = [
@@ -344,6 +356,15 @@ class JobController extends ChangeNotifier {
       vatTu = rawVatTu.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
 
+    double? _toDouble(dynamic val) {
+      if (val is num) return val.toDouble();
+      if (val is String) return double.tryParse(val);
+      return null;
+    }
+
+    final double? lat = _toDouble(data['diaChiViDo'] ?? data['viDo'] ?? data['latitude'] ?? data['lat']);
+    final double? lng = _toDouble(data['diaChiKinhDo'] ?? data['kinhDo'] ?? data['longitude'] ?? data['lng']);
+
     return JobModel(
       id: doc.id,
       customerName: data['tenKhachHang'] ?? '',
@@ -364,45 +385,65 @@ class JobController extends ChangeNotifier {
       vatTuPhatSinh: vatTu,
       issueReason: data['lyDoSuCo'],
       issueDesc: data['moTaSuCo'],
+      customerLatitude: lat,
+      customerLongitude: lng,
     );
   }
 
-  /// Cập nhật trạng thái công việc
-  Future<bool> updateJobStatus(String jobId, JobStatus newStatus) async {
+  /// Cập nhật trạng thái công việc kèm tọa độ GPS nếu cần
+  Future<bool> updateJobStatus(String jobId, JobStatus newStatus, {double? ktvLatitude, double? ktvLongitude}) async {
     final idx = _jobs.indexWhere((j) => j.id == jobId);
     if (idx == -1) return false;
 
     final job = _jobs[idx];
     final updatedTimeline = List<Map<String, dynamic>>.from(job.timeline);
+    
+    String descText = 'Trạng thái cập nhật bởi kỹ thuật viên';
+    if (newStatus == JobStatus.arrived && ktvLatitude != null && ktvLongitude != null) {
+      descText = 'KTV xác nhận check-in tại tọa độ ($ktvLatitude, $ktvLongitude)';
+    }
+
     updatedTimeline.add({
       'status': newStatus.rawValue,
       'time': DateTime.now(),
       'title': newStatus.displayName,
-      'desc': 'Trạng thái cập nhật bởi kỹ thuật viên',
+      'desc': descText,
     });
 
-    _jobs[idx] = job.copyWith(status: newStatus, timeline: updatedTimeline);
+    _jobs[idx] = job.copyWith(
+      status: newStatus,
+      timeline: updatedTimeline,
+    );
     notifyListeners();
 
     try {
       final uid = _auth.currentUser?.uid;
-      await _firestore.collection('donHang').doc(jobId).update({
+      final Map<String, dynamic> updateData = {
         'trangThai': newStatus.rawValue,
         'lichSuTrangThai': FieldValue.arrayUnion([
           {
             'trangThai': newStatus.rawValue,
             'thoiGian': FieldValue.serverTimestamp(),
             'tieuDe': newStatus.displayName,
-            'moTa': 'Cập nhật bởi KTV',
+            'moTa': descText,
           }
         ]),
         'ngayCapNhat': FieldValue.serverTimestamp(),
-      });
+      };
+
+      if (newStatus == JobStatus.arrived && ktvLatitude != null && ktvLongitude != null) {
+        updateData['ktvViDoDenNoi'] = ktvLatitude;
+        updateData['ktvKinhDoDenNoi'] = ktvLongitude;
+        updateData['thoiGianCheckIn'] = FieldValue.serverTimestamp();
+      }
+
+      await _firestore.collection('donHang').doc(jobId).update(updateData);
+
       if (uid != null) {
         await _firestore.collection('nhatKyHoatDong').add({
           'nguoiDungId': uid,
           'loaiSuKien': 'CAP_NHAT_TRANG_THAI',
-          'moTa': 'Cập nhật trạng thái đơn $jobId → ${newStatus.displayName}',
+          'moTa': 'Cập nhật trạng thái đơn $jobId → ${newStatus.displayName}${ktvLatitude != null ? ' (Check-in GPS)' : ''}',
           'ngayTao': FieldValue.serverTimestamp(),
         });
       }
