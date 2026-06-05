@@ -31,8 +31,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Color(0xff64748b)),
-            onPressed: () {},
+            icon: const Icon(Icons.edit_outlined, color: Color(0xff64748b)),
+            onPressed: () => Navigator.pushNamed(context, '/edit-profile'),
           ),
           const SizedBox(width: 8),
         ],
@@ -42,103 +42,115 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final user = auth.currentUser;
           final customer = auth.customerUser;
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                // Profile Header Card
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: [
-                      BoxShadow(
-                          color: Colors.black.withOpacity(0.02),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10))
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: const Color(0xffeff6ff),
-                        backgroundImage: user?.avatar != null
-                            ? NetworkImage(user!.avatar!)
-                            : null,
-                        child: user?.avatar == null
-                            ? const Icon(Icons.person,
-                                size: 50, color: Color(0xff00459a))
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(user?.displayName ?? 'Khách hàng',
-                          style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xff0b1c30))),
-                      const SizedBox(height: 4),
-                      Text(user?.email ?? '',
-                          style: const TextStyle(
-                              color: Color(0xff94a3b8),
-                              fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 24),
-                      // Stats Row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _buildStatItem('Đơn hàng', '${customer?.orderCount ?? 0}'),
-                          Container(
-                              width: 1, height: 30, color: const Color(0xfff1f5f9)),
-                          _buildStatItem('Đánh giá',
-                              customer?.averageRating?.toStringAsFixed(1) ?? '5.0'),
-                          Container(
-                              width: 1, height: 30, color: const Color(0xfff1f5f9)),
-                          _buildStatItem('Hạng', 'Bạc'),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                // Menu List
-                _buildMenuSection([
-                  _MenuItem(Icons.receipt_long_outlined, 'Lịch sử đơn hàng',
-                      () => Navigator.pushNamed(context, '/orders')),
-                  _MenuItem(Icons.location_on_outlined, 'Địa chỉ nhận hàng', () {}),
-                  _MenuItem(Icons.favorite_border_rounded, 'Sản phẩm yêu thích', () {}),
-                ]),
-                const SizedBox(height: 16),
-                _buildMenuSection([
-                  _MenuItem(Icons.help_outline_rounded, 'Trung tâm hỗ trợ', () {}),
-                  _MenuItem(Icons.info_outline_rounded, 'Về Aquacare', () {}),
-                ]),
-                const SizedBox(height: 24),
-                // Logout Button
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    onPressed: () {
-                      auth.logout();
-                      Navigator.pushReplacementNamed(context, '/login');
-                    },
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
-                      backgroundColor: Colors.red.withOpacity(0.05),
+          if (auth.isLoading && customer == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          return RefreshIndicator(
+            onRefresh: () => auth.loadUserProfile(),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  // Profile Header Card
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withOpacity(0.02),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10))
+                      ],
                     ),
-                    child: const Text('ĐĂNG XUẤT',
-                        style: TextStyle(
-                            color: Colors.redAccent,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.5,
-                            fontSize: 12)),
+                    child: Column(
+                      children: [
+                        CircleAvatar(
+                          radius: 50,
+                          backgroundColor: const Color(0xffeff6ff),
+                          backgroundImage: user?.avatar != null
+                              ? NetworkImage(user!.avatar!)
+                              : null,
+                          child: user?.avatar == null
+                              ? const Icon(Icons.person,
+                                  size: 50, color: Color(0xff00459a))
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(customer?.name ?? user?.displayName ?? 'Khách hàng',
+                            style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xff0b1c30))),
+                        const SizedBox(height: 4),
+                        Text(customer?.email ?? user?.email ?? '',
+                            style: const TextStyle(
+                                color: Color(0xff94a3b8),
+                                fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 24),
+                        // Stats Row
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _buildStatItem('Đơn hàng', '${customer?.orderCount ?? 0}'),
+                            Container(
+                                width: 1, height: 30, color: const Color(0xfff1f5f9)),
+                            _buildStatItem('Đánh giá',
+                                customer?.averageRating?.toStringAsFixed(1) ?? '5.0'),
+                            Container(
+                                width: 1, height: 30, color: const Color(0xfff1f5f9)),
+                            _buildStatItem('Hạng', 'Bạc'),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 40),
-              ],
+                  const SizedBox(height: 24),
+                  // Menu List
+                  _buildMenuSection([
+                    _MenuItem(Icons.receipt_long_outlined, 'Lịch sử đơn hàng',
+                        () => Navigator.pushNamed(context, '/orders')),
+                    _MenuItem(Icons.location_on_outlined, 'Địa chỉ nhận hàng', 
+                        () => Navigator.pushNamed(context, '/addresses')),
+                    _MenuItem(Icons.favorite_border_rounded, 'Sản phẩm yêu thích', 
+                        () => Navigator.pushNamed(context, '/favorites')),
+                  ]),
+                  const SizedBox(height: 16),
+                  _buildMenuSection([
+                    _MenuItem(Icons.help_outline_rounded, 'Trung tâm hỗ trợ', () {}),
+                    _MenuItem(Icons.info_outline_rounded, 'Về Aquacare', () {}),
+                  ]),
+                  const SizedBox(height: 24),
+                  // Logout Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () async {
+                        await auth.logout();
+                        if (context.mounted) {
+                          Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                        }
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20)),
+                        backgroundColor: Colors.red.withOpacity(0.05),
+                      ),
+                      child: const Text('ĐĂNG XUẤT',
+                          style: TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.5,
+                              fontSize: 12)),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
           );
         },

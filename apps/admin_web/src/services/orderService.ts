@@ -15,131 +15,331 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { getDb } from './authService';
-import { Order, OrderStatus, OrderTechnician } from '../types/order';
+import { Order, OrderStatus, OrderTechnician, CreateOrderDTO, UpdateOrderDTO } from '../types/order';
 
 const COLLECTION_NAME = 'donHang';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper Functions
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
- * Hàm ép kiểu ngày tháng an toàn tuyệt đối 100%
+ * Safe date parsing from multiple formats
  */
 export const safeToDate = (value: any): Date => {
   if (!value) return new Date();
   if (typeof value.toDate === 'function') return value.toDate();
   if (value instanceof Date) return value;
   if (value && typeof value === 'object' && (value.seconds || value._methodName)) {
-     return new Date((value.seconds || Date.now()/1000) * 1000);
+    return new Date((value.seconds || Date.now() / 1000) * 1000);
   }
   const d = new Date(value);
   return isNaN(d.getTime()) ? new Date() : d;
 };
 
 /**
- * Thêm đơn hàng mới
+ * Generate unique order code
  */
-export const addOrder = async (orderData: any) => {
+const generateOrderCode = (): string => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const random = Math.floor(Math.random() * 100000);
+  return `ORD-${year}-${random}`;
+};
+
+/**
+ * Normalize order data for Firestore
+ */
+const normalizeOrderData = (orderData: any) => {
+  return {
+    orderCode: orderData.orderCode || generateOrderCode(),
+    orderType: String(orderData.orderType || 'home'),
+    
+    // Customer Information
+    customerId: String(orderData.customerId || ''),
+    customerName: String(orderData.customerName || 'Khách hàng'),
+    customerEmail: String(orderData.customerEmail || ''),
+    phoneNumber: String(orderData.phoneNumber || ''),
+    
+    // Delivery Address
+    deliveryAddress: {
+      type: orderData.deliveryAddress?.type || 'home',
+      recipientName: String(orderData.deliveryAddress?.recipientName || 'Địa chỉ giao hàng'),
+      street: String(orderData.deliveryAddress?.street || ''),
+      ward: String(orderData.deliveryAddress?.ward || ''),
+      district: String(orderData.deliveryAddress?.district || ''),
+      city: String(orderData.deliveryAddress?.city || ''),
+      wardCode: orderData.deliveryAddress?.wardCode ? Number(orderData.deliveryAddress.wardCode) : null,
+      districtCode: orderData.deliveryAddress?.districtCode ? Number(orderData.deliveryAddress.districtCode) : null,
+      provinceCode: orderData.deliveryAddress?.provinceCode ? Number(orderData.deliveryAddress.provinceCode) : null,
+      latitude: orderData.deliveryAddress?.latitude ? Number(orderData.deliveryAddress.latitude) : null,
+      longitude: orderData.deliveryAddress?.longitude ? Number(orderData.deliveryAddress.longitude) : null,
+    },
+    
+    // Order Items
+    items: (orderData.items || []).map((item: any) => ({
+      id: String(item.id || ''),
+      productId: String(item.productId || ''),
+      productName: String(item.productName || 'Sản phẩm'),
+      imageUrl: item.imageUrl || null,
+      price: Number(item.price) || 0,
+      quantity: Number(item.quantity) || 1,
+      subtotal: Number(item.subtotal) || 0,
+      warrantyPeriod: item.warrantyPeriod ? Number(item.warrantyPeriod) : null,
+    })),
+    
+    // Financial Information
+    subtotal: Number(orderData.subtotal) || 0,
+    discount: Number(orderData.discount) || 0,
+    shippingFee: Number(orderData.shippingFee) || 0,
+    totalAmount: Number(orderData.totalAmount) || 0,
+    
+    // Notes & Status
+    notes: String(orderData.notes || ''),
+    status: String(orderData.status || 'pending'),
+    
+    // Scheduling
+    scheduledDate: orderData.scheduledDate 
+      ? Timestamp.fromDate(new Date(orderData.scheduledDate))
+      : null,
+    scheduledSlot: orderData.scheduledSlot ? {
+      slotId: String(orderData.scheduledSlot.slotId || ''),
+      label: String(orderData.scheduledSlot.label || ''),
+    } : null,
+    
+    // Technicians
+    technicians: (orderData.technicians || []).map((tech: any) => ({
+      id: String(tech.id || ''),
+      name: String(tech.name || ''),
+      phone: String(tech.phone || ''),
+      isPrimary: Boolean(tech.isPrimary || false),
+    })),
+    
+    // Audit Information
+    updatedAt: serverTimestamp(),
+    updatedBy: orderData.updatedBy || null,
+    updatedByName: orderData.updatedByName || null,
+  };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CRUD Operations
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Add new order
+ */
+export const addOrder = async (orderData: CreateOrderDTO) => {
   const db = getDb();
   if (!db) throw new Error("Kết nối Firestore thất bại");
 
-  // Ép kiểu dữ liệu chuẩn để Firestore không từ chối
   const docData = {
-    tenKhachHang: String(orderData.customerName || 'Khách hàng'),
-    phoneNumber: String(orderData.phoneNumber || ''),
-    diaChiGiaoHang: String(orderData.address || ''),
-    street: String(orderData.street || ''),
-    provinceCode: Number(orderData.provinceCode) || null,
-    districtCode: Number(orderData.districtCode) || null,
-    wardCode: Number(orderData.wardCode) || null,
-    latitude: orderData.latitude ? Number(orderData.latitude) : null,
-    longitude: orderData.longitude ? Number(orderData.longitude) : null,
-    tenSanPham: String(orderData.productName || ''),
-    items: (orderData.items || []).map((item: any) => ({
-      id: String(item.id || ''),
-      name: String(item.name || 'Sản phẩm'),
-      price: Number(item.price) || 0,
-      quantity: Number(item.quantity) || 1,
-      imageUrl: item.imageUrl || null
-    })),
-    technicians: orderData.technicians || [],
-    tongTien: Number(orderData.totalAmount) || 0,
-    trangThai: String(orderData.status || 'pending'),
-    loaiDonHang: String(orderData.orderType || 'installation'),
-    note: String(orderData.note || ''),
-    createdBy: orderData.createdBy || null,
-    createdByName: orderData.createdByName || null,
-    ngayTao: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-    scheduledDate: orderData.scheduledDate ? Timestamp.fromDate(new Date(orderData.scheduledDate)) : null,
-    ngayBaoTriTiepTheo: Timestamp.fromDate(new Date(Date.now() + 180 * 24 * 60 * 60 * 1000))
+    ...normalizeOrderData(orderData),
+    createdAt: serverTimestamp(),
   };
 
-  console.log("DEBUG: Gửi đơn hàng lên Firestore", docData);
-  return addDoc(collection(db, COLLECTION_NAME), docData);
+  console.log("DEBUG: Gửi đơn hàng mới lên Firestore", docData);
+  const docRef = await addDoc(collection(db, COLLECTION_NAME), docData);
+  return docRef.id;
 };
 
-export const subscribeToOrders = (callback: (orders: Order[]) => void, statusFilter?: string) => {
+/**
+ * Get order by ID
+ */
+export const getOrderById = async (orderId: string): Promise<Order | null> => {
   const db = getDb();
-  const constraints: QueryConstraint[] = [orderBy('ngayTao', 'desc')];
+  if (!db) throw new Error("Kết nối Firestore thất bại");
+
+  const docRef = doc(db, COLLECTION_NAME, orderId);
+  const docSnap = await getDoc(docRef);
+  
+  if (!docSnap.exists()) return null;
+  
+  return {
+    id: docSnap.id,
+    ...docSnap.data(),
+  } as Order;
+};
+
+/**
+ * Subscribe to orders with real-time updates
+ */
+export const subscribeToOrders = (
+  callback: (orders: Order[]) => void,
+  statusFilter?: string
+) => {
+  const db = getDb();
+  if (!db) {
+    callback([]);
+    return () => {};
+  }
+
+  const constraints: QueryConstraint[] = [orderBy('createdAt', 'desc')];
+  
   if (statusFilter && statusFilter !== 'Tất cả') {
     const statusMap: Record<string, string> = {
-      'Chờ duyệt': 'pending', 'Đã phân công': 'assigned', 'Đang xử lý': 'processing',
-      'Hoàn tất': 'completed', 'Sự cố': 'incident', 'Đã tất toán': 'paid', 'Đã hủy': 'cancelled'
+      'Chờ duyệt': 'pending',
+      'Đã phân công': 'assigned',
+      'Đang xử lý': 'processing',
+      'Hoàn tất': 'completed',
+      'Sự cố': 'incident',
+      'Đã tất toán': 'paid',
+      'Đã hủy': 'cancelled'
     };
-    if (statusMap[statusFilter]) constraints.push(where('trangThai', '==', statusMap[statusFilter]));
+    
+    if (statusMap[statusFilter]) {
+      constraints.push(where('status', '==', statusMap[statusFilter]));
+    }
   }
+
   const q = query(collection(db, COLLECTION_NAME), ...constraints);
+  
   return onSnapshot(q, (snapshot) => {
-    const orders = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        customerName: data.tenKhachHang,
-        productName: data.tenSanPham,
-        totalAmount: data.tongTien,
-        status: data.trangThai,
-        orderType: data.loaiDonHang,
-        address: data.diaChiGiaoHang,
-        createdAt: data.ngayTao,
-        scheduledDate: data.scheduledDate
-      } as any;
-    }).filter(o => o.status !== 'deleted');
+    const orders = snapshot.docs
+      .map((doc) => {
+        const data = doc.data();
+        // Map both old and new field names for backward compatibility
+        return {
+          id: doc.id,
+          orderCode: data.orderCode || '',
+          orderType: data.orderType || data.loaiDonHang || 'home',
+          customerId: data.customerId || '',
+          customerName: data.customerName || data.tenKhachHang || '',
+          customerEmail: data.customerEmail || '',
+          phoneNumber: data.phoneNumber || '',
+          deliveryAddress: data.deliveryAddress || {
+            type: 'home',
+            recipientName: data.tenKhachHang || '',
+            street: data.street || '',
+            ward: '',
+            district: '',
+            city: '',
+          },
+          items: data.items || [],
+          subtotal: data.subtotal || 0,
+          discount: data.discount || 0,
+          shippingFee: data.shippingFee || 0,
+          totalAmount: data.totalAmount || data.tongTien || 0,
+          notes: data.notes || data.note || '',
+          status: data.status || data.trangThai || 'pending',
+          scheduledDate: data.scheduledDate,
+          scheduledSlot: data.scheduledSlot,
+          technicians: data.technicians || [],
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+          updatedBy: data.updatedBy,
+          updatedByName: data.updatedByName,
+          // Legacy fields
+          productName: data.productName || data.tenSanPham || '',
+          address: data.address || '',
+          ...data, // Spread remaining fields
+        } as Order;
+      })
+      .filter((o) => o.status !== 'deleted');
+    
     callback(orders);
   });
 };
 
-export const updateOrder = async (orderId: string, orderData: Partial<Order>) => {
+/**
+ * Update order
+ */
+export const updateOrder = async (
+  orderId: string,
+  updateData: UpdateOrderDTO,
+  updatedBy?: string,
+  updatedByName?: string
+) => {
   const db = getDb();
-  const updateData: any = { ...orderData, updatedAt: serverTimestamp() };
+  if (!db) throw new Error("Kết nối Firestore thất bại");
 
-  // Xử lý các trường mapping ngược nếu cần
-  if (orderData.customerName) updateData.tenKhachHang = orderData.customerName;
-  if (orderData.productName) updateData.tenSanPham = orderData.productName;
-  if (orderData.totalAmount !== undefined) updateData.tongTien = orderData.totalAmount;
-  if (orderData.status) updateData.trangThai = orderData.status;
-  if (orderData.orderType) updateData.loaiDonHang = orderData.orderType;
-  if (orderData.address) updateData.diaChiGiaoHang = orderData.address;
-  if (orderData.scheduledDate) {
-    updateData.scheduledDate = orderData.scheduledDate instanceof Date
-      ? Timestamp.fromDate(orderData.scheduledDate)
-      : Timestamp.fromDate(new Date(orderData.scheduledDate));
-  }
+  const normalized = normalizeOrderData({
+    ...updateData,
+    updatedBy,
+    updatedByName,
+  });
 
-  return updateDoc(doc(db, COLLECTION_NAME, orderId), updateData);
+  // Only include fields that are being updated
+  const updatePayload: any = {};
+  Object.keys(normalized).forEach((key) => {
+    if (key in updateData || key === 'updatedAt' || key === 'updatedBy' || key === 'updatedByName') {
+      updatePayload[key] = normalized[key as keyof typeof normalized];
+    }
+  });
+
+  console.log("DEBUG: Cập nhật đơn hàng", orderId, updatePayload);
+  return updateDoc(doc(db, COLLECTION_NAME, orderId), updatePayload);
 };
 
-export const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
-  return updateDoc(doc(getDb(), COLLECTION_NAME, orderId), { trangThai: status, updatedAt: serverTimestamp() });
-};
+/**
+ * Update order status
+ */
+export const updateOrderStatus = async (
+  orderId: string,
+  status: OrderStatus,
+  updatedBy?: string,
+  updatedByName?: string
+) => {
+  const db = getDb();
+  if (!db) throw new Error("Kết nối Firestore thất bại");
 
-export const assignTechnicians = async (orderId: string, technicians: OrderTechnician[]) => {
-  return updateDoc(doc(getDb(), COLLECTION_NAME, orderId), {
-    technicians,
-    trangThai: 'assigned', // Tự động chuyển trạng thái khi phân công
-    updatedAt: serverTimestamp()
+  return updateDoc(doc(db, COLLECTION_NAME, orderId), {
+    status,
+    updatedAt: serverTimestamp(),
+    updatedBy: updatedBy || null,
+    updatedByName: updatedByName || null,
   });
 };
 
-export const deleteOrder = async (orderId: string, status: OrderStatus) => {
-  if (status === 'pending') return deleteDoc(doc(getDb(), COLLECTION_NAME, orderId));
-  return updateDoc(doc(getDb(), COLLECTION_NAME, orderId), { trangThai: 'deleted', updatedAt: serverTimestamp() });
+/**
+ * Assign technicians to order
+ */
+export const assignTechnicians = async (
+  orderId: string,
+  technicians: OrderTechnician[],
+  updatedBy?: string,
+  updatedByName?: string
+) => {
+  const db = getDb();
+  if (!db) throw new Error("Kết nối Firestore thất bại");
+
+  return updateDoc(doc(db, COLLECTION_NAME, orderId), {
+    technicians: technicians.map((tech) => ({
+      id: tech.id,
+      name: tech.name,
+      phone: tech.phone,
+      isPrimary: tech.isPrimary || false,
+    })),
+    status: 'assigned',
+    updatedAt: serverTimestamp(),
+    updatedBy: updatedBy || null,
+    updatedByName: updatedByName || null,
+  });
+};
+
+/**
+ * Delete order (hard delete for pending, soft delete for others)
+ */
+export const deleteOrder = async (
+  orderId: string,
+  status: OrderStatus,
+  updatedBy?: string,
+  updatedByName?: string
+) => {
+  const db = getDb();
+  if (!db) throw new Error("Kết nối Firestore thất bại");
+
+  if (status === 'pending') {
+    // Hard delete for pending orders
+    return deleteDoc(doc(db, COLLECTION_NAME, orderId));
+  }
+  
+  // Soft delete for other statuses
+  return updateDoc(doc(db, COLLECTION_NAME, orderId), {
+    status: 'deleted',
+    updatedAt: serverTimestamp(),
+    updatedBy: updatedBy || null,
+    updatedByName: updatedByName || null,
+  });
 };
