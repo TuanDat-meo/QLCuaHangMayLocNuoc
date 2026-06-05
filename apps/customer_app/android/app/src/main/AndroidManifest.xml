@@ -3,7 +3,8 @@
     <application
         android:label="customer_app"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <!-- Disable Firebase auto-initialization to avoid duplicate app error -->
         <meta-data
             android:name="com.google.firebase.firebase_analytics_collection_enabled"

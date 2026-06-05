@@ -29,18 +29,18 @@ class ProductSpecs {
 
 class Product {
   final String id;
-  final String name;           // tenSanPham
-  final double price;          // giaBan
+  final String name;           
+  final double price;          
   final double? giaLapDat;
-  final String? danhMuc;       // danhMuc — dùng làm category
+  final String? danhMuc;       
   final String? danhMucId;
-  final List<String> imageUrls; // danhSachAnh
-  final String? moTa;          // moTa — dùng làm description
+  final List<String> imageUrls; 
+  final String? moTa;          
   final String? sku;
   final int? soLuongTon;
   final int? tonKho;
   final String? thuongHieu;
-  final String? trangThai;     // 'Active' = isAvailable
+  final String? trangThai;     
   final List<String> phuKienDiKem;
   final Map<String, String>? thongSoKyThuat;
   final int nguongCanhBao;
@@ -70,27 +70,33 @@ class Product {
     this.ngayCapNhat,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  // ── Computed getters ────────────────────────────────────────────────────────
-
-  /// Alias cho ProductController và ProductsScreen
   String get category => danhMuc ?? '';
-
-  /// Alias cho ProductDetailScreen
   String get description => moTa ?? 'Chưa có mô tả sản phẩm.';
-
-  /// Alias cho ProductDetailScreen, ProductsScreen
   bool get isAvailable => trangThai == 'Active' && (tonKho ?? soLuongTon ?? 0) > 0;
 
-  bool get isLowStock => (tonKho ?? soLuongTon ?? 0) <= nguongCanhBao;
-
-  /// Alias cho ProductDetailScreen specs
   ProductSpecs get specs => ProductSpecs(
     doBen: thongSoKyThuat?['doBen'],
     thoiGianBaoHanh: thongSoKyThuat?['thoiGianBaoHanh'],
   );
 
-  // ── fromMap — dùng cho ProductController.loadProducts() ────────────────────
   factory Product.fromMap(Map<String, dynamic> data, {String id = ''}) {
+    List<String> images = [];
+    
+    // Kiểm tra tất cả các trường có thể chứa link ảnh
+    final rawImages = data['danhSachAnh'] ?? 
+                     data['imageUrls'] ?? 
+                     data['hinhAnh'] ?? 
+                     data['image'] ?? 
+                     data['url'] ?? 
+                     data['linkAnh'] ??
+                     data['imageUrl']; // Thêm các trường này
+    
+    if (rawImages is List) {
+      images = List<String>.from(rawImages.map((e) => e.toString()));
+    } else if (rawImages is String && rawImages.isNotEmpty) {
+      images = [rawImages];
+    }
+
     return Product(
       id: id.isNotEmpty ? id : (data['id'] as String? ?? ''),
       name: data['tenSanPham'] as String? ?? data['name'] as String? ?? '',
@@ -98,7 +104,7 @@ class Product {
       giaLapDat: (data['giaLapDat'] as num?)?.toDouble(),
       danhMuc: data['danhMuc'] as String? ?? data['category'] as String?,
       danhMucId: data['danhMucId'] as String?,
-      imageUrls: List<String>.from(data['danhSachAnh'] as List? ?? data['imageUrls'] as List? ?? []),
+      imageUrls: images,
       moTa: data['moTa'] as String? ?? data['description'] as String?,
       sku: data['sku'] as String?,
       soLuongTon: data['soLuongTon'] as int?,
@@ -112,94 +118,6 @@ class Product {
       createdAt: _parseTimestamp(data['createdAt']) ?? DateTime.now(),
       ngayCapNhat: _parseTimestamp(data['ngayCapNhat']),
     );
-  }
-
-  // ── fromFirestore — dùng trực tiếp với DocumentSnapshot ────────────────────
-  factory Product.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return Product.fromMap(data, id: doc.id);
-  }
-
-  Map<String, dynamic> toFirestore() {
-    return {
-      'tenSanPham': name,
-      'giaBan': price,
-      'giaLapDat': giaLapDat,
-      'danhMuc': danhMuc,
-      'danhMucId': danhMucId,
-      'danhSachAnh': imageUrls,
-      'moTa': moTa,
-      'sku': sku,
-      'soLuongTon': soLuongTon,
-      'tonKho': tonKho,
-      'thuongHieu': thuongHieu,
-      'trangThai': trangThai,
-      'phuKienDiKem': phuKienDiKem,
-      'thongSoKyThuat': thongSoKyThuat,
-      'nguongCanhBao': nguongCanhBao,
-      'createdAt': createdAt,
-      'ngayCapNhat': ngayCapNhat ?? DateTime.now(),
-      'averageRating': averageRating,
-    };
-  }
-
-  Product copyWith({
-    String? id,
-    String? name,
-    double? price,
-    double? giaLapDat,
-    String? danhMuc,
-    String? danhMucId,
-    List<String>? imageUrls,
-    String? moTa,
-    String? sku,
-    int? soLuongTon,
-    int? tonKho,
-    String? thuongHieu,
-    String? trangThai,
-    List<String>? phuKienDiKem,
-    Map<String, String>? thongSoKyThuat,
-    int? nguongCanhBao,
-    double? averageRating,
-    DateTime? createdAt,
-    DateTime? ngayCapNhat,
-  }) {
-    return Product(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      price: price ?? this.price,
-      giaLapDat: giaLapDat ?? this.giaLapDat,
-      danhMuc: danhMuc ?? this.danhMuc,
-      danhMucId: danhMucId ?? this.danhMucId,
-      imageUrls: imageUrls ?? this.imageUrls,
-      moTa: moTa ?? this.moTa,
-      sku: sku ?? this.sku,
-      soLuongTon: soLuongTon ?? this.soLuongTon,
-      tonKho: tonKho ?? this.tonKho,
-      thuongHieu: thuongHieu ?? this.thuongHieu,
-      trangThai: trangThai ?? this.trangThai,
-      phuKienDiKem: phuKienDiKem ?? this.phuKienDiKem,
-      thongSoKyThuat: thongSoKyThuat ?? this.thongSoKyThuat,
-      nguongCanhBao: nguongCanhBao ?? this.nguongCanhBao,
-      averageRating: averageRating ?? this.averageRating,
-      createdAt: createdAt ?? this.createdAt,
-      ngayCapNhat: ngayCapNhat ?? this.ngayCapNhat,
-    );
-  }
-
-  // ── Private helpers ─────────────────────────────────────────────────────────
-
-  static double _parsePrice(dynamic value) {
-    if (value == null) return 0;
-    if (value is num) return value.toDouble();
-    final str = value.toString().replaceAll(',', '').replaceAll('.', '');
-    return double.tryParse(str) ?? 0;
-  }
-
-  static List<String> _parseList(dynamic value) {
-    if (value == null) return [];
-    if (value is List) return value.map((e) => e.toString()).toList();
-    return [];
   }
 
   static Map<String, String>? _parseStringMap(dynamic value) {

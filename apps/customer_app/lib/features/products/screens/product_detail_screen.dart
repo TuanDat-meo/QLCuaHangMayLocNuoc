@@ -31,6 +31,10 @@ class ProductDetailScreen extends StatelessWidget {
                 ? Image.network(
                     imageUrl,
                     fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return const Center(child: CircularProgressIndicator());
+                    },
                     errorBuilder: (context, error, stackTrace) => _buildImagePlaceholder(),
                   )
                 : _buildImagePlaceholder(),
@@ -99,7 +103,7 @@ class ProductDetailScreen extends StatelessWidget {
                   // Specifications
                   const Text('Thông số kỹ thuật', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xff0b1c30))),
                   const SizedBox(height: 16),
-                  _buildSpecRow('Thương hiệu', 'Aquacare'),
+                  _buildSpecRow('Thương hiệu', product.thuongHieu ?? 'Aquacare'),
                   _buildSpecRow('Model', product.specs.model ?? 'N/A'),
                   _buildSpecRow('Công suất', '${product.specs.capacity ?? 'N/A'} L/h'),
                   _buildSpecRow('Bảo hành', '${product.specs.warrantyYears ?? 2} năm'),
@@ -157,7 +161,7 @@ class ProductDetailScreen extends StatelessWidget {
                     backgroundColor: const Color(0xff00459a),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: const Text('THÊM VÀO GIỎ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+                  child: const Text('THÊM VÀO GIỎ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
                 ),
               ),
             ),

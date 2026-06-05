@@ -72,7 +72,6 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
           Center(
             child: ElevatedButton(
               onPressed: () {
-                // Sửa lỗi: Navigator đúng cho router của bạn ('/') và đóng ngoặc hàm
                 Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
               },
               style: ElevatedButton.styleFrom(
@@ -135,12 +134,54 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                   _buildInfoCard(
                     'CHI TIẾT ĐƠN HÀNG',
                     cart.items.map((item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.only(bottom: 12),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(child: Text('${item.productName} x${item.quantity}', style: const TextStyle(fontSize: 13))),
-                          Text('${(item.price * item.quantity).toInt()}đ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors.grey[100],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: item.imageUrl != null
+                                  ? Image.network(
+                                      item.imageUrl!,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                                      },
+                                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, size: 20, color: Colors.grey),
+                                    )
+                                  : const Icon(Icons.image_outlined, size: 20, color: Colors.grey),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.productName,
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  'Số lượng: ${item.quantity}',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${(item.price * item.quantity).toInt()}đ',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xff00459a)),
+                          ),
                         ],
                       ),
                     )).toList(),

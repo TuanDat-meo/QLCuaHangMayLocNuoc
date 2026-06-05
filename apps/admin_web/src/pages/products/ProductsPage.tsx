@@ -736,9 +736,10 @@ const ProductsPage: React.FC = () => {
 
                         {/* Hàng tiêu đề danh sách - Chỉ hiển thị trên Desktop */}
                         <div className="hidden md:grid grid-cols-12 gap-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                           <div className="col-span-4">Thông tin sản phẩm</div>
+                           <div className="col-span-3">Thông tin sản phẩm</div>
                            <div className="col-span-2">Số lượng</div>
                            <div className="col-span-2">Đơn giá nhập</div>
+                           <div className="col-span-2">Thành tiền</div>
                            <div className="col-span-2">Giá niêm yết</div>
                         </div>
 
@@ -752,7 +753,7 @@ const ProductsPage: React.FC = () => {
                            {importItems.map((item, index) => (
                               <div key={index} className="flex flex-col p-4 bg-slate-50/50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 gap-4">
                                  <div className="grid grid-cols-12 gap-3 items-center">
-                                    <div className="col-span-12 md:col-span-4">
+                                    <div className="col-span-12 md:col-span-3">
                                       <label className="md:hidden text-[9px] font-black text-slate-400 uppercase mb-1 block">Sản phẩm</label>
                                       <div className="relative">
                                         <input list="product-suggestions" placeholder="Tên sản phẩm nhập..." value={item.productName}
@@ -779,22 +780,28 @@ const ProductsPage: React.FC = () => {
                                           {errors[`item_${index}_productName`] && <p className="text-[8px] text-rose-500 font-bold mt-1 ml-1">{errors[`item_${index}_productName`]}</p>}
                                       </div>
                                     </div>
-                                    <div className="col-span-4 md:col-span-2">
+                                    <div className="col-span-3 md:col-span-2">
                                       <label className="md:hidden text-[9px] font-black text-slate-400 uppercase mb-1 block">Số lượng</label>
                                       <input type="number" placeholder="Số lượng" value={item.quantity} onChange={(e) => { const newItems = [...importItems]; newItems[index].quantity = Number(e.target.value); setImportItems(newItems); }} className={`w-full px-5 py-3.5 bg-white dark:bg-slate-800 border-none rounded-xl outline-none font-bold text-xs dark:text-white shadow-sm ${errors[`item_${index}_quantity`] ? 'ring-2 ring-rose-500/50' : ''}`} />
                                       {errors[`item_${index}_quantity`] && <p className="text-[8px] text-rose-500 font-bold mt-1 ml-1">{errors[`item_${index}_quantity`]}</p>}
                                     </div>
-                                    <div className="col-span-4 md:col-span-2">
-                                      <label className="md:hidden text-[9px] font-black text-slate-400 uppercase mb-1 block">Giá nhập</label>
-                                      <input type="number" placeholder="Giá nhập" value={item.importPrice} onChange={(e) => { const newItems = [...importItems]; newItems[index].importPrice = Number(e.target.value); setImportItems(newItems); }} className={`w-full px-5 py-3.5 bg-white dark:bg-slate-800 border-none rounded-xl outline-none font-bold text-xs dark:text-white shadow-sm ${errors[`item_${index}_importPrice`] ? 'ring-2 ring-rose-500/50' : ''}`} />
+                                    <div className="col-span-3 md:col-span-2">
+                                      <label className="md:hidden text-[9px] font-black text-slate-400 uppercase mb-1 block">Đơn giá nhập</label>
+                                      <input type="number" placeholder="Đơn giá nhập" value={item.importPrice} onChange={(e) => { const newItems = [...importItems]; newItems[index].importPrice = Number(e.target.value); setImportItems(newItems); }} className={`w-full px-5 py-3.5 bg-white dark:bg-slate-800 border-none rounded-xl outline-none font-bold text-xs dark:text-white shadow-sm ${errors[`item_${index}_importPrice`] ? 'ring-2 ring-rose-500/50' : ''}`} />
                                       {errors[`item_${index}_importPrice`] && <p className="text-[8px] text-rose-500 font-bold mt-1 ml-1">{errors[`item_${index}_importPrice`]}</p>}
                                     </div>
-                                    <div className="col-span-4 md:col-span-2">
+                                    <div className="col-span-3 md:col-span-2">
+                                      <label className="md:hidden text-[9px] font-black text-slate-400 uppercase mb-1 block">Thành tiền</label>
+                                      <div className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-black text-[11px] text-[#00459a] shadow-inner flex items-center h-[42px] overflow-hidden whitespace-nowrap text-ellipsis">
+                                         {((Number(item.quantity) || 0) * (Number(item.importPrice) || 0)).toLocaleString()}đ
+                                      </div>
+                                    </div>
+                                    <div className="col-span-3 md:col-span-2">
                                       <label className="md:hidden text-[9px] font-black text-slate-400 uppercase mb-1 block">Giá bán</label>
                                       <input type="number" placeholder="Giá bán" value={item.sellingPrice} onChange={(e) => { const newItems = [...importItems]; newItems[index].sellingPrice = Number(e.target.value); setImportItems(newItems); }} className={`w-full px-5 py-3.5 bg-white dark:bg-slate-800 border-none rounded-xl outline-none font-bold text-xs dark:text-white shadow-sm ${errors[`item_${index}_sellingPrice`] ? 'ring-2 ring-rose-500/50' : ''}`} />
                                       {errors[`item_${index}_sellingPrice`] && <p className="text-[8px] text-rose-500 font-bold mt-1 ml-1">{errors[`item_${index}_sellingPrice`]}</p>}
                                     </div>
-                                    <div className="col-span-12 md:col-span-2 flex items-center justify-end gap-1">
+                                    <div className="col-span-12 md:col-span-1 flex items-center justify-end gap-1">
                                        <button type="button" onClick={() => toggleRowExpansion(index)} className="p-2 text-slate-400 hover:text-blue-500 transition-all" title="Thông tin chi tiết (cho SP mới)">
                                           {expandedRows.includes(index) ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                                        </button>
