@@ -325,6 +325,8 @@ export const updateOrder = async (orderId: string, orderData: any) => {
       const newSched = orderData.scheduledDate;
       const oldTime = oldSched ? (oldSched.toDate ? oldSched.toDate().getTime() : new Date(oldSched).getTime()) : 0;
       const newTime = newSched instanceof Date ? newSched.getTime() : new Date(newSched).getTime();
+      // Duy Binh sua cai nay
+      orderData.scheduledDate = Timestamp.fromDate(new Date(orderData.scheduledDate));
 
       if (oldTime !== newTime) {
         isScheduledDateChanged = true;
