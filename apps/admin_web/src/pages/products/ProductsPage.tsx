@@ -91,18 +91,53 @@ const ProductsPage: React.FC = () => {
   }), [products]);
 
   const filteredData = () => {
-    const term = searchTerm.toLowerCase();
+    const term = searchTerm.toLowerCase().trim();
     if (activeTab === 'products') {
-      return products.filter(p =>
-        p.trangThai !== 'Inactive' &&
-        (p.tenSanPham.toLowerCase().includes(term) || (p.sku || '').toLowerCase().includes(term) || (p.nhaCungCap || '').toLowerCase().includes(term)) &&
-        (selectedCategory === 'Tất cả' || p.danhMuc === selectedCategory)
-      );
+      return products.filter(p => {
+        const matchesStatus = p.trangThai !== 'Inactive';
+        const matchesCategory = selectedCategory === 'Tất cả' || p.danhMuc === selectedCategory;
+
+        if (!term) return matchesStatus && matchesCategory;
+
+        const searchFields = [
+          p.tenSanPham,
+          p.sku,
+          p.nhaCungCap,
+          p.danhMuc,
+          p.moTa,
+          p.giaBan?.toString()
+        ].map(v => (v || '').toLowerCase());
+
+        const matchesSearch = searchFields.some(field => field.includes(term));
+        return matchesStatus && matchesCategory && matchesSearch;
+      });
     }
+
     if (activeTab === 'suppliers') {
-      return suppliers.filter(s => s.name.toLowerCase().includes(term) || (s.phone || '').includes(term));
+      return suppliers.filter(s => {
+        if (!term) return true;
+        const searchFields = [
+          s.name,
+          s.phone,
+          s.email,
+          s.address,
+          s.taxCode
+        ].map(v => (v || '').toLowerCase());
+        return searchFields.some(field => field.includes(term));
+      });
     }
-    return imports.filter(i => (i.supplierName || '').toLowerCase().includes(term) || i.id.toLowerCase().includes(term));
+
+    return imports.filter(i => {
+      if (!term) return true;
+      const searchFields = [
+        i.id,
+        i.supplierName,
+        i.createdByName,
+        i.note,
+        i.totalAmount?.toString()
+      ].map(v => (v || '').toLowerCase());
+      return searchFields.some(field => field.includes(term));
+    });
   };
 
   const handleProductSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

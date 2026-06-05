@@ -61,14 +61,23 @@ const DevicesPage: React.FC = () => {
   };
 
   const filteredDevices = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
     return devices.filter(d => {
-      const matchesSearch =
-        d.serial_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.did?.toLowerCase().includes(searchTerm.toLowerCase());
-
       const matchesStatus = statusFilter === 'All' || d.status === statusFilter;
+
+      if (!term) return matchesStatus;
+
+      const searchFields = [
+        d.serial_number,
+        d.customer_name,
+        d.customer_phone,
+        d.product_name,
+        d.did,
+        d.notes,
+        d.address
+      ].map(v => (v || '').toLowerCase());
+
+      const matchesSearch = searchFields.some(field => field.includes(term));
 
       return matchesSearch && matchesStatus;
     });
@@ -165,7 +174,7 @@ const DevicesPage: React.FC = () => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600" size={18} />
             <input
               type="text"
-              placeholder="Tìm theo Serial, Tên khách hàng, Sản phẩm..."
+              placeholder="Tìm theo Serial, Tên khách hàng, Sản phẩm, SĐT, Ghi chú..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/50 rounded-2xl outline-none focus:ring-2 ring-blue-500/10 font-bold text-xs uppercase dark:text-white placeholder:normal-case"

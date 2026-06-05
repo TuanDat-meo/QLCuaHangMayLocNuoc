@@ -22,7 +22,7 @@ export interface AuthUser {
   updatedAt: Date;
   avatar?: string;
   isVerified: boolean;
-  status: 'active' | 'pending' | 'blocked' | 'resigned';
+  status: 'active' | 'pending' | 'blocked' | 'resigned' | 'deleted';
   source: 'admin_web' | 'customer_app' | 'technician_app';
   // Salary fields
   baseSalary?: number;
