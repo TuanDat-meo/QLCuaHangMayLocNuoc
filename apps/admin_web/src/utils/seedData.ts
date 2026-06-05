@@ -27,8 +27,8 @@ const PRODUCTS = [
 ];
 
 const TECHS = [
-  { uid: 'SEED-TECH-01', displayName: 'Nguyễn Hoàng Nam', role: UserRole.TECHNICIAN, email: 'nam.tech@aquacare.vn' },
-  { uid: 'SEED-TECH-02', displayName: 'Trần Văn Đức', role: UserRole.TECHNICIAN, email: 'duc.tech@aquacare.vn' },
+  { uid: 'SEED-TECH-01', displayName: 'Nguyễn Hoàng Nam', role: UserRole.TECHNICIAN, email: 'nam.tech@aquacare.vn', baseSalary: 5000000, commissionPerOrder: 150000 },
+  { uid: 'SEED-TECH-02', displayName: 'Trần Văn Đức', role: UserRole.TECHNICIAN, email: 'duc.tech@aquacare.vn', baseSalary: 5000000, commissionPerOrder: 150000 },
 ];
 
 const LOCATIONS = [
@@ -53,6 +53,12 @@ export const seedData = async (shouldClear: boolean = false) => {
   for (const t of TECHS) {
     await setDoc(doc(db, 'nguoiDung', t.uid), { ...t, status: 'active', phoneNumber: randomPhone(), isVerified: true, source: 'admin_web', updatedAt: serverTimestamp() }, { merge: true });
   }
+
+  // Khởi tạo object lưu trữ thống kê lương KTV
+  const techStats: Record<string, Record<string, { totalOrders: number; tips: number }>> = {};
+  TECHS.forEach(t => {
+    techStats[t.uid] = {};
+  });
 
   // 2. Seed 60 Đơn hàng
   for (let i = 0; i < 60; i++) {
@@ -136,6 +142,61 @@ export const seedData = async (shouldClear: boolean = false) => {
         install_date: Timestamp.fromDate(orderDate),
         warranty_until: Timestamp.fromDate(warrantyUntil),
         status: 'active', isSeedData: true, created_at: Timestamp.fromDate(orderDate)
+      }, { merge: true });
+
+      // Tính toán thống kê lương cho KTV
+      if (orderData.technicians.length > 0) {
+        const techId = orderData.technicians[0].id;
+        const monthStr = `${orderDate.getMonth() + 1}-${orderDate.getFullYear()}`;
+        if (!techStats[techId][monthStr]) {
+          techStats[techId][monthStr] = { totalOrders: 0, tips: 0 };
+        }
+        techStats[techId][monthStr].totalOrders += 1;
+        // Tip ngẫu nhiên cho mỗi đơn hoàn thành (tỉ lệ 50% có tip từ 50k - 100k)
+        if (Math.random() > 0.5) {
+          techStats[techId][monthStr].tips += (Math.floor(Math.random() * 2) + 1) * 50000;
+        }
+      }
+    }
+  }
+
+  // --- 5. TỰ ĐỘNG SINH BẢNG LƯƠNG KTV ---
+  console.log('📦 Đang tạo Bảng lương cho Kỹ thuật viên...');
+  for (const techId of Object.keys(techStats)) {
+    const techInfo = TECHS.find(t => t.uid === techId);
+    for (const monthStr of Object.keys(techStats[techId])) {
+      const stats = techStats[techId][monthStr];
+      const baseSalary = techInfo?.baseSalary || 5000000;
+      const commissionAmount = stats.totalOrders * (techInfo?.commissionPerOrder || 150000);
+      
+      // Thưởng thêm nếu làm trên 10 đơn/tháng
+      let bonus = 0;
+      if (stats.totalOrders >= 10) {
+        bonus = 500000;
+      } else if (stats.totalOrders >= 15) {
+        bonus = 1000000;
+      }
+
+      const totalSalary = baseSalary + commissionAmount + stats.tips + bonus;
+      const [month, year] = monthStr.split('-');
+
+      const salaryId = `SALARY-${techId}-${month}-${year}`;
+      await setDoc(doc(db, 'bangLuong', salaryId), {
+        id: salaryId,
+        technicianId: techId,
+        technicianName: techInfo?.displayName,
+        month: parseInt(month),
+        year: parseInt(year),
+        baseSalary: baseSalary,
+        totalOrdersCompleted: stats.totalOrders,
+        commissionAmount: commissionAmount,
+        tips: stats.tips,
+        bonus: bonus,
+        totalSalary: totalSalary,
+        status: 'paid',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        isSeedData: true
       }, { merge: true });
     }
   }

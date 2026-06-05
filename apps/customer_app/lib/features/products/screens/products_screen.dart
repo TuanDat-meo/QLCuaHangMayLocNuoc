@@ -154,6 +154,10 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String imageUrl = product.imageUrls.isNotEmpty 
+        ? product.imageUrls.first 
+        : 'https://via.placeholder.com/150';
+
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, '/product-detail', arguments: product),
       child: Container(
@@ -168,13 +172,30 @@ class _ProductCard extends StatelessWidget {
             Expanded(
               child: Stack(
                 children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                      image: DecorationImage(
-                        image: NetworkImage(product.imageUrls.isNotEmpty ? product.imageUrls.first : 'https://via.placeholder.com/150'),
-                        fit: BoxFit.cover,
-                      ),
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                    child: Image.network(
+                      imageUrl,
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: const Color(0xfff1f5f9),
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: const Color(0xfff1f5f9),
+                          width: double.infinity,
+                          height: double.infinity,
+                          child: const Icon(Icons.broken_image, color: Colors.grey),
+                        );
+                      },
                     ),
                   ),
                   Positioned(
