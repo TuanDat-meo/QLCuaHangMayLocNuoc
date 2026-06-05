@@ -487,6 +487,7 @@ class JobController extends ChangeNotifier {
     void handleSnapshot(QuerySnapshot snapshot) {
       _hasFirestoreData = true;
       final List<JobModel> newlyAddedJobs = [];
+      final List<JobModel> modifiedJobs = [];
 
       for (final doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
@@ -510,14 +511,24 @@ class JobController extends ChangeNotifier {
 
         if (isMyJob) {
           final jobModel = _docToJobModel(doc);
-          if (!jobsMap.containsKey(doc.id) && !isFirstSnapshot) {
-            newlyAddedJobs.add(jobModel);
+          if (!jobsMap.containsKey(doc.id)) {
+            if (!isFirstSnapshot) {
+              newlyAddedJobs.add(jobModel);
+            }
+          } else {
+            final oldJob = jobsMap[doc.id]!;
+            if (oldJob.status != jobModel.status ||
+                oldJob.scheduledDate != jobModel.scheduledDate ||
+                oldJob.appointmentTime != jobModel.appointmentTime) {
+              modifiedJobs.add(jobModel);
+            }
           }
           jobsMap[doc.id] = jobModel;
         } else {
           if (jobsMap.containsKey(doc.id)) {
             final oldJob = jobsMap[doc.id]!;
             NotificationService.instance.cancelNotification(oldJob.id.hashCode);
+            NotificationService.instance.cancelNotification(oldJob.id.hashCode + 100000);
           }
           jobsMap.remove(doc.id);
         }
@@ -527,6 +538,7 @@ class JobController extends ChangeNotifier {
         if (change.type == DocumentChangeType.removed) {
           final docId = change.doc.id;
           NotificationService.instance.cancelNotification(docId.hashCode);
+          NotificationService.instance.cancelNotification(docId.hashCode + 100000);
           jobsMap.remove(docId);
         }
       }
@@ -537,6 +549,7 @@ class JobController extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
 
+      // Xử lý các job mới được thêm
       if (newlyAddedJobs.isNotEmpty) {
         for (final job in newlyAddedJobs) {
           NotificationService.instance.showLocalNotificationDirect(
@@ -545,28 +558,68 @@ class JobController extends ChangeNotifier {
             body: 'Đơn hàng #${job.id}\nKH: ${job.customerName} - ${job.address}',
             payloadData: {'jobId': job.id, 'type': 'new_job'},
           );
+
+          final schedDate = job.scheduledDate;
+          if (schedDate != null &&
+              job.status != JobStatus.completed &&
+              job.status != JobStatus.needSupport &&
+              job.status != JobStatus.arrived) {
+            final reminderTime = schedDate.subtract(const Duration(hours: 1));
+            if (reminderTime.isAfter(DateTime.now())) {
+              NotificationService.instance.scheduleNotification(
+                id: job.id.hashCode + 100000,
+                title: '⏰ Nhắc nhở: Sắp đến giờ hẹn lịch làm việc!',
+                body: 'Đơn hàng #${job.id} của KH ${job.customerName} sẽ bắt đầu lúc ${job.appointmentTime}.',
+                scheduledDateTime: reminderTime,
+              );
+            }
+          }
         }
       }
 
-      for (final job in _jobs) {
-        final schedDate = job.scheduledDate;
-        if (job.status == JobStatus.completed ||
-            job.status == JobStatus.needSupport ||
-            job.status == JobStatus.arrived ||
-            schedDate == null) {
-          NotificationService.instance.cancelNotification(job.id.hashCode);
-        } else {
-          final reminderTime = schedDate.subtract(const Duration(hours: 1));
-          final now = DateTime.now();
-          if (reminderTime.isAfter(now)) {
-            NotificationService.instance.scheduleNotification(
-              id: job.id.hashCode,
-              title: '⏰ Nhắc nhở: Sắp đến giờ hẹn lịch làm việc!',
-              body: 'Đơn hàng #${job.id} của KH ${job.customerName} sẽ bắt đầu lúc ${job.appointmentTime}.',
-              scheduledDateTime: reminderTime,
-            );
-          } else {
+      // Xử lý các job bị sửa đổi
+      if (modifiedJobs.isNotEmpty) {
+        for (final job in modifiedJobs) {
+          if (job.status == JobStatus.completed ||
+              job.status == JobStatus.needSupport ||
+              job.status == JobStatus.arrived) {
             NotificationService.instance.cancelNotification(job.id.hashCode);
+            NotificationService.instance.cancelNotification(job.id.hashCode + 100000);
+          } else {
+            NotificationService.instance.cancelNotification(job.id.hashCode + 100000);
+            final schedDate = job.scheduledDate;
+            if (schedDate != null) {
+              final reminderTime = schedDate.subtract(const Duration(hours: 1));
+              if (reminderTime.isAfter(DateTime.now())) {
+                NotificationService.instance.scheduleNotification(
+                  id: job.id.hashCode + 100000,
+                  title: '⏰ Nhắc nhở: Sắp đến giờ hẹn lịch làm việc!',
+                  body: 'Đơn hàng #${job.id} của KH ${job.customerName} sẽ bắt đầu lúc ${job.appointmentTime}.',
+                  scheduledDateTime: reminderTime,
+                );
+              }
+            }
+          }
+        }
+      }
+
+      // Lên lịch nhắc nhở lần đầu cho toàn bộ job hiện có
+      if (isFirstSnapshot) {
+        for (final job in jobsMap.values) {
+          final schedDate = job.scheduledDate;
+          if (schedDate != null &&
+              job.status != JobStatus.completed &&
+              job.status != JobStatus.needSupport &&
+              job.status != JobStatus.arrived) {
+            final reminderTime = schedDate.subtract(const Duration(hours: 1));
+            if (reminderTime.isAfter(DateTime.now())) {
+              NotificationService.instance.scheduleNotification(
+                id: job.id.hashCode + 100000,
+                title: '⏰ Nhắc nhở: Sắp đến giờ hẹn lịch làm việc!',
+                body: 'Đơn hàng #${job.id} của KH ${job.customerName} sẽ bắt đầu lúc ${job.appointmentTime}.',
+                scheduledDateTime: reminderTime,
+              );
+            }
           }
         }
       }
