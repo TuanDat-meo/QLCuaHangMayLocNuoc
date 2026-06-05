@@ -30,6 +30,8 @@ class AuthUser {
   final String? source;
   final String? address;
   final List<String>? specializations;
+  final double? baseSalary;
+  final double? commissionPerOrder;
 
   AuthUser({
     required this.uid,
@@ -45,6 +47,8 @@ class AuthUser {
     this.source,
     this.address,
     this.specializations,
+    this.baseSalary = 0.0,
+    this.commissionPerOrder = 500000.0,
   });
 
   AuthUser copyWith({
@@ -61,6 +65,8 @@ class AuthUser {
     String? source,
     String? address,
     List<String>? specializations,
+    double? baseSalary,
+    double? commissionPerOrder,
   }) {
     return AuthUser(
       uid: uid ?? this.uid,
@@ -76,6 +82,8 @@ class AuthUser {
       source: source ?? this.source,
       address: address ?? this.address,
       specializations: specializations ?? this.specializations,
+      baseSalary: baseSalary ?? this.baseSalary,
+      commissionPerOrder: commissionPerOrder ?? this.commissionPerOrder,
     );
   }
 
@@ -83,6 +91,13 @@ class AuthUser {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     String status = data['status'] ?? 'pending';
     bool verified = (status == 'active');
+
+    final double? baseSalary = (data['baseSalary'] is num)
+        ? (data['baseSalary'] as num).toDouble()
+        : null;
+    final double? commissionPerOrder = (data['commissionPerOrder'] is num)
+        ? (data['commissionPerOrder'] as num).toDouble()
+        : null;
 
     return AuthUser(
       uid: firebaseUser.uid,
@@ -101,6 +116,8 @@ class AuthUser {
       specializations: data['specializations'] != null
           ? List<String>.from(data['specializations'])
           : null,
+      baseSalary: baseSalary,
+      commissionPerOrder: commissionPerOrder,
     );
   }
 }

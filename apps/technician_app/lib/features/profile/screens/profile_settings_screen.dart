@@ -4,9 +4,12 @@ import 'package:shared/theme/app_colors.dart';
 import 'package:shared/theme/app_text_styles.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared/services/auth_service.dart';
+import 'package:intl/intl.dart';
 import '../../../controllers/auth_controller.dart';
 import '../../../controllers/profile_controller.dart';
+import '../../../controllers/job_controller.dart';
 import 'edit_profile_screen.dart';
+import 'salary_screen.dart';
 
 class ProfileSettingsScreen extends StatefulWidget {
   const ProfileSettingsScreen({super.key});
@@ -465,6 +468,14 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   Widget build(BuildContext context) {
     final authController = context.watch<AuthController>();
     final user = authController.currentUser;
+    final jobController = context.watch<JobController>();
+    
+    final completedCount = jobController.jobs
+        .where((j) => j.status == JobStatus.completed)
+        .length;
+    final double baseSalary = user?.baseSalary ?? 0.0;
+    final double commissionPerOrder = user?.commissionPerOrder ?? 500000.0;
+    final double totalIncome = baseSalary + (completedCount * commissionPerOrder);
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -478,6 +489,10 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           children: [
             // 1. Profile header card
             _buildProfileHeaderCard(user),
+            const SizedBox(height: 16),
+
+            // 1b. Tra cứu Lương & Thưởng Card
+            _buildSalaryCard(user, totalIncome),
             const SizedBox(height: 16),
 
             // 2. Chuyên môn nghề nghiệp
@@ -653,6 +668,77 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildSalaryCard(dynamic user, double totalIncome) {
+    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ', decimalDigits: 0);
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xfff1f5f9)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SalaryScreen()),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xffecfdf5),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.payments_outlined,
+                    color: Color(0xff10b981),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Tra cứu Lương & Thưởng',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Thu nhập tạm tính: ${currencyFormatter.format(totalIncome)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xff10b981),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right,
+                  color: Color(0xff64748b),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
