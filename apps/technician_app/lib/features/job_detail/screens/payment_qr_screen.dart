@@ -429,10 +429,10 @@ class _PaymentQRScreenState extends State<PaymentQRScreen> {
             backgroundColor: const Color(0xff10b981),
           ),
         );
-        // Đóng màn hình sau 1.5 giây để KTV quay lại hóa đơn/chi tiết
+        // Quay về màn hình chính ngay sau 1.5 giây
         Future.delayed(const Duration(milliseconds: 1500), () {
           if (mounted) {
-            Navigator.pop(context, true);
+            Navigator.of(context).popUntil((route) => route.isFirst);
           }
         });
       } else {

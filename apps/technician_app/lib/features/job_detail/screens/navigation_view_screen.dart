@@ -749,18 +749,19 @@ class _NavigationViewScreenState extends State<NavigationViewScreen>
             child: TextButton.icon(
               onPressed: () {
                 final ctrl = context.read<JobController>();
-                final currentJob = ctrl.jobs.firstWhere(
-                  (j) => j.id == widget.jobId,
-                );
-                if (currentJob.status == JobStatus.waiting) {
-                  ctrl.updateJobStatus(widget.jobId, JobStatus.onTheWay);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content:
-                          Text('✅ Đã cập nhật: Đang di chuyển đến khách hàng'),
-                      backgroundColor: Color(0xff0284c7),
-                    ),
-                  );
+                final jobIndex = ctrl.jobs.indexWhere((j) => j.id == widget.jobId);
+                if (jobIndex != -1) {
+                  final currentJob = ctrl.jobs[jobIndex];
+                  if (currentJob.status == JobStatus.waiting) {
+                    ctrl.updateJobStatus(widget.jobId, JobStatus.onTheWay);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content:
+                            Text('✅ Đã cập nhật: Đang di chuyển đến khách hàng'),
+                        backgroundColor: Color(0xff0284c7),
+                      ),
+                    );
+                  }
                 }
               },
               icon: const Icon(Icons.local_shipping_outlined, size: 16),

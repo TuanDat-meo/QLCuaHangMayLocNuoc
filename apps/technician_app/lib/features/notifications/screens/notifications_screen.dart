@@ -50,54 +50,31 @@ class NotificationsScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Container(
+                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
                         color: fcmToken != null
                             ? const Color(0xff10b981).withValues(alpha: 0.1)
-                            : Colors.red.withValues(alpha: 0.1),
+                            : Colors.orange.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        fcmToken != null ? Icons.notifications_active : Icons.notifications_off,
+                        fcmToken != null ? Icons.notifications_active : Icons.sync_lock,
                         size: 16,
-                        color: fcmToken != null ? const Color(0xff10b981) : Colors.red,
+                        color: fcmToken != null ? const Color(0xff10b981) : Colors.orange,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      fcmToken != null ? 'FCM đã kết nối' : 'FCM chưa kết nối',
+                      fcmToken != null ? 'FCM đã kết nối' : 'Đang dùng Firestore Realtime (Emulator)',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        color: fcmToken != null ? const Color(0xff10b981) : Colors.red,
+                        color: fcmToken != null ? const Color(0xff10b981) : Colors.orange,
                       ),
                     ),
                     const Spacer(),
-                    // Nút Test thông báo
-                    TextButton.icon(
-                      onPressed: () async {
-                        await NotificationService.instance.showTestNotification();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('📬 Đã gửi thông báo test!'),
-                              backgroundColor: Color(0xff10b981),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.send_outlined, size: 14),
-                      label: const Text('Test'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        textStyle: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
+
                   ],
                 ),
                 if (fcmToken != null) ...[

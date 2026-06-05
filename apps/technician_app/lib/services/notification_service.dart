@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 // ─── Background handler (PHẢI là top-level function) ─────────────────────────
 @pragma('vm:entry-point')
@@ -38,6 +40,9 @@ class NotificationService {
 
   // ─── Khởi tạo ──────────────────────────────────────────────────────────────
   Future<void> init() async {
+    // Khởi tạo timezone database
+    tz.initializeTimeZones();
+
     // 1. Đăng ký background handler
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
@@ -178,22 +183,94 @@ class NotificationService {
     onNotificationTap?.call(jobId);
   }
 
-  // ─── Hàm gọi thủ công để test ──────────────────────────────────────────────
-  Future<void> showTestNotification() async {
-    const androidDetails = AndroidNotificationDetails(
-      'aquacare_high_importance_channel',
-      'AquaCare Thông báo',
+
+
+  /// Hiển thị thông báo cục bộ lập tức (Foreground/Realtime)
+  Future<void> showLocalNotificationDirect({
+    required int id,
+    required String title,
+    required String body,
+    Map<String, dynamic>? payloadData,
+  }) async {
+    final androidDetails = AndroidNotificationDetails(
+      _androidChannel.id,
+      _androidChannel.name,
+      channelDescription: _androidChannel.description,
       importance: Importance.max,
       priority: Priority.high,
       icon: '@mipmap/ic_launcher',
-      color: Color(0xff0ea5e9),
+      color: const Color(0xff0ea5e9),
+      showWhen: true,
+      styleInformation: BigTextStyleInformation(
+        body,
+        contentTitle: title,
+      ),
     );
 
     await _localNotifications.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      '🔧 Đơn hàng mới được phân công',
-      'Bạn có đơn lắp đặt tại 123 Đường Lê Lợi, Quận 1 lúc 09:00',
-      const NotificationDetails(android: androidDetails),
+      id,
+      title,
+      body,
+      NotificationDetails(android: androidDetails),
+      payload: payloadData != null ? jsonEncode(payloadData) : null,
     );
+  }
+
+  /// Lên lịch thông báo tại một thời điểm nhất định trong tương lai
+  Future<void> scheduleNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDateTime,
+  }) async {
+    try {
+      final now = DateTime.now();
+      if (scheduledDateTime.isBefore(now)) {
+        debugPrint('⚠️ Không thể lên lịch thông báo trong quá khứ: $scheduledDateTime');
+        return;
+      }
+
+      final vietnam = tz.getLocation('Asia/Ho_Chi_Minh');
+      final tzDateTime = tz.TZDateTime.from(scheduledDateTime, vietnam);
+
+      final androidDetails = AndroidNotificationDetails(
+        _androidChannel.id,
+        _androidChannel.name,
+        channelDescription: _androidChannel.description,
+        importance: Importance.max,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+        color: const Color(0xff0ea5e9),
+        showWhen: true,
+        styleInformation: BigTextStyleInformation(
+          body,
+          contentTitle: title,
+        ),
+      );
+
+      await _localNotifications.zonedSchedule(
+        id,
+        title,
+        body,
+        tzDateTime,
+        NotificationDetails(android: androidDetails),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+      debugPrint('📅 [Lên lịch] Thông báo ID=$id lúc: $tzDateTime');
+    } catch (e) {
+      debugPrint('❌ Lỗi lên lịch thông báo: $e');
+    }
+  }
+
+  /// Hủy một thông báo đã lên lịch
+  Future<void> cancelNotification(int id) async {
+    try {
+      await _localNotifications.cancel(id);
+      debugPrint('🗑️ [Hủy lịch] Đã hủy thông báo ID=$id');
+    } catch (e) {
+      debugPrint('❌ Lỗi hủy thông báo ID=$id: $e');
+    }
   }
 }

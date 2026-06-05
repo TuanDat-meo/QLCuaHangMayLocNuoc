@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import '../services/notification_service.dart';
 
 enum JobStatus {
   waiting, // Đã phân công / Chờ
@@ -481,9 +482,12 @@ class JobController extends ChangeNotifier {
     notifyListeners();
 
     final Map<String, JobModel> jobsMap = {};
+    bool isFirstSnapshot = true;
 
     void handleSnapshot(QuerySnapshot snapshot) {
       _hasFirestoreData = true;
+      final List<JobModel> newlyAddedJobs = [];
+
       for (final doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         bool isMyJob = false;
@@ -505,16 +509,69 @@ class JobController extends ChangeNotifier {
         }
 
         if (isMyJob) {
-          jobsMap[doc.id] = _docToJobModel(doc);
+          final jobModel = _docToJobModel(doc);
+          if (!jobsMap.containsKey(doc.id) && !isFirstSnapshot) {
+            newlyAddedJobs.add(jobModel);
+          }
+          jobsMap[doc.id] = jobModel;
         } else {
+          if (jobsMap.containsKey(doc.id)) {
+            final oldJob = jobsMap[doc.id]!;
+            NotificationService.instance.cancelNotification(oldJob.id.hashCode);
+          }
           jobsMap.remove(doc.id);
         }
       }
+
+      for (final change in snapshot.docChanges) {
+        if (change.type == DocumentChangeType.removed) {
+          final docId = change.doc.id;
+          NotificationService.instance.cancelNotification(docId.hashCode);
+          jobsMap.remove(docId);
+        }
+      }
+
       final sortedJobs = jobsMap.values.toList()
         ..sort((a, b) => b.date.compareTo(a.date));
       _jobs = sortedJobs;
       _isLoading = false;
       notifyListeners();
+
+      if (newlyAddedJobs.isNotEmpty) {
+        for (final job in newlyAddedJobs) {
+          NotificationService.instance.showLocalNotificationDirect(
+            id: job.id.hashCode,
+            title: '🔧 Bạn có công việc mới được phân công!',
+            body: 'Đơn hàng #${job.id}\nKH: ${job.customerName} - ${job.address}',
+            payloadData: {'jobId': job.id, 'type': 'new_job'},
+          );
+        }
+      }
+
+      for (final job in _jobs) {
+        final schedDate = job.scheduledDate;
+        if (job.status == JobStatus.completed ||
+            job.status == JobStatus.needSupport ||
+            job.status == JobStatus.arrived ||
+            schedDate == null) {
+          NotificationService.instance.cancelNotification(job.id.hashCode);
+        } else {
+          final reminderTime = schedDate.subtract(const Duration(hours: 1));
+          final now = DateTime.now();
+          if (reminderTime.isAfter(now)) {
+            NotificationService.instance.scheduleNotification(
+              id: job.id.hashCode,
+              title: '⏰ Nhắc nhở: Sắp đến giờ hẹn lịch làm việc!',
+              body: 'Đơn hàng #${job.id} của KH ${job.customerName} sẽ bắt đầu lúc ${job.appointmentTime}.',
+              scheduledDateTime: reminderTime,
+            );
+          } else {
+            NotificationService.instance.cancelNotification(job.id.hashCode);
+          }
+        }
+      }
+
+      isFirstSnapshot = false;
     }
 
     _jobsSub1 = _firestore
@@ -525,6 +582,7 @@ class JobController extends ChangeNotifier {
           onError: (e) => debugPrint('Firestore job stream error: $e'),
         );
 
+    bool isFirstNoti = true;
     _notisSub = _firestore.collection('thongBao').snapshots().listen((
       snapshot,
     ) {
@@ -536,6 +594,31 @@ class JobController extends ChangeNotifier {
             data['userId'] == uid ||
             data['nguoiNhan'] == uid;
       });
+
+      if (!isFirstNoti) {
+        for (final change in snapshot.docChanges) {
+          if (change.type == DocumentChangeType.added) {
+            final doc = change.doc;
+            final data = doc.data() as Map<String, dynamic>;
+            final isForMe = data['ktvId'] == uid ||
+                data['nguoiNhanId'] == uid ||
+                data['nguoiDungId'] == uid ||
+                data['userId'] == uid ||
+                data['nguoiNhan'] == uid;
+            if (isForMe) {
+              final title = data['tieuDe'] ?? 'Thông báo từ Admin';
+              final body = data['noiDung'] ?? '';
+              final jobId = data['donHangId'] ?? '';
+              NotificationService.instance.showLocalNotificationDirect(
+                id: doc.id.hashCode,
+                title: '🔔 $title',
+                body: body,
+                payloadData: {'jobId': jobId, 'type': 'notification'},
+              );
+            }
+          }
+        }
+      }
 
       _notifications = myNotis.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
@@ -556,6 +639,7 @@ class JobController extends ChangeNotifier {
         return bTime.compareTo(aTime);
       });
 
+      isFirstNoti = false;
       notifyListeners();
     }, onError: (e) => debugPrint('Firestore noti stream error: $e'));
   }
@@ -683,6 +767,9 @@ class JobController extends ChangeNotifier {
       tipAmount: _toDouble(data['soTienTip'] ?? 0) ?? 0.0,
       status: status,
       date: (data['ngayTao'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      scheduledDate: data['scheduledDate'] is Timestamp
+          ? (data['scheduledDate'] as Timestamp).toDate()
+          : null,
       images: List<String>.from(data['anhHoanThanh'] ?? []),
       imagesBefore: List<String>.from(data['anhTruocKhiLam'] ?? []),
       imagesAfter: List<String>.from(data['anhSauKhiLam'] ?? []),
@@ -761,7 +848,11 @@ class JobController extends ChangeNotifier {
         updateData['thoiGianCheckIn'] = FieldValue.serverTimestamp();
       }
 
-      await _firestore.collection('donHang').doc(jobId).update(updateData);
+      await _firestore
+          .collection('donHang')
+          .doc(jobId)
+          .update(updateData)
+          .timeout(const Duration(seconds: 5));
 
       if (uid != null) {
         await _firestore.collection('nhatKyHoatDong').add({
@@ -770,14 +861,14 @@ class JobController extends ChangeNotifier {
           'moTa':
               'Cập nhật trạng thái đơn $jobId → ${newStatus.displayName}${ktvLatitude != null ? ' (Check-in GPS)' : ''}',
           'ngayTao': FieldValue.serverTimestamp(),
-        });
+        }).timeout(const Duration(seconds: 3));
       }
       return true;
     } catch (e) {
       _lastError = e.toString();
-      debugPrint('Firestore status sync error: $e');
-      refreshData();
-      return false;
+      debugPrint('Firestore status sync error/timeout (will retry offline): $e');
+      // Trả về true để tối ưu trải nghiệm offline-first, thay đổi đã được áp dụng local và sẽ tự động sync khi có mạng
+      return true;
     }
   }
 
@@ -828,21 +919,21 @@ class JobController extends ChangeNotifier {
         'lyDoHuy': '$reason: $description',
         'anhSuCo': photos,
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      }).timeout(const Duration(seconds: 5));
       if (uid != null) {
         await _firestore.collection('nhatKyHoatDong').add({
           'nguoiDungId': uid,
           'loaiSuKien': 'BAO_CAO_SU_CO',
           'moTa': 'Báo cáo sự cố đơn hàng $jobId: $reason',
           'ngayTao': FieldValue.serverTimestamp(),
-        });
+        }).timeout(const Duration(seconds: 3));
       }
       return true;
     } catch (e) {
       _lastError = e.toString();
-      debugPrint('Firestore issue report sync error: $e');
-      refreshData();
-      return false;
+      debugPrint('Firestore issue report sync error/timeout (will retry offline): $e');
+      // Trả về true để tối ưu trải nghiệm offline-first, thay đổi đã được áp dụng local và sẽ tự động sync khi có mạng
+      return true;
     }
   }
 
@@ -899,7 +990,7 @@ class JobController extends ChangeNotifier {
         'chuKyKhachHang': customerSignature,
         'hoanThanhVao': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      }).timeout(const Duration(seconds: 5));
       if (uid != null) {
         await _firestore.collection('nhatKyHoatDong').add({
           'nguoiDungId': uid,
@@ -907,14 +998,13 @@ class JobController extends ChangeNotifier {
           'moTa':
               'Hoàn thành lắp đặt đơn hàng $jobId, thu COD: $codCollected, Tip: $tipAmount',
           'ngayTao': FieldValue.serverTimestamp(),
-        });
+        }).timeout(const Duration(seconds: 3));
       }
       return true;
     } catch (e) {
-      debugPrint('Firestore complete sync warning: $e');
-      _jobs[idx] = oldJob;
-      notifyListeners();
-      return false;
+      debugPrint('Firestore complete sync error/timeout (will retry offline): $e');
+      // Trả về true để tối ưu trải nghiệm offline-first, thay đổi đã được áp dụng local và sẽ tự động sync khi có mạng
+      return true;
     }
   }
 
@@ -1017,13 +1107,12 @@ class JobController extends ChangeNotifier {
       await _firestore.collection('donHang').doc(jobId).update({
         'vatTuPhatSinh': updated,
         'ngayCapNhat': FieldValue.serverTimestamp(),
-      });
+      }).timeout(const Duration(seconds: 5));
       return true;
     } catch (e) {
-      debugPrint('Firestore vatTu error: $e');
-      _jobs[idx] = oldJob;
-      notifyListeners();
-      return false;
+      debugPrint('Firestore vatTu error/timeout (will retry offline): $e');
+      // Không revert local, trả về true để giữ trải nghiệm offline-first
+      return true;
     }
   }
 
@@ -1047,13 +1136,12 @@ class JobController extends ChangeNotifier {
       await _firestore.collection('donHang').doc(jobId).update({
         'vatTuPhatSinh': updated,
         'ngayCapNhat': FieldValue.serverTimestamp(),
-      });
+      }).timeout(const Duration(seconds: 5));
       return true;
     } catch (e) {
-      debugPrint('Firestore delete vatTu error: $e');
-      _jobs[idx] = oldJob;
-      notifyListeners();
-      return false;
+      debugPrint('Firestore delete vatTu error/timeout (will retry offline): $e');
+      // Không revert local, trả về true để giữ trải nghiệm offline-first
+      return true;
     }
   }
 
@@ -1090,13 +1178,12 @@ class JobController extends ChangeNotifier {
       await _firestore.collection('donHang').doc(jobId).update({
         'vatTuPhatSinh': updated,
         'ngayCapNhat': FieldValue.serverTimestamp(),
-      });
+      }).timeout(const Duration(seconds: 5));
       return true;
     } catch (e) {
-      debugPrint('Firestore update vatTu error: $e');
-      _jobs[idx] = oldJob;
-      notifyListeners();
-      return false;
+      debugPrint('Firestore update vatTu error/timeout (will retry offline): $e');
+      // Không revert local, trả về true để giữ trải nghiệm offline-first
+      return true;
     }
   }
 
@@ -1209,7 +1296,11 @@ class JobController extends ChangeNotifier {
         'ngayCapNhat': FieldValue.serverTimestamp(),
       };
 
-      await _firestore.collection('donHang').doc(jobId).update(updateData);
+      await _firestore
+          .collection('donHang')
+          .doc(jobId)
+          .update(updateData)
+          .timeout(const Duration(seconds: 5));
 
       if (uid != null) {
         await _firestore.collection('nhatKyHoatDong').add({
@@ -1218,22 +1309,20 @@ class JobController extends ChangeNotifier {
           'moTa':
               'Cập nhật trạng thái đơn $jobId → Đã hoàn thành (Tự động sau thanh toán)',
           'ngayTao': FieldValue.serverTimestamp(),
-        });
+        }).timeout(const Duration(seconds: 3));
         await _firestore.collection('nhatKyHoatDong').add({
           'nguoiDungId': uid,
           'loaiSuKien': 'THANH_TOAN_DON_HANG',
           'moTa':
               'Đã nhận thanh toán ${amount.toInt()}đ qua $method cho đơn $jobId',
           'ngayTao': FieldValue.serverTimestamp(),
-        });
+        }).timeout(const Duration(seconds: 3));
       }
       return true;
     } catch (e) {
-      debugPrint('Firestore confirm payment error: $e');
-      _jobs[idx] = job;
-      notifyListeners();
-      refreshData();
-      return false;
+      debugPrint('Firestore confirm payment error/timeout (will retry offline): $e');
+      // Không revert local, trả về true để giữ trải nghiệm offline-first
+      return true;
     }
   }
 

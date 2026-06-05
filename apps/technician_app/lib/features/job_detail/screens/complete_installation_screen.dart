@@ -59,11 +59,15 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
     
     // Tìm đơn hàng để lấy số tiền
     final jobController = context.read<JobController>();
-    final job = jobController.jobs.firstWhere((j) => j.id == widget.jobId);
-    // Tổng cộng = COD + vật tư phát sinh
-    final tongVatTu = job.vatTuPhatSinh.fold<double>(
-        0, (s, item) => s + ((item['thanhTien'] as num?)?.toDouble() ?? 0));
-    final tongCong = job.codAmount + tongVatTu;
+    final jobIndex = jobController.jobs.indexWhere((j) => j.id == widget.jobId);
+    double tongCong = 0;
+    if (jobIndex != -1) {
+      final job = jobController.jobs[jobIndex];
+      // Tổng cộng = COD + vật tư phát sinh
+      final tongVatTu = job.vatTuPhatSinh.fold<double>(
+          0, (s, item) => s + ((item['thanhTien'] as num?)?.toDouble() ?? 0));
+      tongCong = job.codAmount + tongVatTu;
+    }
     final initAmount = NumberFormat('#,###', 'vi_VN')
         .format(tongCong.toInt())
         .replaceAll(',', '.');
@@ -163,9 +167,22 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
       return;
     }
 
+    final jobController = context.read<JobController>();
+    final jobIndex = jobController.jobs.indexWhere((j) => j.id == widget.jobId);
+    if (jobIndex == -1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không tìm thấy thông tin đơn hàng!'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+    final job = jobController.jobs[jobIndex];
+
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogCtx) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           title: const Text('Xác nhận hoàn thành?', style: TextStyle(fontWeight: FontWeight.w900)),
@@ -175,56 +192,57 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogCtx),
               child: const Text('KIỂM TRA LẠI', style: TextStyle(color: Color(0xff94a3b8), fontWeight: FontWeight.bold)),
             ),
             ElevatedButton(
               onPressed: () async {
-                Navigator.pop(context);
+                Navigator.pop(dialogCtx);
                 setState(() { _isSubmitting = true; _isUploading = _pickedFiles.isNotEmpty; });
 
-                // Upload ảnh mới lên Firebase Storage
-                List<String> newUrls = [];
-                if (_pickedFiles.isNotEmpty) {
-                  newUrls = await ImageUploadService.uploadImages(
-                    files: _pickedFiles,
+                try {
+                  // Upload ảnh mới lên Firebase Storage
+                  List<String> newUrls = [];
+                  if (_pickedFiles.isNotEmpty) {
+                    newUrls = await ImageUploadService.uploadImages(
+                      files: _pickedFiles,
+                      jobId: widget.jobId,
+                      folder: 'after',
+                    ).timeout(const Duration(seconds: 15));
+                  }
+                  if (mounted) setState(() => _isUploading = false);
+
+                  final allPhotos = [..._uploadedUrls, ...newUrls];
+                  final controller = context.read<JobController>();
+                  final cod = double.tryParse(
+                      _collectedAmountController.text.replaceAll('.', '')) ?? 0.0;
+                  final tip = double.tryParse(
+                      _tipController.text.replaceAll('.', '')) ?? 0.0;
+                  final base64Signature = _customerSignatureBytes != null
+                      ? base64Encode(_customerSignatureBytes!)
+                      : null;
+
+                  final success = await controller.completeJob(
                     jobId: widget.jobId,
-                    folder: 'after',
+                    codCollected: cod,
+                    tipAmount: tip,
+                    photos: allPhotos,
+                    notes: _notesController.text,
+                    customerSignature: base64Signature,
                   );
-                }
-                if (mounted) setState(() => _isUploading = false);
-
-                final allPhotos = [..._uploadedUrls, ...newUrls];
-                final controller = context.read<JobController>();
-                final cod = double.tryParse(
-                    _collectedAmountController.text.replaceAll('.', '')) ?? 0.0;
-                final tip = double.tryParse(
-                    _tipController.text.replaceAll('.', '')) ?? 0.0;
-                final base64Signature = _customerSignatureBytes != null
-                    ? base64Encode(_customerSignatureBytes!)
-                    : null;
-
-                final success = await controller.completeJob(
-                  jobId: widget.jobId,
-                  codCollected: cod,
-                  tipAmount: tip,
-                  photos: allPhotos,
-                  notes: _notesController.text,
-                  customerSignature: base64Signature,
-                );
-                if (mounted) {
-                  setState(() => _isSubmitting = false);
-                  if (success) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Nộp báo cáo hoàn thành lắp đặt thành công!'),
-                        backgroundColor: Color(0xff10b981),
-                      ),
-                    );
+                  if (mounted) {
+                    setState(() => _isSubmitting = false);
+                    if (success) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Nộp báo cáo hoàn thành lắp đặt thành công!'),
+                          backgroundColor: Color(0xff10b981),
+                        ),
+                      );
                     showDialog(
                       context: context,
                       barrierDismissible: false,
-                      builder: (context) {
+                      builder: (successCtx) {
                         return AlertDialog(
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                           title: Row(
@@ -294,7 +312,10 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
                                       );
                                       
                                       try {
-                                        final jobModel = controller.jobs.firstWhere((j) => j.id == widget.jobId);
+                                        final jobModel = controller.jobs.firstWhere(
+                                          (j) => j.id == widget.jobId,
+                                          orElse: () => job,
+                                        );
                                         await InvoicePdfHelper.generateAndShareInvoice(
                                           jobModel,
                                           collectedAmount: cod,
@@ -322,7 +343,7 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
                                   const SizedBox(height: 8),
                                   OutlinedButton.icon(
                                     onPressed: () {
-                                      Navigator.of(context).popUntil((route) => route.isFirst);
+                                      Navigator.of(successCtx).popUntil((route) => route.isFirst);
                                     },
                                     icon: const Icon(Icons.home, color: Color(0xff64748b)),
                                     label: const Text('QUAY VỀ TRANG CHỦ', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xff64748b))),
@@ -339,6 +360,28 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
                           ],
                         );
                       },
+                    );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Không thể hoàn thành đơn hàng. Vui lòng kiểm tra kết nối mạng và thử lại!'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  debugPrint('Error completing job: $e');
+                  if (mounted) {
+                    setState(() {
+                      _isSubmitting = false;
+                      _isUploading = false;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Có lỗi xảy ra: $e'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                   }
                 }
@@ -359,7 +402,20 @@ class _CompleteInstallationScreenState extends State<CompleteInstallationScreen>
   @override
   Widget build(BuildContext context) {
     final jobController = context.watch<JobController>();
-    final job = jobController.jobs.firstWhere((j) => j.id == widget.jobId);
+    final jobIndex = jobController.jobs.indexWhere((j) => j.id == widget.jobId);
+    if (jobIndex == -1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      });
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    final job = jobController.jobs[jobIndex];
 
     return Scaffold(
       backgroundColor: AppColors.surface,
