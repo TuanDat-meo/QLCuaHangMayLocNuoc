@@ -90,21 +90,13 @@ class FirestoreService {
       QuerySnapshot snapshot = await _firestore
           .collection('thongBao')
           .where('userId', isEqualTo: userId)
+          .orderBy('createdAt', descending: true)
           .get();
-      
-      final notifications = snapshot.docs.map((doc) {
+      return snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
         return data;
       }).toList();
-      
-      notifications.sort((a, b) {
-        final dateA = (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final dateB = (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return dateB.compareTo(dateA);
-      });
-      
-      return notifications;
     } catch (e) {
       logger.e('Error fetching notifications: $e');
       rethrow;

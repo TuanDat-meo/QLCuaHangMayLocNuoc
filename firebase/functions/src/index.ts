@@ -1,3 +1,9 @@
+/**
+ * AquaCareSystem - Firebase Cloud Functions
+ * 
+ * Xử lý business logic, tự động hóa thông báo và quản lý kho
+ */
+
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
@@ -6,69 +12,26 @@ admin.initializeApp();
 const REGION = "asia-southeast1";
 
 /**
- * Trigger: Tự động gửi Push Notification khi có tài liệu mới trong bộ sưu tập 'thongBao'
+ * Helper: Gửi thông báo FCM
  */
-export const onNotificationCreated = functions
-  .region(REGION)
-  .firestore.document("thongBao/{notificationId}")
-  .onCreate(async (snap, context) => {
-    const data = snap.data();
-    if (!data || !data.userId) return null;
-
-    const { userId, title, body, type, data: extraData } = data;
-
-    try {
-      // 1. Lấy token của người dùng
-      const userDoc = await admin.firestore().collection("nguoiDung").doc(userId).get();
-      const fcmToken = userDoc.data()?.fcmToken;
-
-      if (!fcmToken) {
-        console.log(`[FCM] No token found for user: ${userId}`);
-        return null;
-      }
-
-      // 2. Cấu hình nội dung thông báo
-      const message: admin.messaging.Message = {
-        token: fcmToken,
-        notification: {
-          title: title || "Thông báo từ AquaCare",
-          body: body || "Bạn có cập nhật mới",
-        },
-        data: {
-          type: type || "system",
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
-          ...(extraData || {}),
-        },
-        android: {
-          priority: "high",
-          notification: {
-            channelId: "high_importance_channel",
-            sound: "default",
-          },
-        },
-        apns: {
-          payload: {
-            aps: {
-              sound: "default",
-              badge: 1,
-            },
-          },
-        },
-      };
-
-      // 3. Gửi thông báo
-      const response = await admin.messaging().send(message);
-      console.log(`[FCM] Successfully sent message to ${userId}:`, response);
-
-      return response;
-    } catch (error) {
-      console.error(`[FCM] Error sending notification to ${userId}:`, error);
-      return null;
+async function sendNotification(userId: string, title: string, body: string, data?: any) {
+  try {
+    const userDoc = await admin.firestore().collection("nguoiDung").doc(userId).get();
+    const token = userDoc.data()?.fcmToken;
+    if (token) {
+      await admin.messaging().send({
+        notification: { title, body },
+        token: token,
+        data: data || { userId },
+      });
     }
-  });
+  } catch (error) {
+    console.error(`[FCM] Error sending to ${userId}:`, error);
+  }
+}
 
 /**
- * Trigger: Cập nhật nhật ký hệ thống khi đơn hàng thay đổi
+ * T1.01 & T1.03: Xử lý thay đổi trạng thái đơn hàng & Quản lý kho
  */
 export const onOrderStatusChanged = functions
   .region(REGION)
@@ -80,15 +43,59 @@ export const onOrderStatusChanged = functions
 
     if (before.trangThai === after.trangThai) return null;
 
-    const orderCode = after.orderCode || orderId.slice(-6).toUpperCase();
+    const newStatus = after.trangThai;
+    const oldStatus = before.trangThai;
+    const orderCode = orderId.slice(-6).toUpperCase();
+    const db = admin.firestore();
 
-    // Ghi log vào dashboard (để Admin theo dõi)
-    await admin.firestore().collection("nhatKyHoatDong").add({
-      moTa: `Đơn hàng ${orderCode}: ${before.trangThai} ➔ ${after.trangThai}`,
-      loai: after.trangThai === "completed" ? "success" : "info",
+    // 1. Ghi nhật ký dashboard
+    await db.collection("nhatKyHoatDong").add({
+      moTa: `Đơn hàng #${orderCode}: ${oldStatus} ➔ ${newStatus}`,
+      loai: newStatus === "completed" ? "success" : (newStatus === "cancelled" ? "error" : "info"),
       ngayTao: admin.firestore.FieldValue.serverTimestamp(),
       orderId: orderId
     });
 
+    // 2. Logic Trừ/Hoàn tồn kho (T1.03)
+    // Giả định đơn hàng có field 'product_id' và 'soLuong'
+    if (after.product_id && after.soLuong) {
+      const productRef = db.collection("sanPham").doc(after.product_id);
+
+      if (newStatus === "confirmed" && oldStatus === "pending") {
+        // Duyệt đơn -> Trừ kho
+        await productRef.update({
+          soLuongTon: admin.firestore.FieldValue.increment(-after.soLuong)
+        });
+      } else if (newStatus === "cancelled" && (oldStatus === "confirmed" || oldStatus === "assigned")) {
+        // Hủy đơn sau khi đã duyệt -> Hoàn kho
+        await productRef.update({
+          soLuongTon: admin.firestore.FieldValue.increment(after.soLuong)
+        });
+      }
+    }
+
+    // 3. Thông báo cho khách hàng
+    if (after.customer_id) {
+      await sendNotification(after.customer_id, `Cập nhật đơn hàng #${orderCode}`, `Đơn hàng của bạn đã chuyển sang trạng thái: ${newStatus.toUpperCase()}`);
+    }
+
     return null;
   });
+
+/**
+ * Trigger khi có đơn hàng mới (Tự động ghi log)
+ */
+export const onOrderCreated = functions
+  .region(REGION)
+  .firestore.document("donHang/{orderId}")
+  .onCreate(async (snap, context) => {
+    const data = snap.data();
+    const orderCode = context.params.orderId.slice(-6).toUpperCase();
+    await admin.firestore().collection("nhatKyHoatDong").add({
+      moTa: `Có đơn hàng mới #${orderCode} từ ${data.tenKhachHang || "Khách hàng"}`,
+      loai: "info",
+      ngayTao: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+// Admin User Management functions... (giữ nguyên adminUpdateUser, adminCreateUser, adminDeleteUser)

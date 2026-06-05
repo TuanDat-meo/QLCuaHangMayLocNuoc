@@ -105,22 +105,12 @@ class AddressesScreen extends StatelessWidget {
                       Text(addr.phoneNumber, style: const TextStyle(color: Color(0xff64748b), fontSize: 13)),
                       const SizedBox(height: 4),
                       Text(addr.fullAddress, style: const TextStyle(color: Color(0xff94a3b8), fontSize: 12)),
-                      // Cảnh báo nếu địa chỉ cũ chưa có mã vùng (để đồng bộ Web Admin tốt hơn)
-                      if (addr.provinceCode == null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text('(Cần cập nhật thông tin vùng)', 
-                            style: TextStyle(color: Colors.orange.shade700, fontSize: 10, fontWeight: FontWeight.bold)),
-                        ),
                     ],
                   ),
                   trailing: PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, color: Color(0xff94a3b8)),
                     onSelected: (value) async {
-                      if (value == 'edit') {
-                        // Điều hướng sang màn hình chỉnh sửa
-                        Navigator.pushNamed(context, '/edit-address', arguments: addr);
-                      } else if (value == 'delete') {
+                      if (value == 'delete') {
                         final confirm = await showDialog<bool>(
                           context: context,
                           builder: (context) => AlertDialog(

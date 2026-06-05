@@ -5,7 +5,6 @@ import 'package:customer_app/features/products/screens/products_screen.dart';
 import 'package:customer_app/features/cart/screens/checkout_screen.dart';
 import 'package:customer_app/features/profile/screens/profile_screen.dart';
 import 'package:customer_app/features/home/home_dashboard.dart';
-import 'package:customer_app/features/support/widgets/chat_bubble_fab.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -39,15 +38,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          IndexedStack(
-            index: _selectedIndex,
-            children: _screens,
-          ),
-          // Chat bubble nổi trên tất cả các tab
-          const ChatBubbleFAB(),
-        ],
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _screens,
       ),
       bottomNavigationBar: Container(
         height: 85,

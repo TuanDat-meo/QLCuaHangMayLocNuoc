@@ -8,7 +8,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { useLogout } from '../../hooks/useAuth';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import AdminChatBubble from '../chat/AdminChatBubble';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -53,9 +52,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
         </main>
       </div>
-
-      {/* Chat Bubble - Hiển thị ở tất cả các trang admin */}
-      <AdminChatBubble />
     </div>
   );
 };

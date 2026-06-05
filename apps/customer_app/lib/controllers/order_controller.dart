@@ -11,13 +11,14 @@ class OrderController extends ChangeNotifier {
 
   bool _isLoading = false;
   String? _error;
+  Order? _currentOrder;
   List<Order> _orders = [];
 
   bool get isLoading => _isLoading;
   String? get error => _error;
+  Order? get currentOrder => _currentOrder;
   List<Order> get orders => _orders;
 
-  /// Tạo đơn hàng mới - Đồng bộ hoàn toàn với admin_web
   Future<bool> createOrder({
     required List<OrderItem> items,
     required Address deliveryAddress,
@@ -37,67 +38,52 @@ class OrderController extends ChangeNotifier {
       final user = _auth.currentUser;
       if (user == null) throw Exception('Chưa đăng nhập');
 
-      final orderRef = _firestore.collection('donHang').doc();
-      
-      // Tên sản phẩm hiển thị chung
-      String tenSanPhamChung = items.map((e) => e.quantity > 1 ? '${e.productName} (x${e.quantity})' : e.productName).join(', ');
-      String orderCode = 'ORD-${DateTime.now().year}-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+      final orderCode =
+          'ORD-${DateTime.now().year}-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
 
-      // Map dữ liệu theo cấu trúc TIẾNG VIỆT của admin_web
+      final orderRef = _firestore.collection('donHang').doc();
+
       final orderData = {
         'id': orderRef.id,
         'orderCode': orderCode,
         'customerId': user.uid,
-        'tenKhachHang': user.displayName ?? user.email?.split('@')[0] ?? 'Khách hàng',
-        'phoneNumber': deliveryAddress.phoneNumber,
-        'diaChiGiaoHang': deliveryAddress.fullAddress,
-        'street': deliveryAddress.street,
-        // Đồng bộ mã vùng để Web Admin có thể lọc
-        'provinceCode': deliveryAddress.provinceCode,
-        'districtCode': deliveryAddress.districtCode,
-        'wardCode': deliveryAddress.wardCode,
-        'tenSanPham': tenSanPhamChung,
-        'items': items.map((e) => {
-          'id': e.productId,
-          'name': e.productName,
-          'price': e.price,
-          'quantity': e.quantity,
-          'imageUrl': e.imageUrl,
-          'thoiGianBaoHanh': 12,
-        }).toList(),
-        'tongTien': totalAmount,
-        'trangThai': 'pending',
-        'status': 'pending',
-        'loaiDonHang': 'installation',
-        'note': notes ?? '',
-        'ngayTao': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'customerName': user.displayName ?? '',
+        'customerEmail': user.email ?? '',
+        'items': items.map((e) => e.toMap()).toList(),
+        'deliveryAddress': deliveryAddress.toMap(),
         'scheduledDate': Timestamp.fromDate(scheduledDate),
+        'scheduledSlotId': scheduledSlot.id,
         'scheduledSlotLabel': scheduledSlot.label,
-        'technicians': [],
-        'ngayBaoTriTiepTheo': Timestamp.fromDate(DateTime.now().add(const Duration(days: 180))),
+        'notes': notes ?? '',
+        'subtotal': subtotal,
+        'discount': discount,
+        'Shipping fee': shippingFee,
+        'totalAmount': totalAmount,
+        'status': 'pending',
+        'technicianId': null,
+        'technicianName': null,
+        'technicianPhone': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      // 1. Lưu đơn hàng
       await orderRef.set(orderData);
 
-      // 2. Tạo thông báo "Đặt hàng thành công" cho người dùng
-      await _firestore.collection('thongBao').add({
-        'userId': user.uid,
-        'title': 'Đặt hàng thành công!',
-        'body': 'Đơn hàng $orderCode của bạn đã được gửi và đang chờ hệ thống xác nhận.',
-        'type': 'order_status',
-        'data': {
-          'orderId': orderRef.id,
-          'orderCode': orderCode,
-          'status': 'pending',
-        },
-        'isRead': false,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      // 3. Tải lại danh sách đơn hàng ngay lập tức để cập nhật UI lịch sử
-      await fetchMyOrders();
+      _currentOrder = Order(
+        id: orderRef.id,
+        orderCode: orderCode,
+        items: items,
+        deliveryAddress: deliveryAddress,
+        scheduledDate: scheduledDate,
+        scheduledSlot: scheduledSlot,
+        notes: notes,
+        subtotal: subtotal,
+        discount: discount,
+        shippingFee: shippingFee,
+        totalAmount: totalAmount,
+        status: 'pending',
+        createdAt: DateTime.now(),
+      );
 
       _isLoading = false;
       notifyListeners();
@@ -113,63 +99,54 @@ class OrderController extends ChangeNotifier {
   Future<void> fetchMyOrders() async {
     _isLoading = true;
     notifyListeners();
+
     try {
       final user = _auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
 
       final snap = await _firestore
           .collection('donHang')
           .where('customerId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true)
           .get();
 
       _orders = snap.docs.map((doc) {
         final d = doc.data();
         return Order(
           id: doc.id,
-          orderCode: d['orderCode'] ?? doc.id.substring(0, 8).toUpperCase(),
+          orderCode: d['orderCode'] ?? '',
           items: (d['items'] as List? ?? [])
-              .map((e) => OrderItem(
-                id: e['id'] ?? '',
-                productId: e['id'] ?? '',
-                productName: e['name'] ?? '',
-                price: (e['price'] as num?)?.toDouble() ?? 0.0,
-                quantity: e['quantity'] ?? 1,
-                subtotal: ((e['price'] as num? ?? 0) * (e['quantity'] as num? ?? 1)).toDouble(),
-                imageUrl: e['imageUrl'],
-              )).toList(),
-          deliveryAddress: Address.fromMap({
-            ...(d['deliveryAddress'] as Map<String, dynamic>? ?? {}),
-            'recipientName': d['tenKhachHang'] ?? d['customerName'],
-            'phoneNumber': d['phoneNumber'],
-            'street': d['street'],
-            'provinceCode': d['provinceCode'],
-            'districtCode': d['districtCode'],
-            'wardCode': d['wardCode'],
-          }),
+              .map((e) => OrderItem.fromMap(e as Map<String, dynamic>))
+              .toList(),
+          deliveryAddress: Address.fromMap(d['deliveryAddress'] as Map<String, dynamic>),
           scheduledDate: (d['scheduledDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
           scheduledSlot: ScheduleSlot(
-            id: '',
+            id: d['scheduledSlotId'] ?? '',
             label: d['scheduledSlotLabel'] ?? '',
             startHour: 0,
             endHour: 0,
           ),
-          notes: d['note'] ?? d['notes'],
+          notes: d['notes'],
           subtotal: (d['subtotal'] as num?)?.toDouble() ?? 0.0,
           discount: (d['discount'] as num?)?.toDouble() ?? 0.0,
           shippingFee: (d['Shipping fee'] ?? d['shippingFee'] as num? ?? 0).toDouble(),
-          totalAmount: (d['tongTien'] ?? d['totalAmount'] as num?)?.toDouble() ?? 0.0,
-          status: d['trangThai'] ?? d['status'] ?? 'pending',
-          createdAt: (d['ngayTao'] ?? d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          totalAmount: (d['totalAmount'] as num?)?.toDouble() ?? 0.0,
+          status: d['status'] ?? 'pending',
+          technicianId: d['technicianId'],
+          technicianName: d['technicianName'],
+          technicianPhone: d['technicianPhone'],
+          createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         );
       }).toList();
-      
-      _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      
+
       _isLoading = false;
       notifyListeners();
-    } catch (e, stackTrace) {
+    } catch (e) {
       debugPrint('Error fetching orders: $e');
-      debugPrint(stackTrace.toString());
       _error = e.toString();
       _isLoading = false;
       notifyListeners();
@@ -178,29 +155,12 @@ class OrderController extends ChangeNotifier {
 
   Future<bool> cancelOrder(String orderId) async {
     _isLoading = true;
-    _error = null;
     notifyListeners();
     try {
       await _firestore.collection('donHang').doc(orderId).update({
-        'trangThai': 'cancelled',
         'status': 'cancelled',
         'updatedAt': FieldValue.serverTimestamp(),
       });
-
-      // Tạo thông báo hủy đơn
-      final user = _auth.currentUser;
-      if (user != null) {
-        await _firestore.collection('thongBao').add({
-          'userId': user.uid,
-          'title': 'Đã hủy đơn hàng',
-          'body': 'Đơn hàng của bạn đã được hủy thành công theo yêu cầu.',
-          'type': 'order_status',
-          'data': {'orderId': orderId, 'status': 'cancelled'},
-          'isRead': false,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-
       await fetchMyOrders();
       _isLoading = false;
       notifyListeners();
@@ -211,5 +171,10 @@ class OrderController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  void setCurrentOrder(Order order) {
+    _currentOrder = order;
+    notifyListeners();
   }
 }

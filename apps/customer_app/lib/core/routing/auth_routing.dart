@@ -2,14 +2,12 @@
 // Integrate this into your main.dart for navigation
 
 import 'package:flutter/material.dart' as flutter_material;
-import 'package:provider/provider.dart';
 import 'package:shared/services/auth_service.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/signup_screen.dart';
 import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/auth/screens/reset_password_screen.dart';
 import '../../features/home/home_screen.dart';
-import '../../controllers/chat_controller.dart';
 
 /// AuthGate widget to handle auth state and routing
 class AuthGate extends flutter_material.StatelessWidget {
@@ -40,12 +38,8 @@ class AuthGate extends flutter_material.StatelessWidget {
           );
         }
 
-        // User is logged in - auto init chat to detect unread messages
+        // User is logged in
         if (snapshot.hasData && snapshot.data != null) {
-          // Trigger autoInit sau khi frame render xong
-          flutter_material.WidgetsBinding.instance.addPostFrameCallback((_) {
-            context.read<ChatController>().autoInit();
-          });
           return const HomeScreen();
         }
 

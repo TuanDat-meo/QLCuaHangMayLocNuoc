@@ -7,7 +7,6 @@ import 'package:customer_app/features/profile/screens/profile_screen.dart';
 import 'package:customer_app/features/profile/screens/edit_profile_screen.dart';
 import 'package:customer_app/features/profile/screens/addresses_screen.dart';
 import 'package:customer_app/features/profile/screens/add_address_screen.dart';
-import 'package:customer_app/features/profile/screens/edit_address_screen.dart';
 import 'package:customer_app/features/profile/screens/favorites_screen.dart';
 import 'package:customer_app/features/orders/screens/orders_screen.dart';
 import 'package:customer_app/features/orders/screens/order_detail_screen.dart';
@@ -17,8 +16,6 @@ import 'package:customer_app/features/cart/screens/address_schedule_screen.dart'
 import 'package:customer_app/features/cart/screens/order_confirmation_screen.dart';
 import 'package:customer_app/features/orders/screens/order_tracking_screen.dart';
 import 'package:customer_app/features/support/screens/support_screen.dart';
-import 'package:customer_app/features/support/screens/chat_screen.dart';
-import 'package:customer_app/features/notifications/screens/notifications_screen.dart';
 
 Route<dynamic>? mainRouteGenerator(RouteSettings settings) {
   switch (settings.name) {
@@ -38,38 +35,31 @@ Route<dynamic>? mainRouteGenerator(RouteSettings settings) {
     case '/order-confirmation':
       return MaterialPageRoute(
         builder: (_) => const OrderConfirmationScreen(),
-        settings: settings,
+        settings: settings, // giữ settings để truyền arguments
       );
     case '/order-tracking':
       return MaterialPageRoute(
         builder: (_) => const OrderTrackingScreen(),
-        settings: settings,
+        settings: settings, // giữ settings để truyền arguments
       );
     case '/orders':
       return MaterialPageRoute(builder: (_) => const OrdersScreen());
     case '/order-detail':
-      return MaterialPageRoute(builder: (_) => OrderDetailScreen(orderData: settings.arguments));
+      final order = settings.arguments as Order;
+      return MaterialPageRoute(builder: (_) => OrderDetailScreen(orderData: order));
     case '/edit-profile':
       return MaterialPageRoute(builder: (_) => const EditProfileScreen());
     case '/addresses':
       return MaterialPageRoute(builder: (_) => const AddressesScreen());
     case '/add-address':
       return MaterialPageRoute(builder: (_) => const AddAddressScreen());
-    case '/edit-address':
-      final address = settings.arguments as Address;
-      return MaterialPageRoute(builder: (_) => EditAddressScreen(address: address));
     case '/favorites':
       return MaterialPageRoute(builder: (_) => const FavoritesScreen());
     case '/profile':
       return MaterialPageRoute(builder: (_) => const ProfileScreen());
     case '/support':
       return MaterialPageRoute(builder: (_) => const SupportScreen());
-    case '/chat':
-      return MaterialPageRoute(builder: (_) => const ChatScreen());
-    case '/notifications':
-      return MaterialPageRoute(builder: (_) => const NotificationsScreen());
     default:
       return null;
   }
 }
-

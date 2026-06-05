@@ -53,7 +53,6 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
     if (confirm == true) {
       setState(() => _isCancelling = true);
-      // Gọi cancelOrder từ OrderController đã được cập nhật
       final success = await context.read<OrderController>().cancelOrder(_orderId);
       if (mounted) {
         setState(() => _isCancelling = false);
@@ -112,9 +111,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          // Ưu tiên trangThai của Admin Web
-          final status = data['trangThai'] ?? data['status'] ?? 'pending';
-          final technicians = data['technicians'] as List? ?? [];
+          final status = data['status'] as String? ?? 'pending';
+          final technicianId = data['technicianId'];
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -148,9 +146,9 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            if (data['ngayTao'] != null || data['createdAt'] != null)
+                            if (data['createdAt'] != null)
                               Text(
-                                'Đặt lúc ${_formatTimestamp(data['ngayTao'] ?? data['createdAt'])}',
+                                'Đặt lúc ${_formatTimestamp(data['createdAt'])}',
                                 style: const TextStyle(
                                     fontSize: 11, color: Color(0xff94a3b8)),
                               ),
@@ -189,9 +187,9 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                 ),
 
                 // Technician card (show if assigned)
-                if (technicians.isNotEmpty) ...[
+                if (data['technicianName'] != null) ...[
                   const SizedBox(height: 16),
-                  _TechnicianCard(technicians: technicians),
+                  _TechnicianCard(data: data),
                 ],
 
                 const SizedBox(height: 16),
@@ -215,16 +213,12 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      _InfoRow(
-                        icon: Icons.person_outline,
-                        label: 'Khách hàng',
-                        value: data['tenKhachHang'] ?? data['customerName'] ?? '---',
-                      ),
-                      _InfoRow(
-                        icon: Icons.location_on_outlined,
-                        label: 'Địa chỉ',
-                        value: data['diaChiGiaoHang'] ?? _buildAddressString(data['deliveryAddress'] ?? {}),
-                      ),
+                      if (data['deliveryAddress'] != null)
+                        _InfoRow(
+                          icon: Icons.location_on_outlined,
+                          label: 'Địa chỉ',
+                          value: _buildAddressString(data['deliveryAddress']),
+                        ),
                       if (data['scheduledDate'] != null)
                         _InfoRow(
                           icon: Icons.calendar_today_outlined,
@@ -285,7 +279,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          item['name'] ?? item['productName'] ?? '',
+                                          item['productName'] ?? '',
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 13,
@@ -302,7 +296,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                                     ),
                                   ),
                                   Text(
-                                    '${_formatCurrency((item['price'] as num? ?? 0).toDouble())} đ',
+                                    '${_formatCurrency((item['price'] as num).toDouble())} đ',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13,
@@ -322,7 +316,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                                   fontSize: 14,
                                   color: Color(0xff0b1c30))),
                           Text(
-                            '${_formatCurrency((data['tongTien'] ?? data['totalAmount'] as num? ?? 0).toDouble())} đ',
+                            '${_formatCurrency((data['totalAmount'] as num? ?? 0).toDouble())} đ',
                             style: const TextStyle(
                               fontWeight: FontWeight.w900,
                               fontSize: 16,
@@ -337,8 +331,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
                 const SizedBox(height: 24),
                 
-                // Nút hủy - Chỉ hiện khi đơn chờ duyệt và chưa phân công
-                if (status == 'pending' && technicians.isEmpty)
+                // Cancel button - Only show if pending and no technician assigned
+                if (status == 'pending' && technicianId == null)
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
@@ -349,7 +343,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                       child: _isCancelling 
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.redAccent, strokeWidth: 2))
+                        ? const CircularProgressIndicator(color: Colors.redAccent)
                         : const Text('HỦY ĐƠN HÀNG', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                     ),
                   ),
@@ -359,6 +353,25 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             ),
           );
         },
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+          boxShadow: [BoxShadow(color: Color(0x0f000000), blurRadius: 20, offset: Offset(0, -4))],
+        ),
+        child: SafeArea(
+          child: ElevatedButton(
+            onPressed: () => Navigator.pushNamed(context, '/orders'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xff0b1c30),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: const Text('XEM LỊCH SỬ ĐƠN HÀNG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ),
       ),
     );
   }
@@ -378,7 +391,6 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   }
 
   String _buildAddressString(Map<String, dynamic> addr) {
-    if (addr.isEmpty) return '---';
     return '${addr['street'] ?? ''}, ${addr['ward'] ?? ''}, ${addr['district'] ?? ''}, ${addr['city'] ?? ''}';
   }
 }
@@ -414,11 +426,11 @@ class _StatusBadge extends StatelessWidget {
     switch (status) {
       case 'pending':
         return {
-          'label': 'Chờ duyệt',
+          'label': 'Chờ xác nhận',
           'bg': const Color(0xfffff7ed),
           'color': const Color(0xfff97316),
         };
-      case 'approved':
+      case 'confirmed':
       case 'assigned':
         return {
           'label': 'Đã xác nhận',
@@ -428,14 +440,14 @@ class _StatusBadge extends StatelessWidget {
       case 'processing':
       case 'in_progress':
         return {
-          'label': 'Đang thực hiện',
+          'label': 'Đang lắp đặt',
           'bg': const Color(0xfff0fdf4),
           'color': const Color(0xff22c55e),
         };
       case 'completed':
-      case 'paid':
+      case 'settled':
         return {
-          'label': 'Hoàn tất',
+          'label': 'Hoàn thành',
           'bg': const Color(0xfff0fdf4),
           'color': const Color(0xff16a34a),
         };
@@ -445,7 +457,7 @@ class _StatusBadge extends StatelessWidget {
           'bg': const Color(0xfffee2e2),
           'color': const Color(0xffef4444),
         };
-      case 'incident':
+      case 'issue':
         return {
           'label': 'Sự cố',
           'bg': const Color(0xfffef2f2),
@@ -482,7 +494,7 @@ class _TrackingTimeline extends StatelessWidget {
            children: [
              Icon(Icons.cancel_outlined, color: Colors.redAccent),
              SizedBox(width: 12),
-             Expanded(child: Text('Đơn hàng đã được hủy', style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold))),
+             Text('Đơn hàng đã được hủy bởi khách hàng', style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold)),
            ],
          ),
        );
@@ -498,38 +510,48 @@ class _TrackingTimeline extends StatelessWidget {
     );
   }
 
-  List<_StepData> _buildSteps(String status, Map<String, dynamic> data) {
+  List<_StepData> _buildSteps(
+      String status, Map<String, dynamic> data) {
+    
+    // Normalize status index mapping
     int currentIndex = 0;
-    if (['approved', 'assigned'].contains(status)) currentIndex = 1;
-    if (['processing', 'incident'].contains(status)) currentIndex = 2;
-    if (['completed', 'paid'].contains(status)) currentIndex = 3;
+    if (['confirmed', 'assigned'].contains(status)) currentIndex = 1;
+    if (['processing', 'in_progress', 'issue'].contains(status)) currentIndex = 2;
+    if (['completed', 'settled'].contains(status)) currentIndex = 3;
 
     return [
       _StepData(
-        title: 'Chờ duyệt',
+        title: 'Chờ xác nhận',
         subtitle: 'Đơn hàng đã được tiếp nhận.',
         isCompleted: currentIndex >= 1,
         isActive: currentIndex == 0,
-        timestamp: _formatTs(data['ngayTao'] ?? data['createdAt']),
+        timestamp: data['createdAt'] != null
+            ? _formatTs(data['createdAt'])
+            : null,
       ),
       _StepData(
         title: 'Đã xác nhận',
         subtitle: 'Đã lên lịch và chuẩn bị thiết bị.',
         isCompleted: currentIndex >= 2,
         isActive: currentIndex == 1,
-        timestamp: currentIndex >= 1 ? 'Vừa xong' : null,
+        timestamp: currentIndex >= 1 ? _formatTs(data['confirmedAt'] ?? data['assignedAt']) : null,
       ),
       _StepData(
-        title: 'Đang lắp đặt',
-        subtitle: 'Kỹ thuật viên đang xử lý tại chỗ.',
+        title: 'Đang giao hàng & Lắp đặt',
+        subtitle:
+            'Kỹ thuật viên đang di chuyển đến địa chỉ của bạn.',
         isCompleted: currentIndex >= 3,
         isActive: currentIndex == 2,
+        timestamp:
+            currentIndex >= 2 ? _formatTs(data['processingAt'] ?? data['inProgressAt']) : null,
       ),
       _StepData(
         title: 'Hoàn thành',
-        subtitle: 'Kích hoạt bảo hành & Thiết bị.',
+        subtitle: 'Lắp đặt thành công và kích hoạt thiết bị.',
         isCompleted: currentIndex >= 3,
         isActive: false,
+        timestamp:
+            currentIndex >= 3 ? _formatTs(data['completedAt'] ?? data['settledAt']) : null,
       ),
     ];
   }
@@ -580,6 +602,7 @@ class _TimelineStep extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Timeline column
         SizedBox(
           width: 32,
           child: Column(
@@ -591,13 +614,23 @@ class _TimelineStep extends StatelessWidget {
                   color: dotColor,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: step.isActive ? const Color(0xff00459a) : Colors.transparent,
+                    color: step.isActive
+                        ? const Color(0xff00459a)
+                        : Colors.transparent,
                     width: 2,
                   ),
                 ),
                 child: step.isCompleted
                     ? const Icon(Icons.check, color: Colors.white, size: 14)
-                    : null,
+                    : step.isActive
+                        ? Container(
+                            margin: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                          )
+                        : null,
               ),
               if (!isLast)
                 Container(
@@ -608,7 +641,10 @@ class _TimelineStep extends StatelessWidget {
             ],
           ),
         ),
+
         const SizedBox(width: 12),
+
+        // Content
         Expanded(
           child: Padding(
             padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
@@ -623,13 +659,16 @@ class _TimelineStep extends StatelessWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
-                        color: step.isActive || step.isCompleted ? const Color(0xff0b1c30) : const Color(0xff94a3b8),
+                        color: step.isActive || step.isCompleted
+                            ? const Color(0xff0b1c30)
+                            : const Color(0xff94a3b8),
                       ),
                     ),
                     if (step.timestamp != null)
                       Text(
                         step.timestamp!,
-                        style: const TextStyle(fontSize: 11, color: Color(0xff94a3b8)),
+                        style: const TextStyle(
+                            fontSize: 11, color: Color(0xff94a3b8)),
                       ),
                   ],
                 ),
@@ -638,7 +677,9 @@ class _TimelineStep extends StatelessWidget {
                   step.subtitle,
                   style: TextStyle(
                     fontSize: 12,
-                    color: step.isActive || step.isCompleted ? const Color(0xff64748b) : const Color(0xffb0bec5),
+                    color: step.isActive || step.isCompleted
+                        ? const Color(0xff64748b)
+                        : const Color(0xffb0bec5),
                     height: 1.4,
                   ),
                 ),
@@ -651,10 +692,12 @@ class _TimelineStep extends StatelessWidget {
   }
 }
 
-class _TechnicianCard extends StatelessWidget {
-  final List technicians;
+// ── Technician Card ─────────────────────────────────────────────────────────
 
-  const _TechnicianCard({required this.technicians});
+class _TechnicianCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+
+  const _TechnicianCard({required this.data});
 
   @override
   Widget build(BuildContext context) {
@@ -670,49 +713,94 @@ class _TechnicianCard extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.engineering_outlined, color: Color(0xff3b82f6), size: 18),
+              Icon(Icons.engineering_outlined,
+                  color: Color(0xff3b82f6), size: 18),
               SizedBox(width: 8),
               Text(
-                'Kỹ thuật viên phụ trách',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xff0b1c30)),
+                'Kỹ thuật viên',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xff0b1c30),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 14),
-          ...technicians.map((tech) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 44, height: 44,
-                  decoration: const BoxDecoration(color: Color(0xffeff6ff), shape: BoxShape.circle),
-                  child: const Icon(Icons.person_outline, color: Color(0xff3b82f6), size: 24),
+          Row(
+            children: [
+              // Avatar
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0xffeff6ff),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(tech['name'] ?? 'Kỹ thuật viên', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      const Text('AquaCare Professional Staff', style: TextStyle(fontSize: 11, color: Color(0xff64748b))),
+                child: const Icon(Icons.person_outline,
+                    color: Color(0xff3b82f6), size: 28),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      data['technicianName'] ?? '',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Color(0xff1e293b),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Kỹ thuật viên AquaPure',
+                      style:
+                          TextStyle(fontSize: 12, color: Color(0xff64748b)),
+                    ),
+                    if (data['technicianPhone'] != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        data['technicianPhone'],
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xff3b82f6)),
+                      ),
                     ],
+                  ],
+                ),
+              ),
+              // Call button
+              if (data['technicianPhone'] != null)
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xff00459a),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.phone, color: Colors.white, size: 18),
+                    onPressed: () {
+                      // TODO: launch phone URL
+                    },
                   ),
                 ),
-              ],
-            ),
-          )).toList(),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
+// ── Info Row ────────────────────────────────────────────────────────────────
+
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
 
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  const _InfoRow(
+      {required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -726,9 +814,15 @@ class _InfoRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 11, color: Color(0xff94a3b8))),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 11, color: Color(0xff94a3b8))),
               const SizedBox(height: 2),
-              Text(value, style: const TextStyle(fontSize: 13, color: Color(0xff374151), fontWeight: FontWeight.w600)),
+              Text(value,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xff374151),
+                      fontWeight: FontWeight.w600)),
             ],
           ),
         ],

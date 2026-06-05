@@ -100,9 +100,6 @@ class AuthController extends ChangeNotifier {
         ward: address.ward,
         district: address.district,
         city: address.city,
-        provinceCode: address.provinceCode,
-        districtCode: address.districtCode,
-        wardCode: address.wardCode,
         type: address.type,
       );
       
@@ -114,38 +111,6 @@ class AuthController extends ChangeNotifier {
 
       if (isDefault || _customerUser!.defaultAddress == null) {
         updateData['defaultAddress'] = newAddressWithId.toMap();
-      }
-
-      await FirestoreService.updateUserData(_customerUser!.uid, updateData);
-      await loadUserProfile();
-      
-      _isLoading = false;
-      return true;
-    } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-  }
-
-  Future<bool> updateAddress(Address updatedAddress) async {
-    if (_customerUser == null) return false;
-
-    _isLoading = true;
-    notifyListeners();
-
-    try {
-      final List<Address> updatedAddresses = _customerUser!.addresses.map((a) {
-        return a.id == updatedAddress.id ? updatedAddress : a;
-      }).toList();
-
-      Map<String, dynamic> updateData = {
-        'addresses': updatedAddresses.map((a) => a.toMap()).toList(),
-      };
-
-      if (_customerUser!.defaultAddress?.id == updatedAddress.id) {
-        updateData['defaultAddress'] = updatedAddress.toMap();
       }
 
       await FirestoreService.updateUserData(_customerUser!.uid, updateData);

@@ -36,7 +36,6 @@ function getStatusColor(status: OrderStatus) {
     case 'approved': return 'bg-teal-50 text-teal-600 border-teal-100 dark:bg-teal-900/20 dark:text-teal-400';
     case 'assigned': return 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:text-blue-400';
     case 'processing': return 'bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400';
-    case 'installing': return 'bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-900/20 dark:text-orange-400';
     case 'completed': return 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400';
     case 'paid': return 'bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-900/20 dark:text-purple-400';
     case 'incident': return 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/20 dark:text-rose-400';
@@ -52,7 +51,6 @@ function getStatusText(status: OrderStatus) {
     approved: 'Đã duyệt',
     assigned: 'Đã phân công',
     processing: 'Đang xử lý',
-    installing: 'Đang lắp đặt',
     completed: 'Hoàn tất',
     paid: 'Đã tất toán',
     incident: 'Sự cố',
@@ -145,7 +143,7 @@ const OrdersPage: React.FC = () => {
   const [showCustomProductForm, setShowCustomProductForm] = useState(false);
   const [customProduct, setCustomProduct] = useState({ name: '', price: 0, thoiGianBaoHanh: 0 });
 
-  const tabs = ['Tất cả', 'Chờ duyệt', 'Đã duyệt', 'Đã phân công', 'Đang xử lý', 'Đang lắp đặt', 'Hoàn tất', 'Sự cố', 'Đã tất toán'];
+  const tabs = ['Tất cả', 'Chờ duyệt', 'Đã duyệt', 'Đã phân công', 'Đang xử lý', 'Hoàn tất', 'Sự cố', 'Đã tất toán'];
 
   useEffect(() => {
     const unsubscribe = subscribeToOrders((data) => setOrders(data), activeTab);
@@ -197,7 +195,7 @@ const OrdersPage: React.FC = () => {
         }
 
         setFormDataState({
-          customerName: order.customerName || order.tenKhachHang || '',
+          customerName: order.customerName || '',
           phoneNumber: order.phoneNumber || '',
           provinceCode: order.provinceCode ? String(order.provinceCode) : '',
           districtCode: order.districtCode ? String(order.districtCode) : '',
@@ -435,13 +433,13 @@ const OrdersPage: React.FC = () => {
       if (!order) return;
 
       // 1. Kiểm tra yêu cầu phân công KTV cho các trạng thái nghiệp vụ
-      if ((!order.technicians || order.technicians.length === 0) && ['assigned', 'processing', 'installing', 'completed', 'paid', 'incident'].includes(newStatus)) {
+      if ((!order.technicians || order.technicians.length === 0) && ['assigned', 'processing', 'completed', 'paid', 'incident'].includes(newStatus)) {
         toast.error("Bắt buộc phải Phân công Kỹ thuật viên trước khi chuyển sang trạng thái này!");
         return;
       }
 
       // 2. Kiểm tra yêu cầu Lịch hẹn
-      if (!order.scheduledDate && ['assigned', 'processing', 'installing', 'completed', 'paid'].includes(newStatus)) {
+      if (!order.scheduledDate && ['assigned', 'processing', 'completed', 'paid'].includes(newStatus)) {
         toast.error("Bắt buộc phải có Lịch hẹn thi công trước khi chuyển sang trạng thái này!");
         return;
       }
@@ -530,7 +528,7 @@ const OrdersPage: React.FC = () => {
 
   const getAllowedStatuses = (order: Order) => {
     const current = order.status;
-    const all: OrderStatus[] = ['pending', 'approved', 'assigned', 'processing', 'installing', 'completed', 'incident', 'paid', 'cancelled'];
+    const all: OrderStatus[] = ['pending', 'approved', 'assigned', 'processing', 'completed', 'incident', 'paid', 'cancelled'];
     const beforeScheduled = isBeforeScheduledDate(order.scheduledDate);
     const hasTechnicians = order.technicians && order.technicians.length > 0;
 
@@ -539,27 +537,27 @@ const OrdersPage: React.FC = () => {
     if (isAdmin) {
       allowed = [...all];
     } else {
-      const flow: OrderStatus[] = ['pending', 'approved', 'assigned', 'processing', 'installing', 'completed', 'paid'];
+      const flow: OrderStatus[] = ['pending', 'approved', 'assigned', 'processing', 'completed', 'paid'];
       const idx = flow.indexOf(current);
 
       if (idx !== -1) {
         const nextFlow = flow.slice(idx + 1);
         const extras: OrderStatus[] = [];
-        if (['approved', 'assigned', 'processing', 'installing'].includes(current)) extras.push('incident');
+        if (['approved', 'assigned', 'processing'].includes(current)) extras.push('incident');
         if (['pending', 'approved', 'assigned'].includes(current)) extras.push('cancelled');
         allowed = [...nextFlow, ...extras];
       } else if (current === 'incident') {
-        allowed = ['processing', 'installing', 'completed', 'paid'];
+        allowed = ['processing', 'completed', 'paid'];
       }
     }
 
     if (beforeScheduled) {
-      const lockedStatuses: OrderStatus[] = ['processing', 'installing', 'completed', 'incident', 'paid'];
+      const lockedStatuses: OrderStatus[] = ['processing', 'completed', 'incident', 'paid'];
       allowed = allowed.filter(s => !lockedStatuses.includes(s));
     }
 
     if (!hasTechnicians) {
-      const lockedStatuses: OrderStatus[] = ['assigned', 'processing', 'installing', 'completed', 'incident', 'paid'];
+      const lockedStatuses: OrderStatus[] = ['assigned', 'processing', 'completed', 'incident', 'paid'];
       allowed = allowed.filter(s => !lockedStatuses.includes(s));
     }
 
@@ -701,13 +699,8 @@ const OrdersPage: React.FC = () => {
                       ) : (
                         isCoordinator && !['completed', 'paid', 'cancelled'].includes(order.status) && (
                           <button onClick={() => {
-                              let formattedDate = '';
-                              if (order.scheduledDate) {
-                                const d = order.scheduledDate.toDate ? order.scheduledDate.toDate() : new Date(order.scheduledDate);
-                                formattedDate = d.toISOString().slice(0, 16);
-                              }
                               setSelectedTechsInModal([]);
-                              setShowAssignModal({ orderId: order.id, currentTechs: [], scheduledDate: formattedDate, visible: true });
+                              setShowAssignModal({ orderId: order.id, currentTechs: [], scheduledDate: '', visible: true });
                           }} className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 hover:underline">
                             <UserPlus size={14} /> Phân công
                           </button>
@@ -806,23 +799,18 @@ const OrdersPage: React.FC = () => {
                       <div className="p-6 bg-slate-50/30 dark:bg-slate-800/20 rounded-[2.5rem] space-y-4">
                          <div className="flex items-center gap-2 px-1 text-left"><MapPin size={16} className="text-blue-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Địa chỉ thi công</span></div>
                          <div className="grid grid-cols-3 gap-3">
-                            <select value={formDataState.provinceCode} onChange={e => handleProvinceChange(e.target.value)} disabled={showOrderModal.type === 'detail'} className={`w-full px-3 py-3 bg-white dark:bg-slate-800 rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white ${errors.provinceCode ? 'border border-rose-500' : 'border-none shadow-sm'}`}>
+                            <select value={formDataState.provinceCode} onChange={e => handleProvinceChange(e.target.value)} disabled={showOrderModal.type === 'detail'} className="w-full px-3 py-3 bg-white dark:bg-slate-800 rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white border-none shadow-sm">
                                <option value="">Tỉnh/Thành</option>
                                {provinces.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
                             </select>
-                            <select value={formDataState.districtCode} onChange={e => handleDistrictChange(e.target.value)} disabled={showOrderModal.type === 'detail'} className={`w-full px-3 py-3 bg-white dark:bg-slate-800 rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white ${errors.districtCode ? 'border border-rose-500' : 'border-none shadow-sm'}`}>
+                            <select value={formDataState.districtCode} onChange={e => handleDistrictChange(e.target.value)} disabled={showOrderModal.type === 'detail'} className="w-full px-3 py-3 bg-white dark:bg-slate-800 rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white border-none shadow-sm">
                                <option value="">Quận/Huyện</option>
                                {districts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
                             </select>
-                            <select value={formDataState.wardCode} onChange={e => {setFormDataState({...formDataState, wardCode: e.target.value}); setErrors(prev => {const n={...prev}; delete n.wardCode; return n;})}} disabled={showOrderModal.type === 'detail'} className={`w-full px-3 py-3 bg-white dark:bg-slate-800 rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white ${errors.wardCode ? 'border border-rose-500' : 'border-none shadow-sm'}`}>
+                            <select value={formDataState.wardCode} onChange={e => setFormDataState({...formDataState, wardCode: e.target.value})} disabled={showOrderModal.type === 'detail'} className="w-full px-3 py-3 bg-white dark:bg-slate-800 rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white border-none shadow-sm">
                                <option value="">Phường/Xã</option>
                                {wards.map(w => <option key={w.code} value={w.code}>{w.name}</option>)}
                             </select>
-                            {(errors.provinceCode || errors.districtCode || errors.wardCode) && (
-                               <p className="text-[9px] text-rose-500 font-bold ml-1 mt-1 col-span-3">
-                                  {errors.provinceCode || errors.districtCode || errors.wardCode}
-                               </p>
-                            )}
                          </div>
                          <div className="space-y-1.5 text-left">
                             <input name="street" value={formDataState.street} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} placeholder="Số nhà, tên đường..." className={`w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl outline-none font-bold text-xs dark:text-white border-none shadow-sm ${errors.street ? 'border border-rose-500' : ''}`} />
@@ -862,10 +850,7 @@ const OrdersPage: React.FC = () => {
 
                       <div className="space-y-4">
                          <div className="flex justify-between items-center px-1">
-                            <div className="flex items-center gap-2">
-                                <Package size={16} className="text-blue-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hạng mục hàng hóa</span>
-                                {errors.products && <span className="text-[9px] text-rose-500 font-bold ml-auto">{errors.products}</span>}
-                            </div>
+                            <div className="flex items-center gap-2"><Package size={16} className="text-blue-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hạng mục hàng hóa</span></div>
                             {showOrderModal.type !== 'detail' && (
                                <button type="button" onClick={() => setShowCustomProductForm(!showCustomProductForm)} className="text-[9px] font-black text-blue-600 uppercase flex items-center gap-1 hover:brightness-125 transition-all">
                                   {showCustomProductForm ? 'Quay lại kho' : <><Sparkles size={14} /> Tùy chỉnh linh động</>}

@@ -182,7 +182,7 @@ Khách hàng: ${order.customerName}
 Điện thoại: ${order.phoneNumber}
 Địa chỉ: ${order.deliveryAddress.fullAddress}
 Tổng tiền: ${order.totalAmount.toStringAsFixed(0)} VND
-Trạng thái: ${getStatusDisplayName(order.status)}
+Trạng thái: ${order.status}
 ''';
   }
 
@@ -200,17 +200,14 @@ Trạng thái: ${getStatusDisplayName(order.status)}
   /// Get status display name (Vietnamese)
   static String getStatusDisplayName(String status) {
     const statusNames = {
-      'pending': 'Chờ duyệt',
-      'approved': 'Đã duyệt',
-      'assigned': 'Đã phân công',
-      'processing': 'Đang thực hiện',
-      'in_progress': 'Đang thực hiện',
-      'installing': 'Đang lắp đặt',
-      'completed': 'Hoàn tất',
-      'incident': 'Sự cố',
-      'paid': 'Đã tất toán',
-      'cancelled': 'Đã hủy',
-      'deleted': 'Đã xóa',
+      OrderStatus.pending: 'Chờ duyệt',
+      OrderStatus.assigned: 'Đã phân công',
+      OrderStatus.processing: 'Đang xử lý',
+      OrderStatus.completed: 'Hoàn tất',
+      OrderStatus.incident: 'Sự cố',
+      OrderStatus.paid: 'Đã tất toán',
+      OrderStatus.cancelled: 'Đã hủy',
+      OrderStatus.deleted: 'Đã xóa',
     };
     return statusNames[status] ?? status;
   }
@@ -218,17 +215,14 @@ Trạng thái: ${getStatusDisplayName(order.status)}
   /// Get status color for UI
   static String getStatusColor(String status) {
     const statusColors = {
-      'pending': '#FFA500', // Orange
-      'approved': '#20B2AA', // Light Sea Green
-      'assigned': '#4169E1', // Blue
-      'processing': '#1E90FF', // Bright Blue
-      'in_progress': '#1E90FF',
-      'installing': '#EA580C', // Orange Red
-      'completed': '#32CD32', // Lime Green
-      'incident': '#FF4500', // Orange Red
-      'paid': '#228B22', // Forest Green
-      'cancelled': '#DC143C', // Crimson
-      'deleted': '#808080', // Gray
+      OrderStatus.pending: '#FFA500', // Orange
+      OrderStatus.assigned: '#4169E1', // Blue
+      OrderStatus.processing: '#1E90FF', // Bright Blue
+      OrderStatus.completed: '#32CD32', // Lime Green
+      OrderStatus.incident: '#FF4500', // Orange Red
+      OrderStatus.paid: '#228B22', // Forest Green
+      OrderStatus.cancelled: '#DC143C', // Crimson
+      OrderStatus.deleted: '#808080', // Gray
     };
     return statusColors[status] ?? '#000000';
   }
