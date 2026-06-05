@@ -15,13 +15,17 @@ export interface RevenueData {
   orders: number;
 }
 
+/**
+ * Lấy dữ liệu doanh thu tháng
+ * Đã cập nhật: Tính cả đơn 'completed' và 'paid'
+ */
 export const getMonthlyRevenueData = async (year: number, month: number): Promise<RevenueData[]> => {
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0, 23, 59, 59);
 
   const q = query(
     collection(firestore, 'donHang'),
-    where('trangThai', '==', 'completed'),
+    where('trangThai', 'in', ['completed', 'paid']),
     where('ngayTao', '>=', Timestamp.fromDate(startDate)),
     where('ngayTao', '<=', Timestamp.fromDate(endDate)),
     orderBy('ngayTao', 'asc')
@@ -48,13 +52,16 @@ export const getMonthlyRevenueData = async (year: number, month: number): Promis
   return results;
 };
 
+/**
+ * Lấy dữ liệu doanh thu năm
+ */
 export const getYearlyRevenueData = async (year: number): Promise<RevenueData[]> => {
   const startDate = new Date(year, 0, 1);
   const endDate = new Date(year, 11, 31, 23, 59, 59);
 
   const q = query(
     collection(firestore, 'donHang'),
-    where('trangThai', '==', 'completed'),
+    where('trangThai', 'in', ['completed', 'paid']),
     where('ngayTao', '>=', Timestamp.fromDate(startDate)),
     where('ngayTao', '<=', Timestamp.fromDate(endDate)),
     orderBy('ngayTao', 'asc')
@@ -78,6 +85,9 @@ export const getYearlyRevenueData = async (year: number): Promise<RevenueData[]>
   return results;
 };
 
+/**
+ * Xuất báo cáo doanh thu CSV
+ */
 export const exportRevenueReport = async (year: number, month?: number) => {
   let startDate: Date;
   let endDate: Date;
@@ -95,7 +105,7 @@ export const exportRevenueReport = async (year: number, month?: number) => {
 
   const q = query(
     collection(firestore, 'donHang'),
-    where('trangThai', '==', 'completed'),
+    where('trangThai', 'in', ['completed', 'paid']),
     where('ngayTao', '>=', Timestamp.fromDate(startDate)),
     where('ngayTao', '<=', Timestamp.fromDate(endDate)),
     orderBy('ngayTao', 'asc')
@@ -103,19 +113,19 @@ export const exportRevenueReport = async (year: number, month?: number) => {
 
   const querySnapshot = await getDocs(q);
 
-  let csv = '\ufeffMa don,Khach hang,San pham,Tong tien,Ngay hoan tat\n';
+  let csv = '\ufeffMa don,Khach hang,San pham,Tong tien,Trang thai,Ngay ghi nhan\n';
   let totalRevenue = 0;
   let totalOrders = 0;
 
   querySnapshot.forEach((d) => {
     const data = d.data();
     const amount = Number(data.tongTien || 0);
-    csv += `${d.id.slice(-6)},${data.tenKhachHang || 'N/A'},${data.tenSanPham || 'N/A'},${amount},${safeToDate(data.ngayTao).toLocaleDateString('vi-VN')}\n`;
+    csv += `${d.id.slice(-6)},${data.tenKhachHang || 'N/A'},${data.tenSanPham || 'N/A'},${amount},${data.trangThai},${safeToDate(data.ngayTao).toLocaleDateString('vi-VN')}\n`;
     totalRevenue += amount;
     totalOrders += 1;
   });
 
-  csv += `\nTong cong,,${totalOrders} don hang,${totalRevenue},\n`;
+  csv += `\nTong cong,,${totalOrders} don hang,${totalRevenue},,\n`;
 
   const link = document.createElement('a');
   link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));

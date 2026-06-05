@@ -29,14 +29,8 @@ import SettingsPage from './pages/settings/SettingsPage';
 import AuditLogsPage from './pages/audit/AuditLogsPage';
 import DevicesPage from './pages/devices/DevicesPage';
 import ReportsPage from './pages/reports/ReportsPage';
-
-// Placeholder cho các chức năng cũ đang khôi phục
-const PlaceholderPage = ({ title }: { title: string }) => (
-  <div className="p-10 text-center">
-    <h1 className="text-2xl font-black uppercase text-slate-400">{title}</h1>
-    <p className="mt-2 text-slate-500 font-medium">Chức năng này đang được đồng bộ hóa dữ liệu...</p>
-  </div>
-);
+import SchedulePage from './pages/schedule/SchedulePage';
+import WarrantyPage from './pages/warranty/WarrantyPage';
 
 interface ProtectedRouteProps {
   isAuthenticated: boolean;
@@ -92,7 +86,7 @@ const App: React.FC = () => {
 
           <Route path="/orders" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN, UserRole.COORDINATOR, UserRole.ACCOUNTANT]}><OrdersPage /></ProtectedRoute>} />
 
-          <Route path="/schedule" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN, UserRole.COORDINATOR]}><PlaceholderPage title="Lịch làm việc" /></ProtectedRoute>} />
+          <Route path="/schedule" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN, UserRole.COORDINATOR]}><SchedulePage /></ProtectedRoute>} />
 
           <Route path="/technicians" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN, UserRole.COORDINATOR]}><TechniciansPage /></ProtectedRoute>} />
 
@@ -100,7 +94,7 @@ const App: React.FC = () => {
 
           <Route path="/customers" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN, UserRole.COORDINATOR, UserRole.ACCOUNTANT]}><CustomersPage /></ProtectedRoute>} />
 
-          <Route path="/warranty" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN, UserRole.COORDINATOR]}><PlaceholderPage title="Quản lý Bảo hành" /></ProtectedRoute>} />
+          <Route path="/warranty" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN, UserRole.COORDINATOR]}><WarrantyPage /></ProtectedRoute>} />
 
           <Route path="/devices" element={<ProtectedRoute isAuthenticated={isAuthenticated} isLoading={isLoading} userRole={user?.role} allowedRoles={[UserRole.ADMIN, UserRole.COORDINATOR]}><DevicesPage /></ProtectedRoute>} />
 

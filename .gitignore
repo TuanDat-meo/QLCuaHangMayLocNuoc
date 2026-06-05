@@ -21,7 +21,6 @@ pubspec.lock
 
 # Environment
 .env
-.env.local
 .env.*.local
 
 # Node

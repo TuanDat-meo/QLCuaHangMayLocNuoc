@@ -19,6 +19,7 @@ export interface ImportVoucherItem {
   sku?: string;
   imageUrl?: string;
   sellingPrice?: number; // Giá bán lẻ đề xuất cho sản phẩm mới
+  thoiGianBaoHanh?: number; // Thời gian bảo hành (tháng)
 }
 
 export interface ImportVoucher {
