@@ -18,42 +18,35 @@ Total Effort: ~320 hours (≈ 10.7 hours/day × 3 people × 21 working days)
 👤 PHÂN CÔNG NHÂN SỰ
 ═══════════════════════════════════════════════════════════════════════════════
 
-【 ĐẠT 】Backend + Firebase + Database
+【 ĐẠT 】Backend + Admin Web (React/TS/Firebase)
 ───────────────────────────────────────
 ✓ Firebase Cloud Functions (5-6 functions)
-✓ Firestore Security Rules
-✓ Storage Rules
-✓ Database consistency
+✓ Firestore & Storage Security Rules
+✓ Admin Dashboard & KPIs UI
+✓ Users, Orders, Tech & Products CRUD
+✓ Web Deployment & Performance
 ✓ Integration testing
-✓ Performance optimization
-✓ Production deployment
 
-Tasks: T1.01-T1.07, T3.01-T3.05 (13 tasks)
-Total Hours: ~78 hours (40 dev + 38 testing)
+Tasks: T1.01-T1.09, T2.13-T2.17, T3.01-T3.10 (28 tasks)
+Total Hours: ~166 hours (96 dev + 70 testing)
 
-【 HUY 】Admin Web (React + TypeScript + Vite)
-───────────────────────────────────────
-✓ Admin Dashboard UI
-✓ Users Management (CRUD)
-✓ Orders Management
-✓ Technician Management
-✓ Products Management
-✓ Settings & Permissions
-✓ Responsive design
-✓ Production deployment
-
-Tasks: T1.08-T1.09, T2.13-T2.17, T3.06-T3.10 (15 tasks)
-Total Hours: ~88 hours (56 dev + 32 polish/test)
-
-【 BÌNH 】Mobile Apps (Flutter)
+【 HUY 】Customer App (Flutter)
 ───────────────────────────────────────
 ✓ Customer App: Auth, Home, Cart, Orders, Tracking, Profile, Notifications
-✓ Technician App: Auth, Home, Job Detail, Job Actions, Photos, COD, Completion, Notifications
-✓ Both apps: Feature completeness, UI/UX polish, testing
-✓ APK/IPA builds
+✓ UI/UX polish, testing
+✓ APK/IPA builds cho app Khách hàng
 
-Tasks: T1.10-T1.13, T2.01-T2.12, T3.11-T3.17 (23 tasks)
-Total Hours: ~154 hours (88 dev + 66 testing)
+Tasks: T1.10, T1.12, T2.08-T2.12, T3.11, T3.13, T3.15-T3.17 (12 tasks)
+Total Hours: ~68 hours (48 dev + 20 testing)
+
+【 BÌNH 】Technician App (Flutter)
+───────────────────────────────────────
+✓ Technician App: Auth, Home, Job Detail, Job Actions, Photos, COD, Completion, Notifications
+✓ UI/UX polish, testing
+✓ APK/IPA builds cho app Kỹ thuật viên
+
+Tasks: T1.11, T1.13, T2.01-T2.07, T3.12, T3.14, T3.15-T3.17 (12 tasks)
+Total Hours: ~68 hours (48 dev + 20 testing)
 
 ═══════════════════════════════════════════════════════════════════════════════
 📅 TIMELINE CHI TIẾT
@@ -116,7 +109,7 @@ Total Hours: ~154 hours (88 dev + 66 testing)
     - Test: technician/{uid}/* only owner + admin
     - Test: users/{uid}/profile/* owner-write only
 
-HUY (Admin Web - 32 hours)
+ĐẠT (Admin Web - 32 hours)
 ├─ T1.08 Users Management Page (4d) → 23/5
 │   Display: ID|Name|Email|Phone|Role|Status|Actions table
 │   - Fetch users from Firestore
@@ -148,7 +141,7 @@ HUY (Admin Web - 32 hours)
     - Loading skeletons
     - Error handling
 
-BÌNH (Mobile - 32 hours)
+HUY (Customer App - 20 hours)
 ├─ T1.10 Customer Auth Verification (3d) → 20/5
 │   Test & fix auth flow
 │   - Sign up: email→password→firebase.auth.createUserWithEmailAndPassword()
@@ -160,6 +153,16 @@ BÌNH (Mobile - 32 hours)
 │   - Verify redirects: Auth → Home screen, No auth → Login screen
 │   - Test error messages: invalid email, weak password, user not found
 │
+└─ T1.12 Customer Cart Verification (2d) → 22/5
+    Test cart operations
+    - Add product: increases qty (if same product exists, increment qty)
+    - Remove product: delete from cart
+    - Update qty: change quantity slider/input
+    - Persist cart in local storage (SharedPreferences or Hive)
+    - Proceed to checkout: transfer to checkout screen
+    - Test: cart empty, single item, multiple items
+
+BÌNH (Technician App - 20 hours)
 ├─ T1.11 Technician Auth Verification (3d) → 20/5
 │   Test KTV login
 │   - Phone/Email + password login
@@ -167,15 +170,6 @@ BÌNH (Mobile - 32 hours)
 │   - If not technician → show error "Not authorized as technician"
 │   - On success → navigate to home (job list)
 │   - Token persist in SharedPreferences
-│
-├─ T1.12 Customer Cart Verification (2d) → 22/5
-│   Test cart operations
-│   - Add product: increases qty (if same product exists, increment qty)
-│   - Remove product: delete from cart
-│   - Update qty: change quantity slider/input
-│   - Persist cart in local storage (SharedPreferences or Hive)
-│   - Proceed to checkout: transfer to checkout screen
-│   - Test: cart empty, single item, multiple items
 │
 └─ T1.13 Technician Home Verification (2d) → 21/5
     Test job list today
@@ -191,8 +185,8 @@ BÌNH (Mobile - 32 hours)
 【 TUẦN 2: 24/5 - 30/5 】Mobile Apps Completion & Admin Web Features
 ────────────────────────────────────────────────────────────────────
 
-BÌNH (Mobile - 56 hours) - Main Effort
-├─ Technician App Core (28 hours)
+BÌNH (Technician App - 28 hours)
+├─ Core Features
 │  ├─ T2.01 Job Detail Screen (2d) → 25/5
 │  │  Show: Order details + Customer info + Google Maps
 │  │  - Order card: Product name, qty, price, customer name
@@ -259,7 +253,8 @@ BÌNH (Mobile - 56 hours) - Main Effort
 │     - Edit button → Modal: Edit name/phone/address
 │     - Sign out button
 │
-├─ Customer App Orders (28 hours)
+HUY (Customer App - 28 hours)
+├─ Core Features
 │  ├─ T2.08 Checkout Flow (2d) → 25/5
 │  │  Cart → Address → Order placement
 │  │  - Address input: Google Places autocomplete
@@ -319,7 +314,7 @@ BÌNH (Mobile - 56 hours) - Main Effort
 │     - Order history: last 10 orders (ID, date, status)
 │     - Sign out
 
-HUY (Admin Web - 40 hours)
+ĐẠT (Admin Web - 40 hours)
 ├─ T2.13 Orders Management (2d) → 26/5
 │  Table: OrderID|Customer|Product|Qty|Total|Status|Date|Actions
 │  - Filter by status dropdown
@@ -444,7 +439,7 @@ HUY (Admin Web - 40 hours)
    - Test production functions
    - Monitor for errors in real-time (Firebase Console)
 
-HUY (Admin Web Polish - 32 hours)
+ĐẠT (Admin Web Polish - 32 hours)
 ├─ T3.06 UI/UX Responsive Design (1d) → 1/6
 │  Test on multiple devices
 │  - Desktop 1920px: all features visible + readable
@@ -488,7 +483,7 @@ HUY (Admin Web Polish - 32 hours)
    - Test assignments: assign technician, verify FCM
    - On live production URL
 
-BÌNH (Mobile Testing & Build - 40 hours)
+HUY (Customer App Testing & Build - 20 hours)
 ├─ T3.11 Customer App Testing (2d) → 1/6
 │  Full end-to-end testing
 │  - Devices: 1 Android phone + 1 iOS (if available)
@@ -505,6 +500,32 @@ BÌNH (Mobile Testing & Build - 40 hours)
 │    10. Profile: edit info, view order history, sign out
 │    11. Edge cases: no internet, slow network, app kill & restart
 │
+├─ T3.13 Customer App Fixes (1d) → 3/6
+│  Fix bugs found during T3.11
+│  - Crashes: stacktrace analysis
+│  - UI layout: fixes for responsive issues
+│  - Firestore: ensure real-time updates working
+│  - Navigation: correct route transitions
+│
+├─ T3.15 Customer Performance Optimization (0.5d) → 4/6
+│  Optimize Customer app
+│  - Reduce APK size: target < 120MB
+│  - Firestore queries: add pagination (10 items per page)
+│  - Image loading: implement lazy loading, caching
+│
+├─ T3.16 Build Customer APK/IPA (0.5d) → 5/6
+│  Create release builds for Customer App
+│  - Run: flutter build apk --release
+│  - Sign APK with release keystore
+│  - Store build in artifacts folder
+│
+└─ T3.17 Customer Final Validation (1d) → 6/6
+   Last check Customer platform
+   - Android devices: install APK, test
+   - Data consistency: orders sync with admin web
+   - Ready for production!
+
+BÌNH (Technician App Testing & Build - 20 hours)
 ├─ T3.12 Technician App Testing (1d) → 2/6
 │  Full end-to-end testing
 │  - Devices: 1 Android phone + 1 iOS (if available)
@@ -522,54 +543,29 @@ BÌNH (Mobile Testing & Build - 40 hours)
 │    11. Notifications: receive FCM for new jobs
 │    12. Profile: view stats, edit info
 │
-├─ T3.13 Customer App Fixes (1d) → 3/6
-│  Fix bugs found during T3.11
-│  - Crashes: stacktrace analysis
-│  - UI layout: fixes for responsive issues
-│  - Firestore: ensure real-time updates working
-│  - Camera/Gallery: permissions + file handling
-│  - Navigation: correct route transitions
-│
 ├─ T3.14 Technician App Fixes (1d) → 3/6
 │  Fix bugs found during T3.12
 │  - Crashes: debug + fix
 │  - Maps display: verify geolocation accuracy
-│  - Notifications: FCM delivery consistency
 │  - Photo upload: retry on failure
 │  - Status updates: verify Firestore writes
 │
-├─ T3.15 Mobile Performance (1d) → 4/6
-│  Optimize mobile apps
-│  - Reduce APK size: target < 150MB
-│  - Firestore queries: add pagination (10 items per page)
-│  - Image loading: implement lazy loading, caching
+├─ T3.15 Technician Performance Optimization (0.5d) → 4/6
+│  Optimize Technician app
+│  - Reduce APK size: target < 120MB
+│  - Image uploading: compression before uploading
 │  - FCM processing: optimize notification handling
-│  - Bundle analysis: flutter analyze
 │
-├─ T3.16 Build APK/IPA (1d) → 5/6
-│  Create release builds
-│  - Customer App:
-│    * flutter build apk --release
-│    * flutter build ios --release (if available)
-│    * Sign APK with release keystore
-│  - Technician App:
-│    * flutter build apk --release
-│    * flutter build ios --release (if available)
-│  - Verify sizes:
-│    * Customer APK: < 120MB
-│    * Technician APK: < 120MB
-│  - Store builds in artifacts folder
+├─ T3.16 Build Technician APK/IPA (0.5d) → 5/6
+│  Create release builds for Technician App
+│  - Run: flutter build apk --release
+│  - Sign APK with release keystore
+│  - Store build in artifacts folder
 │
-└─ T3.17 Final Validation (1d) → 6/6
-   Last check all platforms
+└─ T3.17 Technician Final Validation (1d) → 6/6
+   Last check Technician platform
    - Android devices: install APK, test
-   - iOS: test if available
-   - Web: test Chrome & Firefox
-   - Data consistency: orders sync across apps
-   - All links: clickable, navigate correctly
-   - All buttons: responsive, labeled
-   - Notifications: test Firebase notifications
-   - Sign out: test on all apps
+   - Data consistency: status updates synced with customer app
    - Ready for production!
 
 ════════════════════════════════════════════════════════════════════════════════
@@ -695,9 +691,9 @@ Daily Standup (9:00 AM - 15 min)
     ⚠ What blocked today
     → Next steps for today
   
-  Đạt: Firebase functions progress
-  Huy: Admin web progress
-  Bình: Mobile progress
+  Đạt: Firebase & Admin Web progress
+  Huy: Customer App progress
+  Bình: Technician App progress
 
 Weekly Sync (Friday 4:00 PM - 30 min)
   - Review completed tasks
@@ -725,7 +721,7 @@ Backend (Đạt):
     ├── storage.rules                    ← Storage Rules
     └── firestore.indexes.json           ← Indexes
 
-Admin Web (Huy):
+Admin Web (Đạt):
   📁 apps/admin_web/
     ├── src/pages/                       ← Page components
     │   ├── DashboardPage.tsx
@@ -738,7 +734,7 @@ Admin Web (Huy):
     ├── src/services/                    ← Firebase services
     └── package.json
 
-Customer App (Bình):
+Customer App (Huy):
   📁 apps/customer_app/
     ├── lib/features/
     │   ├── auth/                        ← Auth screens

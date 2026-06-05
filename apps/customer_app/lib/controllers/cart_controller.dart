@@ -47,14 +47,17 @@ class CartController extends ChangeNotifier {
 
   List<CartItem> get items => _items;
 
-  double get subtotal => _items.fold(0, (sum, item) => sum + (item.price * item.quantity));
+  double get subtotal =>
+      _items.fold(0, (sum, item) => sum + (item.price * item.quantity));
   double get discount => subtotal > 10000000 ? 2500000 : 0;
-  double get shippingFee => 0; 
+  double get shippingFee => 0;
   double get total => subtotal - discount + shippingFee;
 
   Future<void> _saveCartToStorage() async {
     final prefs = await SharedPreferences.getInstance();
-    final String encodedData = json.encode(_items.map((item) => item.toMap()).toList());
+    final String encodedData = json.encode(
+      _items.map((item) => item.toMap()).toList(),
+    );
     await prefs.setString('customer_cart', encodedData);
   }
 
@@ -75,19 +78,23 @@ class CartController extends ChangeNotifier {
     required int quantity,
     String? imageUrl,
   }) {
-    final existingIndex = _items.indexWhere((item) => item.productId == productId);
+    final existingIndex = _items.indexWhere(
+      (item) => item.productId == productId,
+    );
 
     if (existingIndex >= 0) {
       _items[existingIndex].quantity += quantity;
     } else {
-      _items.add(CartItem(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        productId: productId,
-        productName: productName,
-        price: price,
-        quantity: quantity,
-        imageUrl: imageUrl,
-      ));
+      _items.add(
+        CartItem(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          productId: productId,
+          productName: productName,
+          price: price,
+          quantity: quantity,
+          imageUrl: imageUrl,
+        ),
+      );
     }
     _saveCartToStorage();
     notifyListeners();

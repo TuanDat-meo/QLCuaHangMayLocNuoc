@@ -41,6 +41,33 @@ const createCustomerNotification = async (userId: string, title: string, body: s
 };
 
 /**
+ * Hàm hỗ trợ tạo thông báo cho kỹ thuật viên
+ */
+const createTechnicianNotification = async (
+  ktvId: string,
+  title: string,
+  body: string,
+  jobId: string,
+  type: string
+) => {
+  const db = getDb();
+  if (!db || !ktvId) return;
+  try {
+    await addDoc(collection(db, 'thongBao'), {
+      ktvId,
+      tieuDe: title,
+      noiDung: body,
+      loai: type,
+      donHangId: jobId,
+      daDoc: false,
+      ngayTao: serverTimestamp()
+    });
+  } catch (e) {
+    console.error("Error creating technician notification:", e);
+  }
+};
+
+/**
  * Hàm ép kiểu ngày tháng an toàn
  */
 export const safeToDate = (value: any): Date => {
@@ -48,7 +75,7 @@ export const safeToDate = (value: any): Date => {
   if (typeof value.toDate === 'function') return value.toDate();
   if (value instanceof Date) return value;
   if (value && typeof value === 'object' && (value.seconds || value._methodName)) {
-     return new Date((value.seconds || Date.now()/1000) * 1000);
+    return new Date((value.seconds || Date.now() / 1000) * 1000);
   }
   const d = new Date(value);
   return isNaN(d.getTime()) ? new Date() : d;
@@ -236,6 +263,22 @@ export const assignTechnicians = async (orderId: string, technicians: OrderTechn
         { orderId, status: 'assigned' }
       );
     }
+
+    // Gửi thông báo cho từng KTV được phân công
+    const orderCode = data.orderCode || '';
+    const customerName = data.tenKhachHang || data.customerName || '';
+    const formattedDate = scheduledDate ? scheduledDate.toLocaleString('vi-VN') : '';
+    for (const tech of technicians) {
+      if (tech.id) {
+        await createTechnicianNotification(
+          tech.id,
+          '🔧 Bạn có công việc mới được phân công!',
+          `Đơn hàng ${orderCode} (KH: ${customerName}) đã được gán cho bạn. Lịch hẹn: ${formattedDate}.`,
+          orderId,
+          'new_job'
+        );
+      }
+    }
   }
 };
 
@@ -246,7 +289,7 @@ export const deleteOrder = async (orderId: string, status: OrderStatus) => {
 
 export const updateOrder = async (orderId: string, orderData: any) => {
   const db = getDb();
-  
+
   // Lấy đơn hàng hiện tại để so sánh trạng thái
   const orderDoc = await getDoc(doc(db, COLLECTION_NAME, orderId));
   if (orderDoc.exists()) {
@@ -270,6 +313,42 @@ export const updateOrder = async (orderId: string, orderData: any) => {
           `Đơn hàng ${oldData.orderCode || ''} ${statusLabels[orderData.status] || orderData.status}.`,
           { orderId, status: orderData.status }
         );
+      }
+    }
+
+    // Kiểm tra nếu đổi giờ hẹn (scheduledDate)
+    let isScheduledDateChanged = false;
+    let oldDateStr = '';
+    let newDateStr = '';
+    if (orderData.scheduledDate) {
+      const oldSched = oldData.scheduledDate;
+      const newSched = orderData.scheduledDate;
+      const oldTime = oldSched ? (oldSched.toDate ? oldSched.toDate().getTime() : new Date(oldSched).getTime()) : 0;
+      const newTime = newSched instanceof Date ? newSched.getTime() : new Date(newSched).getTime();
+      // Duy Binh sua cai nay
+      orderData.scheduledDate = Timestamp.fromDate(new Date(orderData.scheduledDate));
+
+      if (oldTime !== newTime) {
+        isScheduledDateChanged = true;
+        oldDateStr = oldSched ? (oldSched.toDate ? oldSched.toDate().toLocaleString('vi-VN') : new Date(oldSched).toLocaleString('vi-VN')) : 'chưa có';
+        newDateStr = newSched instanceof Date ? newSched.toLocaleString('vi-VN') : new Date(newSched).toLocaleString('vi-VN');
+      }
+    }
+
+    if (isScheduledDateChanged) {
+      const orderCode = oldData.orderCode || '';
+      const customerName = oldData.tenKhachHang || oldData.customerName || '';
+      const technicians: OrderTechnician[] = oldData.technicians || [];
+      for (const tech of technicians) {
+        if (tech.id) {
+          await createTechnicianNotification(
+            tech.id,
+            '⏰ Lịch hẹn công việc đã thay đổi!',
+            `Đơn hàng ${orderCode} (KH: ${customerName}) đã được dời lịch từ [${oldDateStr}] sang [${newDateStr}].`,
+            orderId,
+            'reschedule'
+          );
+        }
       }
     }
   }

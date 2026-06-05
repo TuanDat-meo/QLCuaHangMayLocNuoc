@@ -21,13 +21,17 @@ class AuthUser {
   final String email;
   final String displayName;
   final String phoneNumber;
-  final int role; 
+  final int role;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? avatar;
   final bool isVerified;
   final String status;
   final String? source;
+  final String? address;
+  final List<String>? specializations;
+  final double? baseSalary;
+  final double? commissionPerOrder;
 
   AuthUser({
     required this.uid,
@@ -41,13 +45,60 @@ class AuthUser {
     required this.isVerified,
     required this.status,
     this.source,
+    this.address,
+    this.specializations,
+    this.baseSalary = 0.0,
+    this.commissionPerOrder = 500000.0,
   });
+
+  AuthUser copyWith({
+    String? uid,
+    String? email,
+    String? displayName,
+    String? phoneNumber,
+    int? role,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? avatar,
+    bool? isVerified,
+    String? status,
+    String? source,
+    String? address,
+    List<String>? specializations,
+    double? baseSalary,
+    double? commissionPerOrder,
+  }) {
+    return AuthUser(
+      uid: uid ?? this.uid,
+      email: email ?? this.email,
+      displayName: displayName ?? this.displayName,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      role: role ?? this.role,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      avatar: avatar ?? this.avatar,
+      isVerified: isVerified ?? this.isVerified,
+      status: status ?? this.status,
+      source: source ?? this.source,
+      address: address ?? this.address,
+      specializations: specializations ?? this.specializations,
+      baseSalary: baseSalary ?? this.baseSalary,
+      commissionPerOrder: commissionPerOrder ?? this.commissionPerOrder,
+    );
+  }
 
   factory AuthUser.fromFirestore(DocumentSnapshot doc, User firebaseUser) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     String status = data['status'] ?? 'pending';
     bool verified = (status == 'active');
-    
+
+    final double? baseSalary = (data['baseSalary'] is num)
+        ? (data['baseSalary'] as num).toDouble()
+        : null;
+    final double? commissionPerOrder = (data['commissionPerOrder'] is num)
+        ? (data['commissionPerOrder'] as num).toDouble()
+        : null;
+
     return AuthUser(
       uid: firebaseUser.uid,
       email: firebaseUser.email ?? data['email'] ?? '',
@@ -61,6 +112,12 @@ class AuthUser {
       isVerified: verified,
       status: status,
       source: data['source'],
+      address: data['address'],
+      specializations: data['specializations'] != null
+          ? List<String>.from(data['specializations'])
+          : null,
+      baseSalary: baseSalary,
+      commissionPerOrder: commissionPerOrder,
     );
   }
 }
@@ -90,8 +147,13 @@ class AuthService {
     return _auth.authStateChanges().asyncMap((firebaseUser) async {
       if (firebaseUser == null) return null;
       try {
-        final userDoc = await _firestore.collection('nguoiDung').doc(firebaseUser.uid).get();
-        return userDoc.exists ? AuthUser.fromFirestore(userDoc, firebaseUser) : null;
+        final userDoc = await _firestore
+            .collection('nguoiDung')
+            .doc(firebaseUser.uid)
+            .get();
+        return userDoc.exists
+            ? AuthUser.fromFirestore(userDoc, firebaseUser)
+            : null;
       } catch (e) {
         return null;
       }
@@ -106,13 +168,16 @@ class AuthService {
           .collection('nguoiDung')
           .doc(firebaseUser.uid)
           .get(fromServer ? const GetOptions(source: Source.server) : null);
-      return userDoc.exists ? AuthUser.fromFirestore(userDoc, firebaseUser) : null;
+      return userDoc.exists
+          ? AuthUser.fromFirestore(userDoc, firebaseUser)
+          : null;
     } catch (e) {
       return null;
     }
   }
 
-  Future<AuthUser> loginWithEmail({required String email, required String password}) async {
+  Future<AuthUser> loginWithEmail(
+      {required String email, required String password}) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
       final authUser = await getCurrentUser(fromServer: true);
@@ -122,7 +187,8 @@ class AuthService {
       }
       if (authUser.status != 'active') {
         await _auth.signOut();
-        throw AuthException('Tài khoản của bạn đang chờ quản trị viên phê duyệt.');
+        throw AuthException(
+            'Tài khoản của bạn đang chờ quản trị viên phê duyệt.');
       }
       return authUser;
     } on FirebaseAuthException catch (e) {
@@ -181,12 +247,17 @@ class AuthService {
     required String source,
   }) async {
     try {
-      final userCredential = await _auth.createUserWithEmailAndPassword(email: email, password: password);
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+          email: email, password: password);
       await userCredential.user!.updateDisplayName(displayName);
-      
-      final String initialStatus = (source == 'customer_app') ? 'active' : 'pending';
-      
-      await _firestore.collection('nguoiDung').doc(userCredential.user!.uid).set({
+
+      final String initialStatus =
+          (source == 'customer_app') ? 'active' : 'pending';
+
+      await _firestore
+          .collection('nguoiDung')
+          .doc(userCredential.user!.uid)
+          .set({
         'uid': userCredential.user!.uid,
         'email': email,
         'displayName': displayName,
@@ -197,16 +268,32 @@ class AuthService {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      
+
       if (initialStatus == 'pending') {
         await _auth.signOut();
-        throw AuthException('Đăng ký thành công! Vui lòng chờ quản trị viên kích hoạt tài khoản.');
+        return AuthUser(
+          uid: userCredential.user!.uid,
+          email: email,
+          displayName: displayName,
+          phoneNumber: phoneNumber,
+          role: role,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          isVerified: false,
+          status: 'pending',
+          source: source,
+        );
       }
-      
+
       final authUser = await getCurrentUser(fromServer: true);
-      return authUser ?? (throw AuthException('Lỗi đồng bộ dữ liệu sau đăng ký.'));
+      return authUser ??
+          (throw AuthException('Lỗi đồng bộ dữ liệu sau đăng ký.'));
     } on FirebaseAuthException catch (e) {
-      throw AuthException(e.code == 'email-already-in-use' ? 'Email đã được sử dụng.' : 'Đăng ký thất bại.', code: e.code);
+      throw AuthException(
+          e.code == 'email-already-in-use'
+              ? 'Email đã được sử dụng.'
+              : 'Đăng ký thất bại.',
+          code: e.code);
     } catch (e) {
       if (e is AuthException) rethrow;
       throw AuthException('Lỗi trong quá trình đăng ký.');

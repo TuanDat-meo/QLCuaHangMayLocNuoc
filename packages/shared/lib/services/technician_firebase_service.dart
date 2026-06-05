@@ -2,7 +2,7 @@
 /// Extends base service with technician-specific operations
 library;
 
-import 'package:shared/models/order.dart';
+import 'package:shared/models/order.dart' hide OrderStatus;
 import 'package:shared/constants/app_constants.dart';
 import 'firebase_base_service.dart';
 

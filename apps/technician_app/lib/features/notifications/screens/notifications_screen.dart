@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:shared/theme/app_colors.dart';
 import '../../../controllers/job_controller.dart';
+import '../../../services/notification_service.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -11,6 +13,7 @@ class NotificationsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final jobController = context.watch<JobController>();
     final notis = jobController.notifications;
+    final fcmToken = NotificationService.instance.fcmToken;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -31,16 +34,103 @@ class NotificationsScreen extends StatelessWidget {
             ),
         ],
       ),
-      body: notis.isEmpty
-          ? _buildEmptyState()
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: notis.length,
-              itemBuilder: (context, index) {
-                final noti = notis[index];
-                return _buildNotificationCard(context, noti);
-              },
+      body: Column(
+        children: [
+          // ── FCM Debug Panel ──────────────────────────────────────────────
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xffe2e8f0)),
             ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                     Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: fcmToken != null
+                            ? const Color(0xff10b981).withValues(alpha: 0.1)
+                            : Colors.orange.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        fcmToken != null ? Icons.notifications_active : Icons.sync_lock,
+                        size: 16,
+                        color: fcmToken != null ? const Color(0xff10b981) : Colors.orange,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      fcmToken != null ? 'FCM đã kết nối' : 'Đang dùng Firestore Realtime (Emulator)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: fcmToken != null ? const Color(0xff10b981) : Colors.orange,
+                      ),
+                    ),
+                    const Spacer(),
+
+                  ],
+                ),
+                if (fcmToken != null) ...[
+                  const SizedBox(height: 8),
+                  const Divider(height: 1),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          fcmToken,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Color(0xff94a3b8),
+                            fontFamily: 'monospace',
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: fcmToken));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('📋 Đã copy FCM token!'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                        child: const Icon(Icons.copy, size: 16, color: Color(0xff94a3b8)),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // ── Danh sách thông báo ──────────────────────────────────────────
+          Expanded(
+            child: notis.isEmpty
+                ? _buildEmptyState()
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: notis.length,
+                    itemBuilder: (context, index) {
+                      final noti = notis[index];
+                      return _buildNotificationCard(context, noti);
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
