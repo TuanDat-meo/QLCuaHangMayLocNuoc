@@ -70,7 +70,9 @@ class _SignupScreenState extends State<SignupScreen> {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Đăng ký thành công! Vui lòng chờ Quản trị viên phê duyệt tài khoản của bạn.'),
+            content: Text(
+              'Đăng ký thành công! Vui lòng chờ Quản trị viên phê duyệt tài khoản của bạn.',
+            ),
             duration: Duration(seconds: 5),
             backgroundColor: Color(0xff10b981),
           ),
@@ -113,7 +115,11 @@ class _SignupScreenState extends State<SignupScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.onSurface, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: AppColors.onSurface,
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -159,21 +165,35 @@ class _SignupScreenState extends State<SignupScreen> {
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.person_add_rounded, color: Colors.white, size: 32),
+                          child: const Icon(
+                            Icons.person_add_rounded,
+                            color: Colors.white,
+                            size: 32,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 24),
                       const Center(
                         child: Text(
                           'Đăng ký tài khoản',
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.onSurface, letterSpacing: -0.5),
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.onSurface,
+                            letterSpacing: -0.5,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 4),
                       const Center(
                         child: Text(
                           'KỸ THUẬT VIÊN MỚI',
-                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xff94a3b8), letterSpacing: 2.0),
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xff94a3b8),
+                            letterSpacing: 2.0,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 32),
@@ -182,12 +202,18 @@ class _SignupScreenState extends State<SignupScreen> {
                       _buildLabel('Họ và tên'),
                       TextFormField(
                         controller: _displayNameController,
-                        style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xff334155)),
+                        enableSuggestions: false,
+                        autocorrect: false,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xff334155),
+                        ),
                         decoration: const InputDecoration(
                           hintText: 'Nhập họ và tên của bạn',
                           prefixIcon: Icon(Icons.person_outline, size: 18),
                         ),
-                        validator: (value) => FormValidator.validateDisplayName(value),
+                        validator: (value) =>
+                            FormValidator.validateDisplayName(value),
                       ),
                       const SizedBox(height: 16),
 
@@ -195,12 +221,16 @@ class _SignupScreenState extends State<SignupScreen> {
                       _buildLabel('Email công việc'),
                       TextFormField(
                         controller: _emailController,
-                        style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xff334155)),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xff334155),
+                        ),
                         decoration: const InputDecoration(
                           hintText: 'your@email.com',
                           prefixIcon: Icon(Icons.mail_outline, size: 18),
                         ),
-                        validator: (value) => FormValidator.validateEmail(value),
+                        validator: (value) =>
+                            FormValidator.validateEmail(value),
                       ),
                       const SizedBox(height: 16),
 
@@ -209,12 +239,16 @@ class _SignupScreenState extends State<SignupScreen> {
                       TextFormField(
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
-                        style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xff334155)),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xff334155),
+                        ),
                         decoration: const InputDecoration(
                           hintText: '0xxxxxxxxx',
                           prefixIcon: Icon(Icons.phone_outlined, size: 18),
                         ),
-                        validator: (value) => FormValidator.validatePhoneNumber(value),
+                        validator: (value) =>
+                            FormValidator.validatePhoneNumber(value),
                       ),
                       const SizedBox(height: 16),
 
@@ -223,16 +257,27 @@ class _SignupScreenState extends State<SignupScreen> {
                       TextFormField(
                         controller: _passwordController,
                         obscureText: !_showPassword1,
-                        style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xff334155)),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xff334155),
+                        ),
                         decoration: InputDecoration(
                           hintText: 'Tạo mật khẩu bảo mật',
                           prefixIcon: const Icon(Icons.lock_outline, size: 18),
                           suffixIcon: IconButton(
-                            icon: Icon(_showPassword1 ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18),
-                            onPressed: () => setState(() => _showPassword1 = !_showPassword1),
+                            icon: Icon(
+                              _showPassword1
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              size: 18,
+                            ),
+                            onPressed: () => setState(
+                              () => _showPassword1 = !_showPassword1,
+                            ),
                           ),
                         ),
-                        validator: (value) => FormValidator.validatePassword(value),
+                        validator: (value) =>
+                            FormValidator.validatePassword(value),
                       ),
                       const SizedBox(height: 16),
 
@@ -241,16 +286,33 @@ class _SignupScreenState extends State<SignupScreen> {
                       TextFormField(
                         controller: _confirmPasswordController,
                         obscureText: !_showPassword2,
-                        style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xff334155)),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xff334155),
+                        ),
                         decoration: InputDecoration(
                           hintText: 'Nhập lại mật khẩu',
-                          prefixIcon: const Icon(Icons.lock_person_outlined, size: 18),
+                          prefixIcon: const Icon(
+                            Icons.lock_person_outlined,
+                            size: 18,
+                          ),
                           suffixIcon: IconButton(
-                            icon: Icon(_showPassword2 ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18),
-                            onPressed: () => setState(() => _showPassword2 = !_showPassword2),
+                            icon: Icon(
+                              _showPassword2
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              size: 18,
+                            ),
+                            onPressed: () => setState(
+                              () => _showPassword2 = !_showPassword2,
+                            ),
                           ),
                         ),
-                        validator: (value) => FormValidator.validateConfirmPassword(_passwordController.text, value ?? ''),
+                        validator: (value) =>
+                            FormValidator.validateConfirmPassword(
+                              _passwordController.text,
+                              value ?? '',
+                            ),
                       ),
                       const SizedBox(height: 16),
 
@@ -265,12 +327,21 @@ class _SignupScreenState extends State<SignupScreen> {
                         child: const Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.info_outline, color: Color(0xff2563eb), size: 20),
+                            Icon(
+                              Icons.info_outline,
+                              color: Color(0xff2563eb),
+                              size: 20,
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
                                 'Tài khoản kỹ thuật viên sau khi tạo sẽ ở trạng thái chờ duyệt. Quản trị viên hệ thống sẽ kiểm tra hồ sơ và kích hoạt tài khoản của bạn.',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xff1d4ed8), height: 1.4),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xff1d4ed8),
+                                  height: 1.4,
+                                ),
                               ),
                             ),
                           ],
@@ -286,7 +357,11 @@ class _SignupScreenState extends State<SignupScreen> {
                         },
                         title: const Text(
                           'Đồng ý với các điều khoản hoạt động thực địa của AquaCare.',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xff64748b)),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xff64748b),
+                          ),
                         ),
                         controlAffinity: ListTileControlAffinity.leading,
                         contentPadding: EdgeInsets.zero,
@@ -305,10 +380,19 @@ class _SignupScreenState extends State<SignupScreen> {
                             foregroundColor: Colors.white,
                             elevation: 8,
                             shadowColor: AppColors.primary.withOpacity(0.3),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
                           ),
                           child: isLoading
-                              ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 3,
+                                  ),
+                                )
                               : const Text('ĐĂNG KÝ NGAY'),
                         ),
                       ),
@@ -320,15 +404,25 @@ class _SignupScreenState extends State<SignupScreen> {
                         children: [
                           const Text(
                             'Đã có tài khoản? ',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xff64748b)),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xff64748b),
+                            ),
                           ),
                           TextButton(
                             onPressed: () {
-                              Navigator.of(context).pushReplacementNamed('/login');
+                              Navigator.of(
+                                context,
+                              ).pushReplacementNamed('/login');
                             },
                             child: const Text(
                               'Đăng nhập',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.primary),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.primary,
+                              ),
                             ),
                           ),
                         ],

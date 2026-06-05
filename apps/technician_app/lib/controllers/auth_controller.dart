@@ -135,6 +135,12 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  /// Update the current user state (called after profile edits)
+  void updateCurrentUser(AuthUser updatedUser) {
+    _currentUser = updatedUser;
+    notifyListeners();
+  }
+
   void clearError() {
     _error = null;
     notifyListeners();

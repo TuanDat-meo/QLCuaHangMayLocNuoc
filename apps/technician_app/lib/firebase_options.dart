@@ -13,38 +13,37 @@ class DefaultFirebaseOptions {
     projectId: 'aquacaresystem0608',
     authDomain: 'aquacaresystem0608.firebaseapp.com',
     storageBucket: 'aquacaresystem0608.firebasestorage.app',
-    measurementId: '',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyD17XDbb-7wgDXrVvK_65CCFzywodwe13w',
-    appId: '1:1078139113677:android:60634f9979b45461b09984',
-    messagingSenderId: '1078139113677',
+    apiKey: 'AIzaSyDBEmLrjXBA9pq92n40wUQsyLb0YVz0Ucg',
+    appId: '1:730710129450:android:de1ce9071480e922b47c53',
+    messagingSenderId: '730710129450',
     projectId: 'aquacaresystem0608',
     storageBucket: 'aquacaresystem0608.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDYhU454erQWkQF7KOnh_axbEP4ToPfT4Q',
-    appId: '1:1078139113677:ios:76086aae31758220b09984',
-    messagingSenderId: '1078139113677',
+    apiKey: 'AIzaSyAowlWjR_rFySSx581xUsvlIsC4A7-DYk4',
+    appId: '1:730710129450:ios:be003289dfff0adbb47c53',
+    messagingSenderId: '730710129450',
     projectId: 'aquacaresystem0608',
     storageBucket: 'aquacaresystem0608.firebasestorage.app',
-    iosBundleId: 'com.aquacare.technician',
+    iosBundleId: 'com.example.technicalApp',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyDYhU454erQWkQF7KOnh_axbEP4ToPfT4Q',
-    appId: '1:1078139113677:macos:demo',
-    messagingSenderId: '1078139113677',
+    apiKey: 'AIzaSyAowlWjR_rFySSx581xUsvlIsC4A7-DYk4',
+    appId: '1:730710129450:ios:be003289dfff0adbb47c53',
+    messagingSenderId: '730710129450',
     projectId: 'aquacaresystem0608',
     storageBucket: 'aquacaresystem0608.firebasestorage.app',
-    iosBundleId: 'com.aquacare.technician.macos',
+    iosBundleId: 'com.example.technicalApp',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
     apiKey: 'AIzaSyAJW9WpWf7s0g-wUTlv9JJAocnUOQodcf4',
-    appId: '1:730710129450:web:042b8b26d99d5e0cb47c53',
+    appId: '1:730710129450:web:e2a9dc2ce07fb852b47c53',
     messagingSenderId: '730710129450',
     projectId: 'aquacaresystem0608',
     authDomain: 'aquacaresystem0608.firebaseapp.com',

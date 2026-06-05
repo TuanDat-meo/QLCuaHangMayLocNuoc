@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared/theme/app_colors.dart';
-import 'package:shared/theme/app_text_styles.dart';
 import '../../../controllers/job_controller.dart';
 import '../../../controllers/auth_controller.dart';
 
@@ -12,7 +11,8 @@ class JobDashboardScreen extends StatefulWidget {
   State<JobDashboardScreen> createState() => _JobDashboardScreenState();
 }
 
-class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTickerProviderStateMixin {
+class _JobDashboardScreenState extends State<JobDashboardScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -35,13 +35,21 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
 
     // Lọc công việc theo tab
     final upcomingJobs = jobController.jobs
-        .where((j) => j.status == JobStatus.waiting || j.status == JobStatus.onTheWay)
+        .where(
+          (j) =>
+              j.status == JobStatus.waiting || j.status == JobStatus.onTheWay,
+        )
         .toList();
     final inProgressJobs = jobController.jobs
-        .where((j) => j.status == JobStatus.arrived || j.status == JobStatus.installing)
+        .where(
+          (j) =>
+              j.status == JobStatus.arrived ||
+              j.status == JobStatus.installing ||
+              j.status == JobStatus.needSupport,
+        )
         .toList();
     final completedJobs = jobController.jobs
-        .where((j) => j.status == JobStatus.completed || j.status == JobStatus.needSupport)
+        .where((j) => j.status == JobStatus.completed)
         .toList();
 
     return Scaffold(
@@ -54,7 +62,9 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
             CircleAvatar(
               radius: 20,
               backgroundColor: AppColors.primary.withOpacity(0.1),
-              backgroundImage: user?.avatar != null ? NetworkImage(user!.avatar!) : null,
+              backgroundImage: user?.avatar != null
+                  ? NetworkImage(user!.avatar!)
+                  : null,
               child: user?.avatar == null
                   ? const Icon(Icons.person, color: AppColors.primary)
                   : null,
@@ -115,8 +125,16 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
           unselectedLabelColor: const Color(0xff64748b),
           indicatorColor: AppColors.primary,
           indicatorWeight: 3,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, fontFamily: 'Inter'),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, fontFamily: 'Inter'),
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 13,
+            fontFamily: 'Inter',
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+            fontFamily: 'Inter',
+          ),
           tabs: [
             Tab(text: 'Sắp tới (${upcomingJobs.length})'),
             Tab(text: 'Đang làm (${inProgressJobs.length})'),
@@ -127,9 +145,24 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildJobTab(upcomingJobs, jobController, 'Không có lịch sắp tới', Icons.event_note_outlined),
-          _buildJobTab(inProgressJobs, jobController, 'Không có việc đang thực hiện', Icons.engineering_outlined),
-          _buildJobTab(completedJobs, jobController, 'Không có dữ liệu hoàn thành', Icons.history),
+          _buildJobTab(
+            upcomingJobs,
+            jobController,
+            'Không có lịch sắp tới',
+            Icons.event_note_outlined,
+          ),
+          _buildJobTab(
+            inProgressJobs,
+            jobController,
+            'Không có việc đang thực hiện',
+            Icons.engineering_outlined,
+          ),
+          _buildJobTab(
+            completedJobs,
+            jobController,
+            'Không có dữ liệu hoàn thành',
+            Icons.history,
+          ),
         ],
       ),
     );
@@ -142,7 +175,7 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
     IconData emptyIcon,
   ) {
     return RefreshIndicator(
-      onRefresh: () => controller.refreshJobs(),
+      onRefresh: () => controller.refreshData(),
       color: AppColors.primary,
       child: jobList.isEmpty
           ? _buildEmptyState(emptyText, emptyIcon)
@@ -233,7 +266,11 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.access_time_filled, size: 16, color: AppColors.primary),
+                        const Icon(
+                          Icons.access_time_filled,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           job.appointmentTime,
@@ -246,7 +283,10 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
                       ],
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: job.status.color.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -278,7 +318,11 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
                 // Điện thoại
                 Row(
                   children: [
-                    const Icon(Icons.phone_iphone_outlined, size: 16, color: Color(0xff64748b)),
+                    const Icon(
+                      Icons.phone_iphone_outlined,
+                      size: 16,
+                      color: Color(0xff64748b),
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       job.customerPhone,
@@ -296,7 +340,11 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.location_on_outlined, size: 16, color: Color(0xff64748b)),
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 16,
+                      color: Color(0xff64748b),
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -331,7 +379,11 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
                           color: AppColors.primary.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.water_drop, color: AppColors.primary, size: 20),
+                        child: const Icon(
+                          Icons.water_drop,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -361,7 +413,7 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
                     ],
                   ),
                 ),
-                
+
                 // Nút CTA nhanh
                 if (job.status != JobStatus.completed) ...[
                   const SizedBox(height: 16),
@@ -370,7 +422,11 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
                       Expanded(
                         child: TextButton.icon(
                           onPressed: () {
-                            Navigator.pushNamed(context, '/navigation', arguments: job.id);
+                            Navigator.pushNamed(
+                              context,
+                              '/navigation',
+                              arguments: job.id,
+                            );
                           },
                           icon: const Icon(Icons.navigation_outlined, size: 18),
                           label: const Text('DẪN ĐƯỜNG'),
@@ -381,7 +437,11 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
                               borderRadius: BorderRadius.circular(14),
                               side: const BorderSide(color: Color(0xffcbd5e1)),
                             ),
-                            textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                            textStyle: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
                       ),
@@ -389,17 +449,30 @@ class _JobDashboardScreenState extends State<JobDashboardScreen> with SingleTick
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () {
-                            Navigator.pushNamed(context, '/job-detail', arguments: job.id);
+                            Navigator.pushNamed(
+                              context,
+                              '/job-detail',
+                              arguments: job.id,
+                            );
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
                           child: Text(
-                            job.status == JobStatus.waiting ? 'BẮT ĐẦU ĐI' : 'CHI TIẾT',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5, color: Colors.white),
+                            job.status == JobStatus.waiting
+                                ? 'BẮT ĐẦU ĐI'
+                                : 'CHI TIẾT',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),

@@ -6,14 +6,28 @@ service cloud.firestore {
     function isAdmin() {
       return request.auth != null &&
              exists(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role == 1;
+             (get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role == 1 ||
+              get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role == '1');
     }
 
     // Hàm kiểm tra quyền nhân viên (Role <= 3: Admin, Coordinator, Staff)
     function isStaff() {
       return request.auth != null &&
              exists(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role <= 3;
+             (get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role == 1 ||
+              get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role == '1' ||
+              get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role == 2 ||
+              get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role == '2' ||
+              get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role == 3 ||
+              get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role == '3');
+    }
+
+    // Hàm kiểm tra vai trò Kỹ thuật viên (Role = 4)
+    function isTechnician() {
+      return request.auth != null &&
+             exists(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)) &&
+             (get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role == 4 ||
+              get(/databases/$(database)/documents/nguoiDung/$(request.auth.uid)).data.role == '4');
     }
 
     // Quy tắc đọc: Cho phép tất cả người dùng đã đăng nhập đọc mọi dữ liệu
@@ -53,13 +67,14 @@ service cloud.firestore {
         && resource.data.status == 'pending'
         && request.resource.data.status == 'cancelled';
 
-      // Staff update/delete toàn quyền
-      allow update, delete: if isStaff();
+      // Staff hoặc Kỹ thuật viên update
+      allow update: if isStaff() || isTechnician();
+      allow delete: if isStaff();
     }
 
     // Xóa hoặc giữ wildcard nếu cần sub-collections
     match /donHang/{orderId}/{document=**} {
-      allow write: if isStaff();
+      allow write: if isStaff() || isTechnician();
     }
 
     // Thông báo
