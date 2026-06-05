@@ -38,7 +38,7 @@ const ProductsPage: React.FC = () => {
 
   // Trạng thái cho Form Phiếu nhập hàng
   const [importItems, setImportItems] = useState<Partial<ImportVoucherItem>[]>([
-    { productName: '', quantity: 1, importPrice: 0, sellingPrice: 0, sku: '', category: 'Linh kiện', imageUrl: '' }
+    { productName: '', quantity: 1, importPrice: 0, sellingPrice: 0, sku: '', category: 'Linh kiện', imageUrl: '', thoiGianBaoHanh: 0 }
   ]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
   const [expandedRows, setExpandedRows] = useState<number[]>([]);
@@ -269,7 +269,7 @@ const ProductsPage: React.FC = () => {
       toast.success("Đã tạo phiếu nhập và cập nhật kho");
       await logActivity("Nhập hàng", "Kho hàng", voucherData.supplierName, voucherData);
       setShowModal({ ...showModal, visible: false });
-      setImportItems([{ productName: '', quantity: 1, importPrice: 0, sellingPrice: 0, sku: '', category: 'Linh kiện', imageUrl: '' }]);
+      setImportItems([{ productName: '', quantity: 1, importPrice: 0, sellingPrice: 0, sku: '', category: 'Linh kiện', imageUrl: '', thoiGianBaoHanh: 0 }]);
       setSelectedSupplierId('');
       setExpandedRows([]);
       fetchData();
@@ -694,7 +694,7 @@ const ProductsPage: React.FC = () => {
                      <div className="space-y-4">
                         <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-800 pb-2">
                            <label className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-widest">Danh mục hàng hóa nhập kho (Gợi ý sản phẩm)</label>
-                           <button type="button" onClick={() => setImportItems([...importItems, { productName: '', quantity: 1, importPrice: 0, sellingPrice: 0, sku: '', category: 'Linh kiện', imageUrl: '' }])} className="flex items-center gap-2 text-[#00459a] font-black text-[10px] uppercase tracking-widest bg-blue-50 px-5 py-2 rounded-xl hover:bg-blue-100 transition-all">
+                           <button type="button" onClick={() => setImportItems([...importItems, { productName: '', quantity: 1, importPrice: 0, sellingPrice: 0, sku: '', category: 'Linh kiện', imageUrl: '', thoiGianBaoHanh: 0 }])} className="flex items-center gap-2 text-[#00459a] font-black text-[10px] uppercase tracking-widest bg-blue-50 px-5 py-2 rounded-xl hover:bg-blue-100 transition-all">
                               <PlusCircle size={16} /> Thêm dòng mới
                            </button>
                         </div>
@@ -730,6 +730,7 @@ const ProductsPage: React.FC = () => {
                                               newItems[index].sku = existing.sku;
                                               newItems[index].category = existing.danhMuc;
                                               newItems[index].imageUrl = existing.imageUrl;
+                                              newItems[index].thoiGianBaoHanh = existing.thoiGianBaoHanh || 0;
                                               if (!newItems[index].sellingPrice) newItems[index].sellingPrice = existing.giaBan;
                                             } else {
                                               // Nếu gõ tên mới thì tự động mở rộng để nhập info sp mới
@@ -771,10 +772,14 @@ const ProductsPage: React.FC = () => {
                                  </div>
 
                                  {expandedRows.includes(index) && (
-                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white/50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-2 duration-200">
+                                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-white/50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-2 duration-200">
                                       <div className="space-y-1">
                                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Mã SKU</label>
                                          <input placeholder="SKU sản phẩm..." value={item.sku} onChange={(e) => { const newItems = [...importItems]; newItems[index].sku = e.target.value; setImportItems(newItems); }} className="w-full px-4 py-2 bg-white dark:bg-slate-900 border-none rounded-lg outline-none font-bold text-[11px]" />
+                                      </div>
+                                      <div className="space-y-1">
+                                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Bảo hành (T)</label>
+                                         <input type="number" placeholder="Số tháng..." value={item.thoiGianBaoHanh} onChange={(e) => { const newItems = [...importItems]; newItems[index].thoiGianBaoHanh = Number(e.target.value); setImportItems(newItems); }} className="w-full px-4 py-2 bg-white dark:bg-slate-900 border-none rounded-lg outline-none font-bold text-[11px]" />
                                       </div>
                                       <div className="space-y-1">
                                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Danh mục</label>

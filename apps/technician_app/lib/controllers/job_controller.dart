@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 
 enum JobStatus {
   waiting,     // Đã phân công / Chờ
@@ -15,17 +16,17 @@ extension JobStatusExtension on JobStatus {
   String get rawValue {
     switch (this) {
       case JobStatus.waiting:
-        return 'da_phan_cong';
+        return 'assigned';
       case JobStatus.onTheWay:
-        return 'dang_di';
+        return 'processing'; // Bắt đầu xử lý
       case JobStatus.arrived:
-        return 'da_den_noi';
+        return 'arrived';
       case JobStatus.installing:
-        return 'dang_lap';
+        return 'installing';
       case JobStatus.completed:
-        return 'hoan_thanh';
+        return 'completed';
       case JobStatus.needSupport:
-        return 'su_co';
+        return 'incident';
     }
   }
 
@@ -77,6 +78,7 @@ class JobModel {
   final double tipAmount;
   final JobStatus status;
   final DateTime date;
+  final DateTime? scheduledDate;
   final List<String> images;
   final List<Map<String, dynamic>> timeline;
   final String? issueReason;
@@ -95,11 +97,20 @@ class JobModel {
     required this.tipAmount,
     required this.status,
     required this.date,
+    this.scheduledDate,
     required this.images,
     required this.timeline,
     this.issueReason,
     this.issueDesc,
   });
+
+  bool get isLocked {
+    if (scheduledDate == null) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final schedDay = DateTime(scheduledDate!.year, scheduledDate!.month, scheduledDate!.day);
+    return today.isBefore(schedDay);
+  }
 
   JobModel copyWith({
     JobStatus? status,
@@ -123,6 +134,7 @@ class JobModel {
       tipAmount: tipAmount ?? this.tipAmount,
       status: status ?? this.status,
       date: date,
+      scheduledDate: scheduledDate,
       images: images ?? this.images,
       timeline: timeline ?? this.timeline,
       issueReason: issueReason ?? this.issueReason,
@@ -164,6 +176,7 @@ class JobController extends ChangeNotifier {
         tipAmount: 0.0,
         status: JobStatus.waiting,
         date: today,
+        scheduledDate: today,
         images: [],
         timeline: [
           {'status': 'da_phan_cong', 'time': today.subtract(const Duration(hours: 4)), 'title': 'Đã phân công', 'desc': 'Quản trị viên đã bàn giao công việc cho bạn'},
@@ -182,6 +195,7 @@ class JobController extends ChangeNotifier {
         tipAmount: 0.0,
         status: JobStatus.onTheWay,
         date: today,
+        scheduledDate: today,
         images: [],
         timeline: [
           {'status': 'da_phan_cong', 'time': today.subtract(const Duration(hours: 3)), 'title': 'Đã phân công', 'desc': 'Quản trị viên đã phân công công việc'},
@@ -201,6 +215,7 @@ class JobController extends ChangeNotifier {
         tipAmount: 0.0,
         status: JobStatus.installing,
         date: today,
+        scheduledDate: today,
         images: [],
         timeline: [
           {'status': 'da_phan_cong', 'time': today.subtract(const Duration(hours: 5)), 'title': 'Đã phân công', 'desc': 'Bàn giao công việc'},
@@ -222,6 +237,7 @@ class JobController extends ChangeNotifier {
         tipAmount: 50000.0,
         status: JobStatus.completed,
         date: today,
+        scheduledDate: today,
         images: ['https://dummyimage.com/600x400/00459a/fff.png&text=Lap+Dat+1', 'https://dummyimage.com/600x400/00459a/fff.png&text=Lap+Dat+2'],
         timeline: [
           {'status': 'da_phan_cong', 'time': today.subtract(const Duration(hours: 8)), 'title': 'Đã phân công', 'desc': 'Bàn giao công việc'},
@@ -244,6 +260,7 @@ class JobController extends ChangeNotifier {
         tipAmount: 0.0,
         status: JobStatus.needSupport,
         date: today.subtract(const Duration(days: 1)),
+        scheduledDate: today.subtract(const Duration(days: 1)),
         images: [],
         timeline: [
           {'status': 'da_phan_cong', 'time': today.subtract(const Duration(days: 1, hours: 4)), 'title': 'Đã phân công', 'desc': 'Phân công công việc bảo trì'},
@@ -294,56 +311,52 @@ class JobController extends ChangeNotifier {
     // Lắng nghe realtime từ bộ sưu tập donHang trong Firestore
     _firestore
         .collection('donHang')
-        .where('kyThuatVienId', isEqualTo: uid)
-        .orderBy('ngayTao', descending: true)
+        .where('technicians', arrayContains: {'id': uid, 'name': _auth.currentUser?.displayName ?? ''})
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .listen((snapshot) {
-      if (snapshot.docs.isEmpty) return;
-
       final List<JobModel> firestoreJobs = [];
       for (var doc in snapshot.docs) {
         final data = doc.data();
         
         // Convert status string to JobStatus
-        final statusString = data['trangThai'] ?? '';
+        final statusString = data['status'] ?? '';
         JobStatus status = JobStatus.waiting;
-        if (statusString == 'dang_di') status = JobStatus.onTheWay;
-        if (statusString == 'dang_lap') status = JobStatus.installing;
-        if (statusString == 'hoan_thanh') status = JobStatus.completed;
-        if (statusString == 'su_co') status = JobStatus.needSupport;
+        if (statusString == 'processing') status = JobStatus.onTheWay;
+        if (statusString == 'installing') status = JobStatus.installing;
+        if (statusString == 'completed') status = JobStatus.completed;
+        if (statusString == 'incident') status = JobStatus.needSupport;
 
-        final addressMap = data['diaChi'] as Map<String, dynamic>? ?? {};
-        final fullAddress = addressMap['street'] != null 
-            ? '${addressMap['street']}, ${addressMap['ward']}, ${addressMap['district']}, ${addressMap['city']}'
-            : (data['diaChi'] is String ? data['diaChi'] : 'Chưa có địa chỉ');
+        final fullAddress = data['address'] ?? 'Chưa có địa chỉ';
 
         // Extract products
-        final items = data['danhSachSanPham'] as List? ?? [];
-        final prodName = items.isNotEmpty ? (items[0]['productName'] ?? 'Máy lọc nước') : 'Máy lọc nước';
+        final prodName = data['productName'] ?? 'Máy lọc nước';
 
         firestoreJobs.add(JobModel(
           id: doc.id,
-          customerName: data['tenKhachHang'] ?? 'Khách hàng',
-          customerPhone: data['soDienThoai'] ?? '',
+          customerName: data['customerName'] ?? 'Khách hàng',
+          customerPhone: data['phoneNumber'] ?? '',
           address: fullAddress,
-          appointmentTime: data['gioHen'] ?? 'Trong ngày',
+          appointmentTime: data['scheduledDate'] != null 
+              ? DateFormat('HH:mm').format((data['scheduledDate'] as Timestamp).toDate())
+              : 'Trong ngày',
           productName: prodName,
           productSpecs: 'Sản phẩm chính hãng',
-          adminNotes: data['ghiChuAdmin'] ?? 'Không có ghi chú',
-          codAmount: (data['soTienCOD'] as num?)?.toDouble() ?? 0.0,
-          tipAmount: (data['soTienTip'] as num?)?.toDouble() ?? 0.0,
+          adminNotes: data['note'] ?? 'Không có ghi chú',
+          codAmount: (data['totalAmount'] as num?)?.toDouble() ?? 0.0,
+          tipAmount: (data['tipAmount'] as num?)?.toDouble() ?? 0.0,
           status: status,
-          date: (data['ngayTao'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          date: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          scheduledDate: (data['scheduledDate'] as Timestamp?)?.toDate(),
           images: List<String>.from(data['anhHoanThanh'] ?? []),
           timeline: [],
         ));
       }
 
       // Hợp nhất dữ liệu Firestore vào danh sách
-      // Giữ lại mock data cho các phần chưa có trên Firestore để UI đầy đủ hơn
       final List<JobModel> merged = [...firestoreJobs];
       for (var mock in _jobs) {
-        if (!merged.any((j) => j.id == mock.id)) {
+        if (!merged.any((j) => j.id == mock.id) && !mock.id.startsWith('JOB-')) {
           merged.add(mock);
         }
       }
@@ -394,6 +407,13 @@ class JobController extends ChangeNotifier {
     if (idx == -1) return false;
 
     final job = _jobs[idx];
+
+    // Kiểm tra khóa theo ngày hẹn
+    if (job.isLocked && newStatus != JobStatus.waiting) {
+       debugPrint('LOCKED: Cannot update status before scheduled date');
+       return false;
+    }
+
     final updatedTimeline = List<Map<String, dynamic>>.from(job.timeline);
 
     String statusText = '';
@@ -445,8 +465,8 @@ class JobController extends ChangeNotifier {
 
       // Cập nhật trạng thái đơn hàng
       await _firestore.collection('donHang').doc(jobId).update({
-        'trangThai': newStatus.rawValue,
-        'ngayCapNhat': FieldValue.serverTimestamp(),
+        'status': newStatus.rawValue,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
       return true;
     } catch (e) {
@@ -466,6 +486,13 @@ class JobController extends ChangeNotifier {
     if (idx == -1) return false;
 
     final job = _jobs[idx];
+    
+    // Kiểm tra khóa theo ngày hẹn
+    if (job.isLocked) {
+       debugPrint('LOCKED: Cannot report issue before scheduled date');
+       return false;
+    }
+
     final updatedTimeline = List<Map<String, dynamic>>.from(job.timeline);
     updatedTimeline.add({
       'status': 'su_co',
@@ -486,9 +513,9 @@ class JobController extends ChangeNotifier {
     try {
       final uid = _auth.currentUser?.uid;
       await _firestore.collection('donHang').doc(jobId).update({
-        'trangThai': 'su_co',
+        'status': 'incident',
         'lyDoHuy': '$reason: $description',
-        'ngayCapNhat': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
       if (uid != null) {
         await _firestore.collection('nhatKyHoatDong').add({
@@ -517,6 +544,13 @@ class JobController extends ChangeNotifier {
     if (idx == -1) return false;
 
     final job = _jobs[idx];
+
+    // Kiểm tra khóa theo ngày hẹn
+    if (job.isLocked) {
+       debugPrint('LOCKED: Cannot complete job before scheduled date');
+       return false;
+    }
+
     final updatedTimeline = List<Map<String, dynamic>>.from(job.timeline);
     updatedTimeline.add({
       'status': 'hoan_thanh',
@@ -537,12 +571,12 @@ class JobController extends ChangeNotifier {
     try {
       final uid = _auth.currentUser?.uid;
       await _firestore.collection('donHang').doc(jobId).update({
-        'trangThai': 'hoan_thanh',
-        'soTienCOD': codCollected,
-        'soTienTip': tipAmount,
+        'status': 'completed',
+        'totalAmount': codCollected,
+        'tipAmount': tipAmount,
         'anhHoanThanh': photos,
         'hoanThanhVao': FieldValue.serverTimestamp(),
-        'ngayCapNhat': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
       if (uid != null) {
         await _firestore.collection('nhatKyHoatDong').add({

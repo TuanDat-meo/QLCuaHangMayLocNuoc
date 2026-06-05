@@ -1,100 +1,47 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
-  Search, Calendar, Clock, ChevronRight, User, MapPin,
-  CheckCircle, XCircle, UserPlus, Plus, Trash2, Edit,
-  Info, Bell, AlertTriangle, ArrowRight, Map as MapIcon, Navigation,
-  Package, LayoutGrid, DollarSign, FileText, Activity, ShoppingCart, Minus,
-  AlertOctagon, CreditCard, Briefcase, UserCheck, ShieldCheck, History,
-  Sparkles, Tag, X, ChevronDown, Check, AlertCircle
+  Plus, Search, Eye, Edit2, Trash2,
+  CheckCircle, Clock, AlertCircle, MapPin, Phone, User,
+  Calendar, Package, Wrench, X, Check, Loader,
+  Users
 } from 'lucide-react';
-import { Order, OrderStatus, OrderType, OrderItem, OrderTechnician } from '../../types/order';
 import {
   subscribeToOrders,
-  updateOrderStatus,
-  assignTechnicians,
   addOrder,
   updateOrder,
   deleteOrder,
-  getMaintenanceDueOrders
+  assignTechnicians as assignTechniciansToOrder
 } from '../../services/orderService';
+import { createDevicesFromOrder } from '../../services/deviceService';
 import { getTechnicians } from '../../services/userService';
 import { getProducts, Product } from '../../services/productService';
-import { createDevicesFromOrder } from '../../services/deviceService';
-import { AuthUser, UserRole } from '../../types/auth';
-import { toast, Toaster } from 'react-hot-toast';
-import { useNavigate, useSearchParams } from 'react-router-dom';
 import { logActivity } from '../../services/auditService';
+import { Order, OrderStatus, OrderType, OrderTechnician } from '../../types/order';
 import { useAuth } from '../../hooks/useAuth';
-
-interface Province { code: number; name: string; }
-interface District { code: number; name: string; }
-interface Ward { code: number; name: string; }
-
-function getStatusColor(status: OrderStatus) {
-  switch (status) {
-    case 'pending': return 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400';
-    case 'assigned': return 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:text-blue-400';
-    case 'processing': return 'bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400';
-    case 'completed': return 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400';
-    case 'paid': return 'bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-900/20 dark:text-purple-400';
-    case 'incident': return 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/20 dark:text-rose-400';
-    case 'cancelled': return 'bg-slate-50 text-slate-400 border-slate-100 dark:bg-slate-800 dark:text-slate-500';
-    case 'deleted': return 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-500';
-    default: return 'bg-slate-50 text-slate-600 border-slate-100 dark:bg-slate-800 dark:text-slate-400';
-  }
-}
-
-function getStatusText(status: OrderStatus) {
-  const map: Record<string, string> = {
-    pending: 'Chờ duyệt',
-    assigned: 'Đã phân công',
-    processing: 'Đang xử lý',
-    completed: 'Hoàn tất',
-    paid: 'Đã tất toán',
-    incident: 'Sự cố',
-    cancelled: 'Đã hủy',
-    deleted: 'Đã xóa'
-  };
-  return map[status] || status;
-}
-
-function formatDate(date: any) {
-  if (!date) return '---';
-  const d = date instanceof Date ? date : date.toDate?.() || new Date(date);
-  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
-function formatDateTime(date: any) {
-  if (!date) return '---';
-  const d = date instanceof Date ? date : date.toDate?.() || new Date(date);
-  return d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
+import toast from 'react-hot-toast';
+import { useSearchParams } from 'react-router-dom';
 
 const OrdersPage: React.FC = () => {
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const orderIdFromUrl = searchParams.get('id');
-  const { user } = useAuth();
-
-  const isAdmin = user?.role === UserRole.ADMIN;
-  const isCoordinator = user?.role === UserRole.COORDINATOR || isAdmin;
+  const actionFromUrl = searchParams.get('action'); // Nhận diện hành động từ URL
 
   const [orders, setOrders] = useState<Order[]>([]);
-  const [activeTab, setActiveTab] = useState('Tất cả');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [technicians, setTechnicians] = useState<AuthUser[]>([]);
+  const [technicians, setTechnicians] = useState<any[]>([]);
   const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<string>('Tất cả');
+
   const [productSearch, setProductSearch] = useState('');
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
   const productInputRef = useRef<HTMLDivElement>(null);
 
-  const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
-  const [manualTotalAmount, setManualTotalAmount] = useState<number | null>(null);
+  const [provinces, setProvinces] = useState<any[]>([]);
+  const [districts, setDistricts] = useState<any[]>([]);
+  const [wards, setWards] = useState<any[]>([]);
 
-  const [provinces, setProvinces] = useState<Province[]>([]);
-  const [districts, setDistricts] = useState<District[]>([]);
-  const [wards, setWards] = useState<Ward[]>([]);
-
+  const [selectedItems, setSelectedItems] = useState<any[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [formDataState, setFormDataState] = useState({
@@ -112,8 +59,8 @@ const OrdersPage: React.FC = () => {
     scheduledDate: ''
   });
 
-  const [showAssignModal, setShowAssignModal] = useState<{orderId: string, currentTechs: OrderTechnician[], visible: boolean}>({
-    orderId: '', currentTechs: [], visible: false
+  const [showAssignModal, setShowAssignModal] = useState<{orderId: string, currentTechs: OrderTechnician[], scheduledDate: string, visible: boolean}>({
+    orderId: '', currentTechs: [], scheduledDate: '', visible: false
   });
   const [selectedTechsInModal, setSelectedTechsInModal] = useState<OrderTechnician[]>([]);
 
@@ -122,19 +69,29 @@ const OrdersPage: React.FC = () => {
   const [showCustomProductForm, setShowCustomProductForm] = useState(false);
   const [customProduct, setCustomProduct] = useState({ name: '', price: 0, thoiGianBaoHanh: 0 });
 
-  const tabs = ['Tất cả', 'Chờ duyệt', 'Đã phân công', 'Đang xử lý', 'Hoàn tất', 'Sự cố', 'Đã tất toán'];
+  const tabs = ['Tất cả', 'Chờ duyệt', 'Đã duyệt', 'Đã phân công', 'Đang xử lý', 'Hoàn tất', 'Sự cố', 'Đã tất toán'];
 
   useEffect(() => {
-    const unsubscribe = subscribeToOrders((data) => setOrders(data), activeTab);
+    const unsubscribe = subscribeToOrders((data) => {
+      setOrders(data);
+      setIsLoading(false);
+    }, activeTab);
     return () => unsubscribe();
   }, [activeTab]);
 
+  // Xử lý logic tự động mở modal khi có tham số từ Dashboard
   useEffect(() => {
     if (orderIdFromUrl && orders.length > 0) {
       const order = orders.find(o => o.id === orderIdFromUrl);
-      if (order) setShowOrderModal({ type: 'detail', order, visible: true });
+      if (order) {
+        if (actionFromUrl === 'assign') {
+          handleOpenAssign(order); // Mở modal phân công
+        } else {
+          setShowOrderModal({ type: 'detail', order, visible: true }); // Mặc định xem chi tiết
+        }
+      }
     }
-  }, [orderIdFromUrl, orders]);
+  }, [orderIdFromUrl, orders, actionFromUrl]);
 
   const fetchInitialData = async () => {
     try {
@@ -203,7 +160,6 @@ const OrdersPage: React.FC = () => {
         else if (order.productName) setSelectedItems([{ id: 'legacy', name: order.productName, price: order.totalAmount, quantity: 1 }]);
         else setSelectedItems([]);
 
-        setManualTotalAmount(order.totalAmount);
       } else {
         setFormDataState({
           customerName: '', phoneNumber: '', provinceCode: '', districtCode: '', wardCode: '',
@@ -211,7 +167,6 @@ const OrdersPage: React.FC = () => {
           latitude: undefined, longitude: undefined, scheduledDate: ''
         });
         setSelectedItems([]);
-        setManualTotalAmount(null);
         setDistricts([]);
         setWards([]);
       }
@@ -377,10 +332,10 @@ const OrdersPage: React.FC = () => {
       totalAmount: calculateTotal(),
       updatedBy: user.uid,
       updatedByName: user.displayName || user.email || "Quản trị viên",
-      scheduledDate: formDataState.scheduledDate ? new Date(formDataState.scheduledDate) : null
+      scheduledDate: formDataState.scheduledDate ? new Date(formDataState.scheduledDate) : undefined
     };
 
-    const data = JSON.parse(JSON.stringify(rawData, (k, v) => v === undefined ? null : v));
+    const data = JSON.parse(JSON.stringify(rawData, (_v) => _v === undefined ? null : _v));
 
     try {
       if (showOrderModal.type === 'add') {
@@ -392,583 +347,445 @@ const OrdersPage: React.FC = () => {
       } else if (showOrderModal.type === 'edit' && showOrderModal.order) {
         await updateOrder(showOrderModal.order.id, data);
 
-        // Nếu chuyển sang hoàn tất tại đây
+        // Tự động tạo thiết bị khi hoàn tất lắp đặt (Bảo hành)
         if (data.status === 'completed' && showOrderModal.order.status !== 'completed' && data.orderType === 'installation') {
            await createDevicesFromOrder({ ...showOrderModal.order, ...data });
            toast.success("Đã tự động kích hoạt bảo hành cho thiết bị");
         }
 
-        await logActivity("Cập nhật đơn hàng", "Đơn hàng", showOrderModal.order.id, { before: showOrderModal.order, after: data });
-        toast.success("Cập nhật thành công");
+        await logActivity("Cập nhật đơn hàng", "Đơn hàng", showOrderModal.order.id, { before: showOrderModal.order.status, after: data.status });
+        toast.success("Cập nhật đơn hàng thành công!");
       }
-      setShowOrderModal({ ...showOrderModal, visible: false });
-    } catch (error: any) {
-      console.error("LỖI HỆ THỐNG:", error);
-      alert("LỖI FIREBASE: " + (error.message || "Không thể kết nối Firestore"));
-      toast.error("Thao tác thất bại!");
+      setShowOrderModal({ type: 'add', visible: false });
+    } catch (error) {
+      console.error("Lỗi khi lưu đơn hàng:", error);
+      toast.error("Lỗi hệ thống khi lưu đơn hàng");
     }
   };
 
-  const handleUpdateStatus = async (orderId: string, currentStatus: OrderStatus, newStatus: OrderStatus) => {
+  const handleDelete = async (order: Order) => {
+    if (window.confirm("Bạn có chắc chắn muốn xóa đơn hàng này?")) {
+      try {
+        await deleteOrder(order.id, order.status);
+        toast.success("Đã xóa đơn hàng");
+      } catch (error) { toast.error("Lỗi khi xóa đơn hàng"); }
+    }
+  };
+
+  const handleOpenAssign = (order: Order) => {
+    let formattedScheduledDate = '';
+    if (order.scheduledDate) {
+      const d = order.scheduledDate.toDate ? order.scheduledDate.toDate() : new Date(order.scheduledDate);
+      formattedScheduledDate = d.toISOString().slice(0, 16);
+    }
+    setShowAssignModal({
+      orderId: order.id,
+      currentTechs: order.technicians || [],
+      scheduledDate: formattedScheduledDate,
+      visible: true
+    });
+    setSelectedTechsInModal(order.technicians || []);
+  };
+
+  const handleConfirmAssign = async () => {
+    if (selectedTechsInModal.length === 0) {
+      toast.error("Vui lòng chọn ít nhất một kỹ thuật viên");
+      return;
+    }
     try {
-      await updateOrderStatus(orderId, newStatus);
-
-      // Tự động tạo thiết bị khi hoàn tất lắp đặt
-      if (newStatus === 'completed') {
-         const order = orders.find(o => o.id === orderId);
-         if (order && order.orderType === 'installation') {
-            await createDevicesFromOrder(order);
-            toast.success("Hệ thống đã tự động đăng ký thiết bị & kích hoạt bảo hành");
-         }
-      }
-
-      const actionText = newStatus === 'paid' ? "Xác nhận COD" : `Chuyển sang: ${getStatusText(newStatus)}`;
-      await logActivity(actionText, "Đơn hàng", orderId, { from: currentStatus, to: newStatus });
-      toast.success(`Đã chuyển sang: ${getStatusText(newStatus)}`);
-    } catch (error: any) {
-      console.error("Lỗi cập nhật trạng thái:", error);
-      toast.error(`Lỗi: ${error.message || "Không thể cập nhật trạng thái"}`);
+      const scheduledDate = showAssignModal.scheduledDate ? new Date(showAssignModal.scheduledDate) : undefined;
+      await assignTechniciansToOrder(showAssignModal.orderId, selectedTechsInModal, scheduledDate);
+      toast.success("Đã phân công kỹ thuật viên!");
+      setShowAssignModal({ orderId: '', currentTechs: [], scheduledDate: '', visible: false });
+    } catch (error) {
+      toast.error("Lỗi khi phân công");
     }
   };
 
-  const handleSaveTechnicians = async () => {
-    try {
-      await assignTechnicians(showAssignModal.orderId, selectedTechsInModal);
-      const techNames = selectedTechsInModal.map(t => t.name).join(', ');
-      await logActivity("Cập nhật danh sách kỹ thuật viên", "Đơn hàng", showAssignModal.orderId, { technicians: techNames });
-      toast.success(`Đã cập nhật nhân sự: ${techNames || 'Trống'}`);
-      setShowAssignModal({ orderId: '', currentTechs: [], visible: false });
-    } catch (error: any) {
-      console.error("Lỗi phân công kỹ thuật:", error);
-      toast.error(`Lỗi: ${error.message || "Cập nhật nhân sự thất bại"}`);
-    }
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
   };
 
-  const toggleTechSelection = (techId: string, techName: string) => {
-    const isSelected = selectedTechsInModal.some(t => t.id === techId);
-    if (isSelected) {
-      setSelectedTechsInModal(selectedTechsInModal.filter(t => t.id !== techId));
-    } else {
-      setSelectedTechsInModal([...selectedTechsInModal, { id: techId, name: techName }]);
+  const getStatusColor = (status: OrderStatus) => {
+    switch (status) {
+      case 'pending': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'approved': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'assigned': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+      case 'processing': return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'completed': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'cancelled': return 'bg-rose-100 text-rose-700 border-rose-200';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
-
-  const getAllowedStatuses = (current: OrderStatus) => {
-    const all: OrderStatus[] = ['pending', 'assigned', 'processing', 'completed', 'incident', 'paid', 'cancelled'];
-    if (isAdmin) return all;
-
-    const flow: OrderStatus[] = ['pending', 'assigned', 'processing', 'completed', 'paid'];
-    const idx = flow.indexOf(current);
-
-    if (idx !== -1) {
-      const nextFlow = flow.slice(idx + 1);
-      const extras: OrderStatus[] = [];
-      if (['assigned', 'processing'].includes(current)) extras.push('incident');
-      if (['pending', 'assigned'].includes(current)) extras.push('cancelled');
-      return [...nextFlow, ...extras];
-    }
-
-    if (current === 'incident') return ['processing', 'completed', 'paid'];
-
-    return [];
-  };
-
-  const filteredProducts = availableProducts.filter(p => p.tenSanPham.toLowerCase().includes(productSearch.toLowerCase()));
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-[#0f172a] transition-colors duration-300 font-sans p-4 md:p-6 overflow-hidden">
-      <Toaster position="top-right" />
-
-      {/* Header section */}
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6 shrink-0 text-left">
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-xl md:text-2xl font-black text-[#0b1c30] dark:text-white uppercase tracking-tight flex items-center gap-3">
-             <div className="p-2.5 bg-white dark:bg-[#1e293b] rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                <ShoppingCart className="text-[#00459a]" size={24} />
-             </div>
-             Trung tâm Đơn hàng
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-[11px] font-medium uppercase tracking-wider mt-1">Điều phối nhân sự & Nghiệp vụ tài chính AquaCare</p>
+          <h1 className="text-2xl font-bold text-slate-800">Quản lý Đơn hàng</h1>
+          <p className="text-slate-500">Theo dõi và điều phối đơn hàng khách hàng</p>
         </div>
-        {isCoordinator && (
-          <button onClick={() => setShowOrderModal({ type: 'add', visible: true })} className="flex items-center gap-2 bg-[#00459a] text-white px-6 py-3 rounded-2xl font-black text-[11px] uppercase shadow-lg shadow-blue-500/20 hover:brightness-110 active:scale-95 transition-all"><Plus size={18} /> Tạo đơn hàng mới</button>
-        )}
+        <button
+          onClick={() => setShowOrderModal({ type: 'add', visible: true })}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus size={20} />
+          Tạo đơn hàng
+        </button>
       </div>
 
-      {/* Tabs section */}
-      <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1 shrink-0 scrollbar-hide text-left">
-        {tabs.map((status) => (
-          <button key={status} onClick={() => setActiveTab(status)} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === status ? 'bg-[#0b1c30] text-white shadow-md' : 'bg-white dark:bg-slate-800 text-slate-400 border border-slate-100 dark:border-slate-700 hover:text-[#00459a]'}`}>{status}</button>
-        ))}
+      {/* Tabs & Search */}
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="flex bg-white p-1 rounded-lg border border-slate-200 overflow-x-auto whitespace-nowrap">
+          {tabs.map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === tab ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <input
+            type="text"
+            placeholder="Tìm theo tên khách, SĐT hoặc mã đơn..."
+            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          />
+        </div>
       </div>
 
-      {/* Main content table */}
-      <div className="h-[750px] bg-white dark:bg-[#1e293b] rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col">
-        <div className="p-4 md:p-6 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row gap-4 items-center justify-between text-left">
-           <div className="relative w-full md:max-w-md">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-              <input type="text" placeholder="Tìm kiếm đơn hàng..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold text-xs uppercase dark:text-white" />
-           </div>
-        </div>
-
-        <div className="overflow-auto flex-1 custom-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
-            <thead className="sticky top-0 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md z-10">
-              <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
-                <th className="px-6 py-5">Đơn hàng</th>
-                <th className="px-6 py-5">Khách hàng / Địa chỉ</th>
-                <th className="px-6 py-5">Lịch hẹn</th>
-                <th className="px-6 py-5">Nhân sự</th>
-                <th className="px-6 py-5">Trạng thái</th>
-                <th className="px-6 py-5"></th>
+      {/* Order List */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm font-medium">
+            <tr>
+              <th className="px-6 py-4">Khách hàng</th>
+              <th className="px-6 py-4">Sản phẩm</th>
+              <th className="px-6 py-4">Tổng tiền</th>
+              <th className="px-6 py-4">Loại đơn</th>
+              <th className="px-6 py-4">Trạng thái</th>
+              <th className="px-6 py-4 text-right">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-slate-700">
+            {isLoading ? (
+              <tr>
+                <td colSpan={6} className="px-6 py-12 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader className="animate-spin text-blue-600" size={32} />
+                    <p className="text-slate-400">Đang tải dữ liệu...</p>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-              {orders.filter(o => o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || o.phoneNumber.includes(searchTerm)).map((order) => (
-                <tr key={order.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
-                  <td className="px-6 py-4 text-left">
-                    <div className="flex flex-col text-left">
-                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">#{order.id.slice(-6).toUpperCase()}</span>
-                       <span className="text-xs font-black text-[#0b1c30] dark:text-white uppercase truncate max-w-[150px]">{order.productName || 'N/A'}</span>
+            ) : orders.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                  Không tìm thấy đơn hàng nào
+                </td>
+              </tr>
+            ) : (
+              orders.map(order => (
+                <tr key={order.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="font-medium text-slate-900">{order.customerName}</div>
+                    <div className="text-sm text-slate-500 flex items-center gap-1">
+                      <Phone size={12} /> {order.phoneNumber}
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                     <div className="flex flex-col text-left">
-                        <div className="flex items-center gap-2">
-                           <User size={12} className="text-[#00459a]" />
-                           <span className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase">{order.customerName}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                           <MapPin size={12} className="text-slate-300" />
-                           <span className="text-[10px] font-medium text-slate-400 truncate max-w-[200px]">{order.address}</span>
-                        </div>
-                     </div>
+                    <div className="max-w-xs truncate" title={order.productName}>{order.productName}</div>
+                  </td>
+                  <td className="px-6 py-4 font-semibold text-blue-600">
+                    {formatCurrency(order.totalAmount)}
                   </td>
                   <td className="px-6 py-4">
-                     <div className="flex flex-col text-left">
-                        <div className="flex items-center gap-2">
-                           <Calendar size={12} className="text-blue-500" />
-                           <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase">{formatDate(order.scheduledDate)}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                           <Clock size={12} className="text-slate-300" />
-                           <span className="text-[10px] font-bold text-slate-400">{order.scheduledDate ? formatDateTime(order.scheduledDate).split(' ')[1] : 'Chưa hẹn'}</span>
-                        </div>
-                     </div>
+                    <span className="text-sm px-2 py-1 bg-slate-100 rounded-md">
+                      {order.orderType === 'installation' ? 'Lắp đặt' : order.orderType === 'maintenance' ? 'Bảo trì' : 'Sửa chữa'}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex flex-col gap-1 text-left">
-                      {order.technicians && order.technicians.length > 0 ? (
-                        <div className="flex flex-wrap gap-1 items-center">
-                          {order.technicians.map(t => (
-                            <span key={t.id} className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-[#00459a] dark:text-blue-300 rounded text-[9px] font-black uppercase whitespace-nowrap">
-                              {t.name}
-                            </span>
-                          ))}
-                          {isCoordinator && !['completed', 'paid', 'cancelled'].includes(order.status) && (
-                            <button onClick={() => setShowAssignModal({ orderId: order.id, currentTechs: order.technicians || [], visible: true })} className="p-1 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/40 rounded transition-colors">
-                              <Edit size={12} />
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        isCoordinator && !['completed', 'paid', 'cancelled'].includes(order.status) && (
-                          <button onClick={() => setShowAssignModal({ orderId: order.id, currentTechs: [], visible: true })} className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 hover:underline">
-                            <UserPlus size={14} /> Phân công
-                          </button>
-                        )
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                     <div className="flex items-center gap-2 group/status">
-                        <span className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase border ${getStatusColor(order.status)}`}>
-                           {getStatusText(order.status)}
-                        </span>
-                        {isCoordinator && getAllowedStatuses(order.status).length > 0 && (
-                           <div className="relative">
-                              <button className="p-1 text-slate-300 hover:text-[#00459a] transition-colors"><ChevronDown size={14} /></button>
-                              <div className="absolute left-0 top-full mt-1 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 z-50 py-2 hidden group-hover/status:block min-w-[140px]">
-                                 {getAllowedStatuses(order.status).map(s => (
-                                    <button
-                                      key={s}
-                                      onClick={() => handleUpdateStatus(order.id, order.status, s)}
-                                      className="w-full text-left px-4 py-2 text-[10px] font-black uppercase hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center gap-2"
-                                    >
-                                       <div className={`w-1.5 h-1.5 rounded-full ${getStatusColor(s).split(' ')[0]}`}></div>
-                                       {getStatusText(s)}
-                                    </button>
-                                 ))}
-                              </div>
-                           </div>
-                        )}
-                     </div>
+                    <span className={`text-xs px-2.5 py-1 rounded-full border ${getStatusColor(order.status)}`}>
+                      {order.status}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                       <button onClick={() => setShowOrderModal({ type: 'detail', order, visible: true })} className="p-2 text-slate-400 hover:text-blue-500 bg-slate-50 dark:bg-slate-900 rounded-xl" title="Chi tiết"><Info size={16} /></button>
-                       <button onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.address)}`, '_blank')} className="p-2 text-slate-400 hover:text-emerald-500 bg-slate-50 dark:bg-slate-900 rounded-xl" title="Xem bản đồ"><MapIcon size={16} /></button>
-                       {isCoordinator && order.status !== 'deleted' && (
-                         <button onClick={() => setShowOrderModal({ type: 'edit', order, visible: true })} className="p-2 text-slate-400 hover:text-amber-500 bg-slate-50 dark:bg-slate-900 rounded-xl" title="Chỉnh sửa"><Edit size={16} /></button>
-                       )}
-                       {isAdmin && (
-                         <button onClick={() => { if(confirm('Xóa đơn hàng này?')) deleteOrder(order.id, order.status); }} className="p-2 text-slate-400 hover:text-rose-500 bg-slate-50 dark:bg-slate-900 rounded-xl" title="Xóa"><Trash2 size={16} /></button>
-                       )}
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => setShowOrderModal({ type: 'detail', order, visible: true })}
+                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                      >
+                        <Eye size={18} />
+                      </button>
+                      <button
+                        onClick={() => setShowOrderModal({ type: 'edit', order, visible: true })}
+                        className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(order)}
+                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                      >
+                        <Trash2 size={18} />
+                      </button>
                     </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {/* Order Modal */}
       {showOrderModal.visible && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#1e293b] rounded-[2.5rem] shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh] border border-slate-100 dark:border-slate-800 animate-in zoom-in duration-200 text-left">
-             <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-                <div className="flex items-center gap-4 text-left">
-                   <div className="w-12 h-12 bg-[#0b1c30] text-white rounded-2xl flex items-center justify-center shadow-lg"><FileText size={24} /></div>
-                   <div>
-                      <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-sm">{showOrderModal.type === 'add' ? 'Khởi tạo đơn hàng mới' : 'Chi tiết đơn hàng'}</h3>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5 tracking-widest">Hệ thống AquaCare Professional</p>
-                   </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white z-10">
+              <h2 className="text-xl font-bold">
+                {showOrderModal.type === 'add' ? 'Tạo đơn hàng mới' : showOrderModal.type === 'edit' ? 'Chỉnh sửa đơn hàng' : 'Chi tiết đơn hàng'}
+              </h2>
+              <button onClick={() => setShowOrderModal({ ...showOrderModal, visible: false })} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitOrder} className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Tên khách hàng</label>
+                  <input
+                    name="customerName"
+                    value={formDataState.customerName}
+                    onChange={handleInputChange}
+                    placeholder="Nhập tên khách hàng..."
+                    className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none ${errors.customerName ? 'border-rose-500' : 'border-slate-200'}`}
+                    disabled={showOrderModal.type === 'detail'}
+                  />
+                  {errors.customerName && <p className="text-xs text-rose-500">{errors.customerName}</p>}
                 </div>
-                <button onClick={() => setShowOrderModal({ ...showOrderModal, visible: false })} className="text-slate-300 hover:text-rose-500 p-2 transition-colors"><X size={28} /></button>
-             </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Số điện thoại</label>
+                  <input
+                    name="phoneNumber"
+                    value={formDataState.phoneNumber}
+                    onChange={handleInputChange}
+                    placeholder="Nhập số điện thoại..."
+                    className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none ${errors.phoneNumber ? 'border-rose-500' : 'border-slate-200'}`}
+                    disabled={showOrderModal.type === 'detail'}
+                  />
+                  {errors.phoneNumber && <p className="text-xs text-rose-500">{errors.phoneNumber}</p>}
+                </div>
+              </div>
 
-             <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-                <form onSubmit={handleSubmitOrder} className="grid grid-cols-1 lg:grid-cols-2 gap-10 text-left">
-                   <div className="space-y-6">
-                      <div className="space-y-4">
-                         <div className="flex items-center gap-2 px-1 text-left"><User size={16} className="text-blue-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Khách hàng</span></div>
-                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5 text-left">
-                               <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tên khách hàng</label>
-                               <input name="customerName" value={formDataState.customerName} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.customerName ? 'border-rose-500 ring-1 ring-rose-500/20' : 'border-none'} rounded-2xl outline-none font-bold text-xs uppercase dark:text-white transition-all`} placeholder="VD: Nguyễn Văn A" />
-                               {errors.customerName && (
-                                  <div className="flex items-center gap-1.5 mt-1.5 text-rose-500 animate-in slide-in-from-top-1">
-                                    <AlertCircle size={12} className="shrink-0" />
-                                    <p className="text-[10px] font-bold leading-tight">{errors.customerName}</p>
-                                  </div>
-                               )}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Tỉnh/Thành phố</label>
+                  <select
+                    value={formDataState.provinceCode}
+                    onChange={(e) => handleProvinceChange(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-lg"
+                    disabled={showOrderModal.type === 'detail'}
+                  >
+                    <option value="">Chọn Tỉnh/Thành</option>
+                    {provinces.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Quận/Huyện</label>
+                  <select
+                    value={formDataState.districtCode}
+                    onChange={(e) => handleDistrictChange(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-lg"
+                    disabled={showOrderModal.type === 'detail'}
+                  >
+                    <option value="">Chọn Quận/Huyện</option>
+                    {districts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Phường/Xã</label>
+                  <select
+                    value={formDataState.wardCode}
+                    onChange={(e) => setFormDataState({...formDataState, wardCode: e.target.value})}
+                    className="w-full p-2 border border-slate-200 rounded-lg"
+                    disabled={showOrderModal.type === 'detail'}
+                  >
+                    <option value="">Chọn Phường/Xã</option>
+                    {wards.map(w => <option key={w.code} value={w.code}>{w.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Địa chỉ chi tiết</label>
+                <input
+                  name="street"
+                  value={formDataState.street}
+                  onChange={handleInputChange}
+                  placeholder="VD: Số 123, đường Láng..."
+                  className="w-full p-2 border border-slate-200 rounded-lg"
+                  disabled={showOrderModal.type === 'detail'}
+                />
+              </div>
+
+              <div className="space-y-4 border-t pt-6">
+                <h3 className="font-bold flex items-center gap-2"><Package size={20} className="text-blue-600" /> Sản phẩm & Dịch vụ</h3>
+                {showOrderModal.type !== 'detail' && (
+                  <div className="relative" ref={productInputRef}>
+                    <input
+                      type="text"
+                      placeholder="Tìm sản phẩm..."
+                      value={productSearch}
+                      onChange={(e) => {
+                        setProductSearch(e.target.value);
+                        setShowProductSuggestions(true);
+                      }}
+                      onFocus={() => setShowProductSuggestions(true)}
+                      className="w-full p-2 pl-10 border border-slate-200 rounded-lg"
+                    />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+
+                    {showProductSuggestions && productSearch && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-20 max-h-60 overflow-y-auto">
+                          {availableProducts.filter(p => p.tenSanPham.toLowerCase().includes(productSearch.toLowerCase())).map(p => (
+                            <div
+                              key={p.id}
+                              onClick={() => handleAddProduct(p)}
+                              className="p-3 hover:bg-slate-50 cursor-pointer flex justify-between items-center"
+                            >
+                              <span>{p.tenSanPham}</span>
+                              <span className="text-blue-600 font-bold">{formatCurrency(p.giaBan)}</span>
                             </div>
-                            <div className="space-y-1.5 text-left">
-                               <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Số điện thoại</label>
-                               <input name="phoneNumber" value={formDataState.phoneNumber} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.phoneNumber ? 'border-rose-500 ring-1 ring-rose-500/20' : 'border-none'} rounded-2xl outline-none font-bold text-xs dark:text-white transition-all`} placeholder="Số điện thoại Việt Nam..." />
-                               {errors.phoneNumber && (
-                                  <div className="flex items-center gap-1.5 mt-1.5 text-rose-500 animate-in slide-in-from-top-1">
-                                    <AlertCircle size={12} className="shrink-0" />
-                                    <p className="text-[10px] font-bold leading-tight">{errors.phoneNumber}</p>
-                                  </div>
-                               )}
-                            </div>
-                         </div>
+                          ))}
                       </div>
+                    )}
+                  </div>
+                )}
 
-                      <div className="space-y-4">
-                         <div className="flex items-center gap-2 px-1 text-left"><MapPin size={16} className="text-blue-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Địa điểm thi công</span></div>
-                         <div className="grid grid-cols-3 gap-3">
-                            <div className="space-y-1.5 text-left">
-                               <select value={formDataState.provinceCode} onChange={(e) => handleProvinceChange(e.target.value)} disabled={showOrderModal.type === 'detail'} className={`w-full px-3 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.provinceCode ? 'border-rose-500 ring-1 ring-rose-500/20' : 'border-none'} rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white transition-all`}>
-                                  <option value="">Tỉnh/Thành</option>
-                                  {provinces.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
-                               </select>
-                               {errors.provinceCode && (
-                                  <div className="flex items-center gap-1 mt-1 text-rose-500 animate-in fade-in">
-                                    <AlertCircle size={10} className="shrink-0" />
-                                    <p className="text-[9px] font-bold">{errors.provinceCode}</p>
-                                  </div>
-                               )}
-                            </div>
-                            <div className="space-y-1.5 text-left">
-                               <select value={formDataState.districtCode} onChange={(e) => handleDistrictChange(e.target.value)} disabled={showOrderModal.type === 'detail'} className={`w-full px-3 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.districtCode ? 'border-rose-500 ring-1 ring-rose-500/20' : 'border-none'} rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white transition-all`}>
-                                  <option value="">Quận/Huyện</option>
-                                  {districts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
-                               </select>
-                               {errors.districtCode && (
-                                  <div className="flex items-center gap-1 mt-1 text-rose-500 animate-in fade-in">
-                                    <AlertCircle size={10} className="shrink-0" />
-                                    <p className="text-[9px] font-bold">{errors.districtCode}</p>
-                                  </div>
-                               )}
-                            </div>
-                            <div className="space-y-1.5 text-left">
-                               <select name="wardCode" value={formDataState.wardCode} onChange={handleInputChange} disabled={showOrderModal.type === 'detail'} className={`w-full px-3 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.wardCode ? 'border-rose-500 ring-1 ring-rose-500/20' : 'border-none'} rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white transition-all`}>
-                                  <option value="">Phường/Xã</option>
-                                  {wards.map(w => <option key={w.code} value={w.code}>{w.name}</option>)}
-                               </select>
-                               {errors.wardCode && (
-                                  <div className="flex items-center gap-1 mt-1 text-rose-500 animate-in fade-in">
-                                    <AlertCircle size={10} className="shrink-0" />
-                                    <p className="text-[9px] font-bold">{errors.wardCode}</p>
-                                  </div>
-                               )}
-                            </div>
-                         </div>
-                         <div className="space-y-1.5 text-left">
-                            <input name="street" value={formDataState.street} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border ${errors.street ? 'border-rose-500 ring-1 ring-rose-500/20' : 'border-none'} rounded-2xl outline-none font-bold text-xs dark:text-white transition-all`} placeholder="Số nhà, tên đường chi tiết..." />
-                            {errors.street && (
-                               <div className="flex items-center gap-1.5 mt-1.5 text-rose-500 animate-in slide-in-from-top-1">
-                                 <AlertCircle size={12} className="shrink-0" />
-                                 <p className="text-[10px] font-bold leading-tight">{errors.street}</p>
-                               </div>
-                            )}
-                         </div>
-
-                         {(() => {
-                            const mapAddress = (formDataState.latitude && formDataState.longitude)
-                               ? `${formDataState.latitude},${formDataState.longitude}`
-                               : (formDataState.street && formDataState.provinceCode)
-                                  ? `${formDataState.street}, ${wards.find(w => String(w.code) === formDataState.wardCode)?.name || ''}, ${districts.find(d => String(d.code) === formDataState.districtCode)?.name || ''}, ${provinces.find(p => String(p.code) === formDataState.provinceCode)?.name || ''}`
-                                  : showOrderModal.order?.address;
-
-                            return mapAddress ? (
-                               <div className="mt-4 rounded-2xl overflow-hidden h-48 border border-slate-100 dark:border-slate-800 shadow-inner">
-                                  <iframe
-                                     width="100%"
-                                     height="100%"
-                                     frameBorder="0"
-                                     title="Order Location"
-                                     src={`https://maps.google.com/maps?q=${encodeURIComponent(mapAddress)}&z=15&output=embed`}
-                                  ></iframe>
-                               </div>
-                            ) : (
-                               <div className="mt-4 flex flex-col items-center justify-center h-48 bg-slate-50 dark:bg-slate-900/20 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-800">
-                                  <MapIcon size={32} className="text-slate-200 mb-2" />
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cập nhật địa chỉ để xem bản đồ</p>
-                               </div>
-                            );
-                         })()}
+                <div className="space-y-2">
+                  {selectedItems.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-white rounded border flex items-center justify-center font-bold text-blue-600">
+                          {item.quantity}x
+                        </div>
+                        <div>
+                          <div className="font-medium">{item.name}</div>
+                          <div className="text-xs text-slate-500">{formatCurrency(item.price)}</div>
+                        </div>
                       </div>
+                      {showOrderModal.type !== 'detail' && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedItems(selectedItems.filter((_, i) => i !== idx))}
+                          className="text-rose-500 hover:bg-rose-50 p-2 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-100 mt-4 shadow-inner">
+                    <span className="font-bold text-blue-800">TỔNG CỘNG:</span>
+                    <span className="font-black text-xl text-blue-600">{formatCurrency(calculateTotal())}</span>
+                  </div>
+                </div>
+              </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                         <div className="space-y-1 text-left">
-                            <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Lịch hẹn khách hàng</label>
-                            <input name="scheduledDate" type="datetime-local" value={formDataState.scheduledDate} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl outline-none font-bold text-xs dark:text-white" />
-                         </div>
-                         <div className="space-y-1 text-left">
-                            <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Loại dịch vụ</label>
-                            <select name="orderType" value={formDataState.orderType} onChange={handleInputChange} disabled={showOrderModal.type === 'detail'} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl outline-none font-bold text-xs uppercase dark:text-white">
-                               <option value="installation">Lắp đặt mới</option>
-                               <option value="maintenance">Bảo trì định kỳ</option>
-                               <option value="repair">Sửa chữa sự cố</option>
-                            </select>
-                         </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                         <div className="space-y-1 text-left">
-                            <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Trạng thái đơn</label>
-                            {showOrderModal.type === 'edit' ? (
-                               <select
-                                 name="status"
-                                 value={formDataState.status}
-                                 onChange={handleInputChange}
-                                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl outline-none font-bold text-xs uppercase dark:text-white"
-                               >
-                                 <option value={formDataState.status}>{getStatusText(formDataState.status)} (Hiện tại)</option>
-                                 {getAllowedStatuses(showOrderModal.order?.status || 'pending')
-                                   .filter(s => s !== formDataState.status)
-                                   .map(s => (
-                                   <option key={s} value={s}>{getStatusText(s)}</option>
-                                 ))}
-                               </select>
-                            ) : (
-                               <span className={`block w-full px-4 py-3 rounded-2xl font-black text-[10px] uppercase text-center border ${getStatusColor(formDataState.status)}`}>{getStatusText(formDataState.status)}</span>
-                            )}
-                         </div>
-                         <div className="space-y-1.5 text-left">
-                            <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Ghi chú đơn hàng</label>
-                            <textarea name="note" value={formDataState.note} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl outline-none font-bold text-xs dark:text-white min-h-[50px]" placeholder="Nhập ghi chú chi tiết..." />
-                         </div>
-                      </div>
-                   </div>
-
-                   {/* Flexible Product Section */}
-                   <div className="space-y-6">
-                      <div className="space-y-4">
-                         <div className="flex justify-between items-center px-1">
-                            <div className="flex items-center gap-2"><Package size={16} className="text-blue-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Hàng hóa & Vật tư</span></div>
-                            {showOrderModal.type !== 'detail' && (
-                               <button type="button" onClick={() => { setShowCustomProductForm(!showCustomProductForm); setErrors(prev => {const n={...prev}; delete n.customProductName; delete n.customProductPrice; return n;}); }} className="text-[9px] font-black text-blue-600 uppercase flex items-center gap-1 hover:brightness-125 transition-all">
-                                  {showCustomProductForm ? <Minus size={14} /> : <Sparkles size={14} />} {showCustomProductForm ? 'Đóng tùy chỉnh' : 'Tùy chỉnh linh động'}
-                               </button>
-                            )}
-                         </div>
-
-                         {showOrderModal.type !== 'detail' && !showCustomProductForm && (
-                            <div className="relative" ref={productInputRef}>
-                               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                               <input type="text" placeholder="Tìm tên sản phẩm trong kho..." value={productSearch} onChange={(e) => {setProductSearch(e.target.value); setShowProductSuggestions(true);}} onFocus={() => setShowProductSuggestions(true)} className={`w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900 border ${errors.products ? 'border-rose-500 ring-1 ring-rose-500/20' : 'border-none'} rounded-2xl outline-none font-bold text-xs dark:text-white shadow-inner transition-all`} />
-                               {showProductSuggestions && (
-                                  <div className="absolute top-full left-0 right-0 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 mt-2 z-[110] max-h-60 overflow-y-auto no-scrollbar">
-                                     {filteredProducts.map(p => (
-                                        <button key={p.id} type="button" onClick={() => handleAddProduct(p)} className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700 transition-all border-b border-slate-50 dark:border-slate-800 last:border-0 text-left">
-                                           <div className="flex items-center gap-3">
-                                              {p.imageUrl ? (
-                                                <img src={p.imageUrl} alt={p.tenSanPham} className="w-10 h-10 object-cover rounded-lg border border-slate-100" />
-                                              ) : (
-                                                <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center text-slate-400"><Package size={16} /></div>
-                                              )}
-                                              <div>
-                                                 <p className="text-[11px] font-black text-slate-800 dark:text-white uppercase">{p.tenSanPham}</p>
-                                                 <p className="text-[8px] text-slate-400 font-bold uppercase text-left">Tồn kho: {p.tonKho} • BH: {p.thoiGianBaoHanh || 0}T</p>
-                                              </div>
-                                           </div>
-                                           <span className="text-[11px] font-black text-blue-600">{p.giaBan?.toLocaleString()}₫</span>
-                                        </button>
-                                     ))}
-                                  </div>
-                               )}
-                            </div>
-                         )}
-
-                         {showCustomProductForm && showOrderModal.type !== 'detail' && (
-                            <div className="p-5 bg-blue-50/30 dark:bg-blue-900/10 rounded-[2rem] border border-blue-100 dark:border-blue-900/20 space-y-4 animate-in slide-in-from-top-2 text-left">
-                               <div className="flex items-center gap-2 mb-2"><Tag size={14} className="text-blue-500" /><span className="text-[9px] font-black text-blue-600 uppercase">Thêm hàng hóa ngoài danh mục</span></div>
-                               <div className="grid grid-cols-2 gap-3">
-                                  <div className="space-y-1.5 text-left">
-                                     <label className="text-[8px] font-black text-slate-400 uppercase">Tên mặt hàng</label>
-                                     <input value={customProduct.name} onChange={(e) => { setCustomProduct({...customProduct, name: e.target.value}); if(errors.customProductName) setErrors(prev => { const n = {...prev}; delete n.customProductName; return n; }); }} className={`w-full px-4 py-2 bg-white dark:bg-slate-800 rounded-xl font-bold text-xs uppercase dark:text-white outline-none border ${errors.customProductName ? 'border-rose-500' : 'border-blue-100'}`} placeholder="..." />
-                                     {errors.customProductName && (
-                                        <div className="flex items-center gap-1 mt-1 text-rose-500">
-                                          <AlertCircle size={10} className="shrink-0" />
-                                          <p className="text-[9px] font-bold leading-tight">{errors.customProductName}</p>
-                                        </div>
-                                     )}
-                                  </div>
-                                  <div className="space-y-1.5 text-left">
-                                     <label className="text-[8px] font-black text-slate-400 uppercase">Đơn giá (VNĐ)</label>
-                                     <input type="number" value={customProduct.price} onChange={(e) => { setCustomProduct({...customProduct, price: Number(e.target.value)}); if(errors.customProductPrice) setErrors(prev => { const n = {...prev}; delete n.customProductPrice; return n; }); }} className={`w-full px-4 py-2 bg-white dark:bg-slate-800 rounded-xl font-bold text-xs text-blue-600 outline-none border ${errors.customProductPrice ? 'border-rose-500' : 'border-blue-100'}`} />
-                                     {errors.customProductPrice && (
-                                        <div className="flex items-center gap-1 mt-1 text-rose-500">
-                                          <AlertCircle size={10} className="shrink-0" />
-                                          <p className="text-[9px] font-bold leading-tight">{errors.customProductPrice}</p>
-                                        </div>
-                                     )}
-                                  </div>
-                               </div>
-                               <div className="space-y-1.5 text-left">
-                                   <label className="text-[8px] font-black text-slate-400 uppercase">Thời gian bảo hành (Tháng)</label>
-                                   <input type="number" value={customProduct.thoiGianBaoHanh} onChange={(e) => setCustomProduct({...customProduct, thoiGianBaoHanh: Number(e.target.value)})} className="w-full px-4 py-2 bg-white dark:bg-slate-800 rounded-xl font-bold text-xs dark:text-white outline-none border border-blue-100" />
-                               </div>
-                               <button type="button" onClick={handleAddCustomProduct} className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase shadow-lg shadow-blue-500/20">Xác nhận thêm</button>
-                            </div>
-                         )}
-
-                         <div className="space-y-3">
-                            {selectedItems.map((item, index) => (
-                               <div key={index} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-transparent hover:border-slate-200 dark:hover:border-slate-800 group transition-all">
-                                  <div className="flex items-center gap-3">
-                                     {item.imageUrl ? (
-                                       <img src={item.imageUrl} alt={item.name} className="w-10 h-10 object-cover rounded-lg border border-slate-200" />
-                                     ) : (
-                                       <div className="w-10 h-10 bg-slate-200 dark:bg-slate-800 rounded-lg flex items-center justify-center text-slate-400"><Package size={16} /></div>
-                                     )}
-                                     <div className="text-left">
-                                        <p className="text-[11px] font-black text-slate-700 dark:text-white uppercase flex items-center gap-2">
-                                           {item.id.startsWith('custom-') && <Sparkles size={10} className="text-amber-500" />}
-                                           {item.name}
-                                        </p>
-                                        <p className="text-[9px] text-slate-400 font-bold">
-                                          {item.price?.toLocaleString()}₫ • BH: {item.thoiGianBaoHanh || 0}T
-                                        </p>
-                                     </div>
-                                  </div>
-                                  <div className="flex items-center gap-4">
-                                     <div className="flex items-center gap-3 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
-                                        {showOrderModal.type !== 'detail' && <button type="button" onClick={() => setSelectedItems(selectedItems.map((si, i) => i === index ? { ...si, quantity: Math.max(1, si.quantity - 1) } : si))} className="text-slate-400 hover:text-rose-500 transition-colors"><Minus size={14} /></button>}
-                                        <span className="text-xs font-black dark:text-white min-w-[20px] text-center">{item.quantity}</span>
-                                        {showOrderModal.type !== 'detail' && <button type="button" onClick={() => setSelectedItems(selectedItems.map((si, i) => i === index ? { ...si, quantity: si.quantity + 1 } : si))} className="text-slate-400 hover:text-blue-500 transition-colors"><Plus size={14} /></button>}
-                                     </div>
-                                     {showOrderModal.type !== 'detail' && <button type="button" onClick={() => setSelectedItems(selectedItems.filter((_, i) => i !== index))} className="text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16} /></button>}
-                                  </div>
-                               </div>
-                            ))}
-                            {errors.products && (
-                               <div className="flex items-center gap-1.5 mt-1.5 text-rose-500 animate-in slide-in-from-top-1">
-                                 <AlertCircle size={12} className="shrink-0" />
-                                 <p className="text-[10px] font-bold leading-tight">{errors.products}</p>
-                               </div>
-                            )}
-                            {selectedItems.length === 0 && <div className={`py-12 text-center border-2 border-dashed rounded-[2rem] transition-all ${errors.products ? 'border-rose-300 bg-rose-50/20' : 'border-slate-100 dark:border-slate-800'}`}><Package className={`mx-auto mb-2 ${errors.products ? 'text-rose-300' : 'text-slate-200'}`} size={32} /><p className={`text-[10px] font-bold uppercase ${errors.products ? 'text-rose-400' : 'text-slate-400'}`}>Chưa chọn sản phẩm</p></div>}
-                         </div>
-                      </div>
-
-                      <div className="p-8 bg-[#0b1c30] rounded-[2.5rem] text-white space-y-4 shadow-2xl">
-                         <div className="flex justify-between items-center text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                            <span>Thành tiền đơn hàng</span>
-                            <span>{calculateTotal().toLocaleString()}₫</span>
-                         </div>
-                         <div className="flex justify-between items-end">
-                            <span className="text-[10px] font-black uppercase text-slate-400 mb-1">Tổng cộng (VNĐ)</span>
-                            <span className="text-3xl font-black text-emerald-400 tracking-tighter">{calculateTotal().toLocaleString()}₫</span>
-                         </div>
-                      </div>
-                   </div>
-
-                   <div className="lg:col-span-2 pt-8 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                      <div className="text-left">
-                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Người lập: {showOrderModal.order?.createdByName || user?.displayName}</p>
-                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Ngày tạo: {formatDate(showOrderModal.order?.createdAt)}</p>
-                      </div>
-                      <div className="flex gap-4">
-                         <button type="button" onClick={() => setShowOrderModal({...showOrderModal, visible: false})} className="px-8 py-4 bg-slate-50 dark:bg-slate-800 text-slate-400 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all hover:bg-slate-100">Đóng</button>
-                         {showOrderModal.type !== 'detail' && (
-                            <button type="submit" className="px-12 py-4 bg-blue-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-blue-500/20 transition-all hover:brightness-110 active:scale-95">Xác nhận đơn hàng</button>
-                         )}
-                      </div>
-                   </div>
-                </form>
-             </div>
+              {showOrderModal.type !== 'detail' && (
+                <div className="flex justify-end gap-3 border-t pt-6 sticky bottom-0 bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setShowOrderModal({...showOrderModal, visible: false})}
+                    className="px-6 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 font-bold text-slate-600"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-8 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-500/20 flex items-center gap-2 font-bold"
+                  >
+                    <Check size={20} />
+                    {showOrderModal.type === 'add' ? 'Tạo đơn hàng' : 'Cập nhật thay đổi'}
+                  </button>
+                </div>
+              )}
+            </form>
           </div>
         </div>
       )}
 
-      {/* Assign Modal */}
       {showAssignModal.visible && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#1e293b] rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200 flex flex-col max-h-[80vh]">
-             <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center text-left">
-                <div className="text-left">
-                   <h3 className="font-black text-[#0b1c30] dark:text-white uppercase text-sm tracking-widest">Phân công kỹ thuật</h3>
-                   <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Chọn một hoặc nhiều nhân sự</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-6 border-b flex justify-between items-center bg-slate-50">
+              <h2 className="text-xl font-bold flex items-center gap-2"><Users size={24} className="text-indigo-600" /> Phân công KTV</h2>
+              <button onClick={() => setShowAssignModal({...showAssignModal, visible: false})} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-600 uppercase tracking-widest">Lịch hẹn thi công</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400" size={18} />
+                  <input
+                    type="datetime-local"
+                    value={showAssignModal.scheduledDate}
+                    onChange={(e) => setShowAssignModal({...showAssignModal, scheduledDate: e.target.value})}
+                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 font-semibold"
+                  />
                 </div>
-                <button onClick={() => setShowAssignModal({ orderId: '', currentTechs: [], visible: false })} className="text-slate-300 hover:text-rose-500 transition-colors p-1"><X size={24} /></button>
-             </div>
-             <div className="p-4 space-y-2 overflow-y-auto custom-scrollbar flex-1">
-                {technicians.map(tech => {
-                  const isSelected = selectedTechsInModal.some(t => t.id === tech.uid);
-                  return (
-                    <button
-                      key={tech.uid}
-                      onClick={() => toggleTechSelection(tech.uid, tech.displayName || 'Unknown')}
-                      className={`w-full p-4 flex items-center justify-between rounded-2xl transition-all border ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                    >
-                      <div className="flex items-center gap-4 text-left">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs uppercase ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
-                          {tech.displayName?.charAt(0)}
-                        </div>
-                        <div className="text-left">
-                          <p className={`text-[11px] font-black uppercase ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-white'}`}>{tech.displayName}</p>
-                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{tech.email}</p>
-                        </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-600 uppercase tracking-widest">Chọn Kỹ thuật viên ({selectedTechsInModal.length})</label>
+                <div className="space-y-2 max-h-60 overflow-y-auto border border-slate-100 rounded-xl p-2 bg-slate-50/30">
+                  {technicians.map(tech => (
+                    <label key={tech.uid} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border transition-all ${
+                      selectedTechsInModal.some(t => t.id === tech.uid) ? 'bg-indigo-50 border-indigo-200' : 'hover:bg-slate-50 border-transparent'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={selectedTechsInModal.some(t => t.id === tech.uid)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedTechsInModal([...selectedTechsInModal, { id: tech.uid, name: tech.displayName }]);
+                          } else {
+                            setSelectedTechsInModal(selectedTechsInModal.filter(t => t.id !== tech.uid));
+                          }
+                        }}
+                        className="w-5 h-5 text-indigo-600 rounded-lg"
+                      />
+                      <div className="flex-1">
+                        <div className="font-bold text-slate-800">{tech.displayName}</div>
+                        <div className="text-[11px] text-slate-500 font-medium">{tech.phoneNumber || 'Không có SĐT'} • KTV</div>
                       </div>
-                      {isSelected && <Check size={18} className="text-blue-600" />}
-                    </button>
-                  );
-                })}
-             </div>
-             <div className="p-6 border-t border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
                 <button
-                  onClick={handleSaveTechnicians}
-                  className="w-full py-4 bg-[#00459a] text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:brightness-110 transition-all"
+                  onClick={() => setShowAssignModal({...showAssignModal, visible: false})}
+                  className="flex-1 py-3 border border-slate-200 rounded-xl text-slate-500 font-bold hover:bg-slate-50"
                 >
-                  Xác nhận phân công ({selectedTechsInModal.length})
+                  Bỏ qua
                 </button>
-             </div>
+                <button
+                  onClick={handleConfirmAssign}
+                  className="flex-[2] py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-500/20 font-bold flex items-center justify-center gap-2"
+                >
+                  <CheckCircle size={20} /> Xác nhận phân công
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

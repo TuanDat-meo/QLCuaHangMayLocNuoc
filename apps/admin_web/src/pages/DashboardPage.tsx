@@ -4,17 +4,15 @@
  */
 
 import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ShoppingCart,
   DollarSign,
-  Zap,
   Clock,
-  AlertTriangle,
   ArrowUpRight,
   ArrowDownRight,
   MoreVertical,
   Download,
-  Calendar,
   Users,
   Activity,
 } from 'lucide-react';
@@ -41,6 +39,7 @@ import {
 import toast from 'react-hot-toast';
 
 const DashboardPage: React.FC = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [revenueTrend, setRevenueTrend] = useState<any[]>([]);
   const [revenueRange, setRevenueRange] = useState<RevenueRange>('week');
@@ -98,10 +97,11 @@ const DashboardPage: React.FC = () => {
 
   const handleExport = async () => {
     try {
+      toast.loading('Đang trích xuất dữ liệu...', { id: 'export-csv' });
       await exportDashboardToCSV();
-      toast.success('Đã xuất báo cáo CSV');
+      toast.success('Đã tải xuống báo cáo thành công!', { id: 'export-csv' });
     } catch (error) {
-      toast.error('Lỗi khi xuất báo cáo');
+      toast.error('Lỗi khi xuất báo cáo CSV', { id: 'export-csv' });
     }
   };
 
@@ -114,7 +114,7 @@ const DashboardPage: React.FC = () => {
       <div className="flex items-center justify-center h-[60vh]">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-on-surface-variant font-bold animate-pulse">ĐANG TẢI DỮ LIỆU...</p>
+          <p className="text-on-surface-variant font-bold animate-pulse uppercase tracking-widest text-[10px]">Đang tải dữ liệu...</p>
         </div>
       </div>
     );
@@ -140,7 +140,7 @@ const DashboardPage: React.FC = () => {
             className="flex items-center gap-2 px-md py-sm bg-primary text-on-primary rounded-2xl font-bold shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all"
           >
             <Download className="w-4 h-4" />
-            <span>Báo cáo</span>
+            <span>Xuất Báo cáo</span>
           </button>
         </div>
       </div>
@@ -148,7 +148,7 @@ const DashboardPage: React.FC = () => {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-md">
         {/* STAT: NEW ORDERS */}
-        <div className="card group hover:border-primary/30 transition-all duration-300">
+        <div className="card group hover:border-primary/30 transition-all duration-300 cursor-pointer" onClick={() => navigate('/orders')}>
           <div className="flex justify-between items-start">
             <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-all duration-300">
               <ShoppingCart className="w-6 h-6" />
@@ -165,7 +165,7 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* STAT: REVENUE */}
-        <div className="card group hover:border-secondary/30 transition-all duration-300">
+        <div className="card group hover:border-secondary/30 transition-all duration-300 cursor-pointer" onClick={() => navigate('/reports')}>
           <div className="flex justify-between items-start">
             <div className="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary group-hover:bg-secondary group-hover:text-on-secondary transition-all duration-300">
               <DollarSign className="w-6 h-6" />
@@ -184,7 +184,7 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* STAT: CUSTOMERS */}
-        <div className="card group hover:border-tertiary/30 transition-all duration-300">
+        <div className="card group hover:border-tertiary/30 transition-all duration-300 cursor-pointer" onClick={() => navigate('/customers')}>
           <div className="flex justify-between items-start">
             <div className="w-12 h-12 rounded-2xl bg-tertiary/10 flex items-center justify-center text-tertiary group-hover:bg-tertiary group-hover:text-on-tertiary transition-all duration-300">
               <Users className="w-6 h-6" />
@@ -198,7 +198,7 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* STAT: MAINTENANCE */}
-        <div className="card group border-l-4 border-l-error">
+        <div className="card group border-l-4 border-l-error cursor-pointer" onClick={() => navigate('/schedule')}>
           <div className="flex justify-between items-start">
             <div className="w-12 h-12 rounded-2xl bg-error/10 flex items-center justify-center text-error">
               <Clock className="w-6 h-6" />
@@ -330,7 +330,10 @@ const DashboardPage: React.FC = () => {
             )}
           </div>
 
-          <button className="w-full mt-xl py-4 border-2 border-outline-variant/30 rounded-2xl text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-on-primary hover:border-primary transition-all">
+          <button
+            onClick={() => navigate('/reports')}
+            className="w-full mt-xl py-4 border-2 border-outline-variant/30 rounded-2xl text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-on-primary hover:border-primary transition-all"
+          >
             Xem tất cả báo cáo
           </button>
         </div>
@@ -349,7 +352,7 @@ const DashboardPage: React.FC = () => {
             {pendingOrders.length > 0 ? pendingOrders.map((order) => (
               <div key={order.id} className="py-md first:pt-0 last:pb-0 group">
                 <div className="flex items-start justify-between gap-md">
-                  <div className="flex-1">
+                  <div className="flex-1 cursor-pointer" onClick={() => navigate(`/orders?id=${order.id}`)}>
                     <div className="flex items-center gap-xs mb-1">
                       <span className="text-xs font-black text-on-surface uppercase tracking-tighter">ORD-{order.id.slice(-6).toUpperCase()}</span>
                       <span className="text-[9px] px-2 py-0.5 bg-surface-container-highest rounded-lg text-on-surface-variant font-black uppercase tracking-widest">{order.productName || 'SẢN PHẨM'}</span>
@@ -401,7 +404,12 @@ const DashboardPage: React.FC = () => {
                        <span className={`text-[9px] font-black px-3 py-1 rounded-full bg-secondary/10 text-secondary uppercase tracking-widest`}>
                          Bình thường
                        </span>
-                       <button className="text-[10px] font-black text-primary hover:underline uppercase tracking-widest">Phân công</button>
+                       <button
+                          onClick={() => navigate(`/orders?id=${task.id}&action=assign`)}
+                          className="text-[10px] font-black text-primary hover:underline uppercase tracking-widest"
+                       >
+                          Phân công
+                       </button>
                     </div>
                   </div>
                 </div>
