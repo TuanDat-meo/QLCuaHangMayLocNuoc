@@ -16,6 +16,7 @@ export interface OrderItem {
 export interface OrderTechnician {
   id: string;
   name: string;
+  phone?: string;
 }
 
 export interface Order {

@@ -135,12 +135,20 @@ export const updateOrderStatus = async (orderId: string, status: OrderStatus) =>
   return updateDoc(doc(getDb(), COLLECTION_NAME, orderId), { trangThai: status, updatedAt: serverTimestamp() });
 };
 
-export const assignTechnicians = async (orderId: string, technicians: OrderTechnician[], scheduledDate?: Date) => {
+/**
+ * Cập nhật KTV và Lịch hẹn
+ * @param currentStatus Trạng thái hiện tại của đơn để quyết định có chuyển sang 'assigned' hay không
+ */
+export const assignTechnicians = async (orderId: string, technicians: OrderTechnician[], scheduledDate: Date, currentStatus: string) => {
   const updateData: any = {
     technicians,
-    trangThai: 'assigned',
     updatedAt: serverTimestamp()
   };
+
+  // Chỉ tự động chuyển sang 'assigned' nếu đang ở bước Chờ duyệt hoặc Đã duyệt
+  if (['pending', 'approved'].includes(currentStatus)) {
+    updateData.trangThai = 'assigned';
+  }
 
   if (scheduledDate) {
     updateData.scheduledDate = Timestamp.fromDate(scheduledDate);

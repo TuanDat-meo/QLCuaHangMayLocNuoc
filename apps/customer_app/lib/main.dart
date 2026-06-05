@@ -19,10 +19,17 @@ void main() async {
   // Load environment configuration
   await dotenv.load();
   
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Initialize Firebase with safety check
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } catch (e) {
+    debugPrint("Firebase initialization error: $e");
+  }
+
   await initializeDateFormatting('vi', null);
   runApp(const MyApp());
 }

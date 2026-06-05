@@ -1,21 +1,24 @@
 {
   "project_info": {
-    "project_number": "1078139113677",
-    "project_id": "aquacare-system",
-    "storage_bucket": "aquacare-system.firebasestorage.app"
+    "project_number": "730710129450",
+    "project_id": "aquacaresystem0608",
+    "storage_bucket": "aquacaresystem0608.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1078139113677:android:a17c59a642c3b521b09984",
+        "mobilesdk_app_id": "1:730710129450:android:de1ce9071480e922b47c53",
         "android_client_info": {
-          "package_name": "com.aquacare.customer_app"
+          "package_name": "com.example.technical_app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyD17XDbb-7wgDXrVvK_65CCFzywodwe13w"
+          "current_key": "AIzaSyDBEmLrjXBA9pq92n40wUQsyLb0YVz0Ucg"
+        },
+        {
+          "current_key": "AIzaSyAmcJQSJZEQ_Tou0sW9sWNzxHLe0nplZ0w"
         }
       ],
       "services": {
@@ -26,15 +29,18 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1078139113677:android:d11519ef6a0be1b1b09984",
+        "mobilesdk_app_id": "1:730710129450:android:06d5ee9c3426659cb47c53",
         "android_client_info": {
-          "package_name": "com.aquacare.technician_app"
+          "package_name": "com.yourcompany.aquacare.customer"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyD17XDbb-7wgDXrVvK_65CCFzywodwe13w"
+          "current_key": "AIzaSyDBEmLrjXBA9pq92n40wUQsyLb0YVz0Ucg"
+        },
+        {
+          "current_key": "AIzaSyAmcJQSJZEQ_Tou0sW9sWNzxHLe0nplZ0w"
         }
       ],
       "services": {
@@ -45,15 +51,18 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1078139113677:android:60634f9979b45461b09984",
+        "mobilesdk_app_id": "1:730710129450:android:995e6bd168ed4735b47c53",
         "android_client_info": {
-          "package_name": "com.example.customer_app"
+          "package_name": "com.yourcompany.aquacare.technician"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyD17XDbb-7wgDXrVvK_65CCFzywodwe13w"
+          "current_key": "AIzaSyDBEmLrjXBA9pq92n40wUQsyLb0YVz0Ucg"
+        },
+        {
+          "current_key": "AIzaSyAmcJQSJZEQ_Tou0sW9sWNzxHLe0nplZ0w"
         }
       ],
       "services": {

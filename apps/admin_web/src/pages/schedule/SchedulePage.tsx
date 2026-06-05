@@ -5,11 +5,11 @@ import {
   ChevronLeft, ChevronRight as ChevronRightIcon, CalendarDays,
   Timer, CheckCircle2,
   Wrench, ShieldCheck, X, CheckCircle, AlertTriangle, Users,
-  ClipboardCheck
+  ClipboardCheck, UserPlus
 } from 'lucide-react';
-import { subscribeToOrders, updateOrder } from '../../services/orderService';
+import { subscribeToOrders, updateOrder, assignTechnicians } from '../../services/orderService';
 import { getTechnicians } from '../../services/userService';
-import { Order } from '../../types/order';
+import { Order, OrderTechnician } from '../../types/order';
 import { AuthUser } from '../../types/auth';
 import { format, isSameDay, addDays, subDays, isBefore, startOfWeek, eachDayOfInterval } from 'date-fns';
 import { toast, Toaster } from 'react-hot-toast';
@@ -26,6 +26,7 @@ const SchedulePage: React.FC = () => {
   // Scheduling Modal States
   const [schedulingOrder, setSchedulingOrder] = useState<Order | null>(null);
   const [targetDateTime, setTargetDateTime] = useState('');
+  const [selectedTechsInModal, setSelectedTechsInModal] = useState<OrderTechnician[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -118,8 +119,8 @@ const SchedulePage: React.FC = () => {
       }
     }
 
-    if (!schedulingOrder.technicians || schedulingOrder.technicians.length === 0) {
-      newErrors.technicians = "Cần có Kỹ thuật viên phụ trách trước khi xếp lịch!";
+    if (selectedTechsInModal.length === 0) {
+      newErrors.technicians = "Cần ít nhất 01 Kỹ thuật viên phụ trách!";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -129,16 +130,28 @@ const SchedulePage: React.FC = () => {
     }
 
     try {
-      await updateOrder(schedulingOrder.id, {
-        scheduledDate: new Date(targetDateTime),
-        status: schedulingOrder.status === 'pending' ? 'assigned' : schedulingOrder.status
-      });
-      toast.success("Đã kích hoạt lịch trình thành công");
+      await assignTechnicians(
+        schedulingOrder.id,
+        selectedTechsInModal,
+        new Date(targetDateTime),
+        schedulingOrder.status
+      );
+      toast.success("Đã cập nhật lịch trình và nhân sự thành công");
       setSchedulingOrder(null);
       setTargetDateTime('');
+      setSelectedTechsInModal([]);
       if (activeTab === 'unscheduled') setActiveTab('daily');
     } catch (error) {
       toast.error("Lỗi cập nhật dữ liệu");
+    }
+  };
+
+  const toggleTechSelection = (techId: string, techName: string) => {
+    const isSelected = selectedTechsInModal.some(t => t.id === techId);
+    if (isSelected) {
+      setSelectedTechsInModal(selectedTechsInModal.filter(t => t.id !== techId));
+    } else {
+      setSelectedTechsInModal([...selectedTechsInModal, { id: techId, name: techName }]);
     }
   };
 
@@ -344,7 +357,12 @@ const SchedulePage: React.FC = () => {
                       </div>
 
                       {activeTab === 'unscheduled' ? (
-                        <button onClick={() => { setSchedulingOrder(order); setTargetDateTime(''); setErrors({}); }} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-[2rem] font-black text-[12px] uppercase tracking-[0.2em] shadow-xl shadow-blue-500/30 active:scale-95 transition-all flex items-center justify-center gap-3">
+                        <button onClick={() => {
+                          setSchedulingOrder(order);
+                          setTargetDateTime('');
+                          setSelectedTechsInModal(order.technicians || []);
+                          setErrors({});
+                        }} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-[2rem] font-black text-[12px] uppercase tracking-[0.2em] shadow-xl shadow-blue-500/30 active:scale-95 transition-all flex items-center justify-center gap-3">
                            <Timer size={20} /> Thiết lập thời gian thi công
                         </button>
                       ) : (
@@ -359,9 +377,20 @@ const SchedulePage: React.FC = () => {
                                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 border-4 border-white"><User size={16} /></div>
                                     )}
                                  </div>
-                                 <span className="text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase">
-                                    {order.technicians && order.technicians.length > 0 ? `${order.technicians.length} Nhân sự` : 'Chưa gán'}
-                                 </span>
+                                 <div className="flex items-center gap-2">
+                                    <span className="text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase">
+                                       {order.technicians && order.technicians.length > 0 ? `${order.technicians.length} Nhân sự` : 'Chưa gán'}
+                                    </span>
+                                    <button onClick={() => {
+                                       setSchedulingOrder(order);
+                                       const d = safeToDate(order.scheduledDate);
+                                       setTargetDateTime(d ? d.toISOString().slice(0, 16) : '');
+                                       setSelectedTechsInModal(order.technicians || []);
+                                       setErrors({});
+                                    }} className="p-1 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/40 rounded transition-colors">
+                                       <UserPlus size={16} />
+                                    </button>
+                                 </div>
                               </div>
                            </div>
                            <button onClick={() => window.location.href=`/orders?id=${order.id}`} className="px-8 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-black text-[#00459a] uppercase rounded-[1.5rem] flex items-center gap-2 hover:bg-blue-50 transition-all shadow-sm">
@@ -381,23 +410,23 @@ const SchedulePage: React.FC = () => {
                </div>
                <h3 className="text-2xl font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Danh sách trống</h3>
                <p className="text-slate-400 text-sm mt-3 max-w-sm mx-auto font-medium leading-relaxed">
-                  {activeTab === 'daily' ? 'Không có ca làm việc nào được ghi nhận cho ngày này.' : 'Tuyệt vời! Hệ thống đã được điều phối xong, không còn đơn hàng nào đợi xếp lịch.'}
+                  {activeTab === 'daily' ? 'Không có ca làm việc nào được ghi nhận for ngày này.' : 'Tuyệt vời! Hệ thống đã được điều phối xong, không còn đơn hàng nào đợi xếp lịch.'}
                </p>
             </div>
           )}
         </div>
       </div>
 
-      {/* --- MODAL XẾP LỊCH & VALIDATION --- */}
+      {/* --- MODAL XẾP LỊCH & NHÂN SỰ --- */}
       {schedulingOrder && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in duration-300 text-left">
-           <div className="bg-white dark:bg-[#1e293b] rounded-[3rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in duration-300 border border-white/10 flex flex-col">
+           <div className="bg-white dark:bg-[#1e293b] rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in duration-300 border border-white/10 flex flex-col">
               <div className="p-10 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
                  <div className="flex items-center gap-5 text-left">
                     <div className="w-14 h-14 bg-blue-600 text-white rounded-3xl flex items-center justify-center shadow-xl shadow-blue-500/40"><Timer size={28} /></div>
                     <div>
-                       <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-widest text-base">Xác Nhận Giờ Hẹn</h3>
-                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Cập nhật lộ trình cho Kỹ thuật viên</p>
+                       <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-widest text-base">Xác Nhận Giờ Hẹn & Nhân Sự</h3>
+                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Điều phối lộ trình AquaCare</p>
                     </div>
                  </div>
                  <button onClick={() => setSchedulingOrder(null)} className="p-3 text-slate-300 hover:text-rose-500 transition-colors bg-white dark:bg-slate-800 rounded-2xl shadow-sm"><X size={28} /></button>
@@ -405,44 +434,60 @@ const SchedulePage: React.FC = () => {
 
               <div className="p-10 space-y-8 overflow-y-auto max-h-[70vh] custom-scrollbar text-left">
                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2"><ClipboardCheck size={12} /> Thông tin thi công</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2"><ClipboardCheck size={12} /> Thông tin đơn hàng</label>
                     <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-3">
                        <p className="text-sm font-black text-[#0b1c30] dark:text-white uppercase flex items-center gap-2"><User size={14} className="text-blue-500" /> {schedulingOrder.customerName}</p>
                        <p className="text-xs font-bold text-slate-500 flex items-center gap-2"><Package size={14} className="text-slate-400" /> {schedulingOrder.productName}</p>
-                       <div className="flex gap-2">
-                         {schedulingOrder.technicians?.map(t => (
-                           <span key={t.id} className="px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase">#{t.name}</span>
-                         ))}
-                       </div>
+                       <p className="text-[10px] font-medium text-slate-400 italic flex items-center gap-2"><MapPin size={12} /> {schedulingOrder.address}</p>
                     </div>
                  </div>
 
-                 <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                       <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Chọn Ngày & Giờ đến nhà khách</label>
-                       <span className="text-[9px] font-bold text-slate-400 uppercase italic">Giờ làm: 07:30 - 19:00</span>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                       <div className="flex justify-between items-center px-1">
+                          <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2"><Clock size={12} /> Lịch hẹn khách</label>
+                          <span className="text-[8px] font-bold text-slate-400 uppercase italic">07:30 - 19:00</span>
+                       </div>
+                       <div className="relative group">
+                          <CalendarIcon className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-500 z-10" size={20} />
+                          <input
+                            type="datetime-local"
+                            value={targetDateTime}
+                            onChange={(e) => { setTargetDateTime(e.target.value); setErrors({}); }}
+                            className={`w-full pl-14 pr-6 py-5 bg-blue-50/50 dark:bg-blue-900/10 border-2 ${errors.dateTime ? 'border-rose-500' : 'border-blue-100 focus:border-blue-500'} dark:border-blue-900/30 rounded-3xl outline-none font-black text-sm text-[#00459a] dark:text-blue-400 transition-all shadow-inner`}
+                          />
+                       </div>
+                       {errors.dateTime && <p className="text-[10px] font-black text-rose-500 mt-2 ml-1 flex items-center gap-1"><AlertTriangle size={12} /> {errors.dateTime}</p>}
                     </div>
-                    <div className="relative group">
-                       <CalendarIcon className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-500 z-10" size={20} />
-                       <input
-                         type="datetime-local"
-                         value={targetDateTime}
-                         onChange={(e) => { setTargetDateTime(e.target.value); setErrors({}); }}
-                         className={`w-full pl-14 pr-6 py-5 bg-blue-50/50 dark:bg-blue-900/10 border-2 ${errors.dateTime ? 'border-rose-500' : 'border-blue-100 focus:border-blue-500'} dark:border-blue-900/30 rounded-3xl outline-none font-black text-sm text-[#00459a] dark:text-blue-400 transition-all shadow-inner`}
-                       />
+
+                    <div className="space-y-4">
+                       <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest px-1 flex items-center gap-2"><UserPlus size={12} /> Phân công KTV ({selectedTechsInModal.length})</label>
+                       <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                          {technicians.map(tech => {
+                             const isSelected = selectedTechsInModal.some(t => t.id === tech.uid);
+                             return (
+                                <button
+                                   key={tech.uid}
+                                   onClick={() => toggleTechSelection(tech.uid, tech.displayName || 'KTV')}
+                                   className={`w-full p-3 rounded-2xl border flex items-center justify-between transition-all ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}
+                                >
+                                   <div className="text-left">
+                                      <p className={`text-[11px] font-black uppercase ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-200'}`}>{tech.displayName}</p>
+                                      <p className="text-[8px] text-slate-400 font-bold uppercase">{tech.email?.split('@')[0]}</p>
+                                   </div>
+                                   {isSelected && <CheckCircle size={16} className="text-blue-600 dark:text-blue-400" />}
+                                </button>
+                             );
+                          })}
+                       </div>
+                       {errors.technicians && <p className="text-[10px] font-black text-rose-500 mt-2 ml-1 flex items-center gap-1"><AlertTriangle size={12} /> {errors.technicians}</p>}
                     </div>
-                    {errors.dateTime && <p className="text-[11px] font-black text-rose-500 mt-2 ml-1 flex items-center gap-1 animate-in slide-in-from-top-1"><AlertTriangle size={14} /> {errors.dateTime}</p>}
-                    {!errors.dateTime && (
-                      <p className="text-[10px] text-slate-400 font-bold italic ml-1 flex items-center gap-2 uppercase tracking-tighter">
-                         <CheckCircle2 size={12} className="text-emerald-500" /> Lịch này sẽ tự động xuất hiện trên App của Kỹ thuật viên.
-                      </p>
-                    )}
                  </div>
 
                  <div className="pt-6 flex gap-4">
                     <button onClick={() => setSchedulingOrder(null)} className="flex-1 py-5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-3xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95">Hủy bỏ</button>
                     <button onClick={handleConfirmSchedule} className="flex-[2] py-5 bg-[#00459a] text-white rounded-3xl font-black text-[11px] uppercase tracking-widest shadow-2xl shadow-blue-500/40 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-3">
-                       <CheckCircle size={20} /> Chốt lịch làm việc
+                       <CheckCircle size={20} /> Xác nhận điều phối
                     </button>
                  </div>
               </div>
