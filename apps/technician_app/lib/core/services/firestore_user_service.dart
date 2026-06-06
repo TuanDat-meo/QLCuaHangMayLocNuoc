@@ -94,6 +94,13 @@ class FirestoreUserService {
   }
 
   AuthUser _authUserFromFirestore(String uid, Map<String, dynamic> data) {
+    final double? baseSalary = (data['baseSalary'] is num)
+        ? (data['baseSalary'] as num).toDouble()
+        : null;
+    final double? commissionPerOrder = (data['commissionPerOrder'] is num)
+        ? (data['commissionPerOrder'] as num).toDouble()
+        : null;
+
     return AuthUser(
       uid: uid,
       email: data['email'] ?? '',
@@ -105,10 +112,13 @@ class FirestoreUserService {
       avatar: data['avatar'],
       isVerified: data['status'] == 'active',
       status: data['status'] ?? 'pending',
+      source: data['source'],
       address: data['address'],
       specializations: data['specializations'] != null
           ? List<String>.from(data['specializations'])
           : null,
+      baseSalary: baseSalary,
+      commissionPerOrder: commissionPerOrder,
     );
   }
 }

@@ -528,6 +528,199 @@ const OrdersPage: React.FC = () => {
     }
   };
 
+  const handleDownloadPdf = (invoice: Invoice) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const itemsHtml = invoice.items.map(item => `
+      <tr class="item-row">
+        <td>${item.name || item.productName || 'Dịch vụ'}</td>
+        <td style="text-align: center;">${item.quantity}</td>
+        <td style="text-align: right;">${item.price.toLocaleString()}₫</td>
+        <td style="text-align: right;">${(item.price * item.quantity).toLocaleString()}₫</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Hoa Don - ${invoice.invoiceNumber}</title>
+          <style>
+            body {
+              font-family: 'Inter', system-ui, -apple-system, sans-serif;
+              padding: 40px;
+              color: #334155;
+              background-color: #fff;
+            }
+            .invoice-box {
+              max-width: 800px;
+              margin: auto;
+              border: 1px solid #e2e8f0;
+              padding: 40px;
+              border-radius: 20px;
+              box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: start;
+              margin-bottom: 30px;
+            }
+            .logo {
+              font-size: 28px;
+              font-weight: 900;
+              color: #00459a;
+              text-transform: uppercase;
+              font-style: italic;
+            }
+            .title {
+              font-size: 20px;
+              font-weight: 900;
+              color: #1e293b;
+              text-align: right;
+              text-transform: uppercase;
+            }
+            .grid {
+              display: grid;
+              grid-template-cols: 1fr 1fr;
+              gap: 20px;
+              border-top: 2px dashed #e2e8f0;
+              border-bottom: 2px dashed #e2e8f0;
+              padding: 20px 0;
+              margin-bottom: 30px;
+            }
+            .info-col {
+              font-size: 13px;
+            }
+            .info-col p {
+              margin: 4px 0;
+            }
+            .label {
+              font-size: 10px;
+              font-weight: 900;
+              color: #94a3b8;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .value {
+              font-weight: 800;
+              color: #1e293b;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 30px;
+            }
+            th {
+              font-size: 10px;
+              font-weight: 900;
+              color: #94a3b8;
+              text-transform: uppercase;
+              text-align: left;
+              padding: 8px 12px;
+              border-bottom: 2px solid #e2e8f0;
+            }
+            td {
+              padding: 12px;
+              font-size: 13px;
+              border-bottom: 1px solid #f1f5f9;
+            }
+            .text-center { text-align: center; }
+            .text-right { text-align: right; }
+            .total-section {
+              display: flex;
+              justify-content: space-between;
+              align-items: end;
+              margin-top: 30px;
+              border-top: 2px solid #e2e8f0;
+              padding-top: 20px;
+            }
+            .signature-box {
+              width: 120px;
+              height: 60px;
+              border: 1px dashed #cbd5e1;
+              border-radius: 8px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 9px;
+              font-weight: 700;
+              color: #94a3b8;
+              text-transform: uppercase;
+              margin-top: 10px;
+            }
+            .grand-total {
+              font-size: 36px;
+              font-weight: 900;
+              color: #00459a;
+              margin: 0;
+            }
+            @media print {
+              body { padding: 0; }
+              .invoice-box { border: none; box-shadow: none; padding: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="invoice-box">
+            <div class="header">
+              <div>
+                <div class="logo">AquaCare</div>
+                <p style="font-size: 10px; margin: 4px 0; color: #94a3b8; font-weight: 800; text-transform: uppercase;">He thong giai phap loc nuoc thong minh</p>
+              </div>
+              <div>
+                <div class="title">Hoa Don Dien Tu</div>
+                <p style="font-size: 11px; margin: 4px 0; color: #64748b; font-weight: 700; text-align: right;">So: ${invoice.invoiceNumber}</p>
+              </div>
+            </div>
+            <div class="grid">
+              <div class="info-col">
+                <span class="label">Khach Hang</span>
+                <p class="value" style="text-transform: uppercase;">${invoice.customerName}</p>
+                <p style="color: #64748b; font-weight: 700;">SDT: ${invoice.customerPhone}</p>
+              </div>
+              <div class="info-col" style="text-align: right;">
+                <span class="label">Ngay Phat Hanh</span>
+                <p class="value">${new Date(invoice.issuedAt?.seconds * 1000 || Date.now()).toLocaleDateString('vi-VN')} ${new Date(invoice.issuedAt?.seconds * 1000 || Date.now()).toLocaleTimeString('vi-VN')}</p>
+                <p style="color: #10b981; font-weight: 800; font-size: 11px; text-transform: uppercase; margin-top: 6px;">Da thanh toan (${invoice.paymentMethod || 'COD'})</p>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Dien giai hang muc</th>
+                  <th class="text-center" style="width: 80px;">SL</th>
+                  <th class="text-right" style="width: 150px;">Don gia</th>
+                  <th class="text-right" style="width: 150px;">Thanh tien</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
+            <div class="total-section">
+              <div>
+                <span class="label">Chu ky dien tu</span>
+                <div class="signature-box">Digital Signed</div>
+              </div>
+              <div style="text-align: right;">
+                <span class="label">Tong cong thanh toan</span>
+                <p class="grand-total">${invoice.amount.toLocaleString()}₫</p>
+              </div>
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   const getAllowedStatuses = (order: Order) => {
     const current = order.status;
     const all: OrderStatus[] = ['pending', 'approved', 'assigned', 'processing', 'installing', 'completed', 'incident', 'paid', 'cancelled'];
@@ -1013,16 +1206,16 @@ const OrdersPage: React.FC = () => {
                        <div className="text-right">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng cộng thanh toán</p>
                           <p className="text-4xl font-black text-slate-800 dark:text-white tracking-tighter">{showInvoiceModal.invoice.amount.toLocaleString()}₫</p>
-                       </div>
-                    </div>
-                 </div>
-              </div>
+                        </div>
+                     </div>
+                  </div>
+               </div>
 
-              <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex gap-4">
-                 <button onClick={() => window.print()} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:brightness-110 active:scale-95 transition-all"><Printer size={18} /> In bản vật lý</button>
-                 <button className="flex-1 py-4 bg-[#00459a] text-white rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:brightness-110 active:scale-95 transition-all"><Download size={18} /> Tải PDF (E-Invoice)</button>
-              </div>
-           </div>
+               <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex gap-4">
+                  <button onClick={() => handleDownloadPdf(showInvoiceModal.invoice!)} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:brightness-110 active:scale-95 transition-all"><Printer size={18} /> In bản vật lý</button>
+                  <button onClick={() => handleDownloadPdf(showInvoiceModal.invoice!)} className="flex-1 py-4 bg-[#00459a] text-white rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:brightness-110 active:scale-95 transition-all"><Download size={18} /> Tải PDF (E-Invoice)</button>
+               </div>
+            </div>
         </div>
       )}
 

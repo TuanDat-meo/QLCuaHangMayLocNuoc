@@ -37,7 +37,7 @@
     </queries>
 
     <application
-        android:label="technical_app"
+        android:label="Aquacare - KTV"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

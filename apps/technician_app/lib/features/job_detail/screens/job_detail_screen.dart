@@ -1054,23 +1054,44 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
           // ── Hàng phụ: Vật tư / Hóa đơn (chỉ khi đang lắp đặt) ──
           if (job.status == JobStatus.installing) ...[
             const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => Navigator.pushNamed(
-                    context, '/parts-request', arguments: job.id),
-                icon: const Icon(Icons.build_outlined, size: 17),
-                label: const Text('Vật tư phát sinh / Xem hóa đơn'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xffea580c),
-                  side: const BorderSide(color: Color(0xffea580c)),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  textStyle: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 13),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pushNamed(
+                        context, '/parts-request', arguments: job.id),
+                    icon: const Icon(Icons.build_outlined, size: 17),
+                    label: const Text('Thêm vật tư'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xffea580c),
+                      side: const BorderSide(color: Color(0xffea580c)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      textStyle: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pushNamed(
+                        context, '/invoice', arguments: job.id),
+                    icon: const Icon(Icons.receipt_long_outlined, size: 17),
+                    label: const Text('Xem hóa đơn'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      textStyle: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ],

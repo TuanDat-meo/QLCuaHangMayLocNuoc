@@ -174,6 +174,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ],
                   ),
                 ),
+                if (status == 'completed' || status == 'paid')
+                  _buildInvoiceSection(context, data),
                 const SizedBox(height: 24),
                 // Nút hủy chỉ hiện khi đơn mới tạo (pending) và chưa có thợ
                 if (status == 'pending' && technicians.isEmpty)
@@ -279,4 +281,462 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       ),
     );
   }
+
+  Widget _buildInvoiceSection(BuildContext context, Map<String, dynamic> orderData) {
+    return FutureBuilder<QuerySnapshot>(
+      future: FirebaseFirestore.instance
+          .collection('invoices')
+          .where('orderId', isEqualTo: _orderId)
+          .limit(1)
+          .get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+
+        Map<String, dynamic> invoiceData;
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          // Fallback: Generate invoice data dynamically from orderData
+          final double amount = (orderData['tongTien'] ?? orderData['totalAmount'] ?? 0.0).toDouble();
+          invoiceData = {
+            'invoiceNumber': 'E-INV-${_orderId.length > 8 ? _orderId.substring(0, 8).toUpperCase() : _orderId.toUpperCase()}',
+            'amount': amount,
+            'customerName': orderData['tenKhachHang'] ?? orderData['customerName'] ?? 'Khách hàng',
+            'customerPhone': orderData['phoneNumber'] ?? '',
+            'issuedAt': orderData['ngayTao'] ?? orderData['createdAt'] ?? Timestamp.now(),
+            'paymentMethod': orderData['paymentMethod'] ?? 'COD',
+            'items': orderData['items'] ?? [],
+          };
+        } else {
+          final invoiceDoc = snapshot.data!.docs.first;
+          invoiceData = invoiceDoc.data() as Map<String, dynamic>;
+        }
+
+        return Column(
+          children: [
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xffe2e8f0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xffe0f2fe),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.receipt_long_rounded,
+                          color: Color(0xff0284c7),
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Hóa đơn điện tử',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xff0b1c30),
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Số: ${invoiceData['invoiceNumber'] ?? ''}',
+                              style: const TextStyle(
+                                color: Color(0xff64748b),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(color: Color(0xfff1f5f9), height: 1),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Tổng thanh toán:',
+                        style: TextStyle(
+                          color: Color(0xff64748b),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '₫${NumberFormat("#,###", "vi_VN").format(invoiceData['amount'] ?? 0)}',
+                        style: const TextStyle(
+                          color: Color(0xff00459a),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showInvoiceDetails(context, invoiceData),
+                      icon: const Icon(Icons.visibility_outlined, size: 18),
+                      label: const Text(
+                        'XEM HÓA ĐƠN CHI TIẾT',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                          fontSize: 12,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xff00459a),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showInvoiceDetails(BuildContext context, Map<String, dynamic> invoice) {
+    final issuedAtRaw = invoice['issuedAt'];
+    DateTime issuedDate = DateTime.now();
+    if (issuedAtRaw is Timestamp) {
+      issuedDate = issuedAtRaw.toDate();
+    } else if (issuedAtRaw is String) {
+      issuedDate = DateTime.tryParse(issuedAtRaw) ?? DateTime.now();
+    }
+
+    final items = invoice['items'] as List? ?? [];
+    final formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(issuedDate);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          margin: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xffcbd5e1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'AquaCare',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xff00459a),
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                          Text(
+                            'HÓA ĐƠN ĐIỆN TỬ',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xff94a3b8),
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xffdcfce7),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'ĐÃ THANH TOÁN',
+                          style: TextStyle(
+                            color: Color(0xff15803d),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  CustomPaint(
+                    size: const Size(double.infinity, 1),
+                    painter: DashedLinePainter(),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildInvoiceInfoRow('Số hóa đơn:', invoice['invoiceNumber'] ?? ''),
+                  _buildInvoiceInfoRow('Ngày phát hành:', formattedDate),
+                  _buildInvoiceInfoRow('Khách hàng:', invoice['customerName'] ?? ''),
+                  _buildInvoiceInfoRow('Số điện thoại:', invoice['customerPhone'] ?? ''),
+                  _buildInvoiceInfoRow('Phương thức:', invoice['paymentMethod'] ?? 'COD'),
+                  const SizedBox(height: 20),
+                  CustomPaint(
+                    size: const Size(double.infinity, 1),
+                    painter: DashedLinePainter(),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'CHI TIẾT HẠNG MỤC',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xff94a3b8),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...items.map((item) {
+                    final name = item['name'] ?? item['productName'] ?? '';
+                    final qty = item['quantity'] ?? 1;
+                    final price = (item['price'] as num?)?.toDouble() ?? 0.0;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xff0b1c30),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                Text(
+                                  'Số lượng: $qty',
+                                  style: const TextStyle(
+                                    color: Color(0xff64748b),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '₫${NumberFormat("#,###", "vi_VN").format(price * qty)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xff0b1c30),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  const SizedBox(height: 16),
+                  CustomPaint(
+                    size: const Size(double.infinity, 1),
+                    painter: DashedLinePainter(),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'TỔNG CỘNG:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                          color: Color(0xff0b1c30),
+                        ),
+                      ),
+                      Text(
+                        '₫${NumberFormat("#,###", "vi_VN").format(invoice['amount'] ?? 0)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 22,
+                          color: Color(0xff00459a),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Chữ ký điện tử',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xff94a3b8),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: const Color(0xffcbd5e1),
+                                style: BorderStyle.solid,
+                              ),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'DIGITAL SIGNED',
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xff94a3b8),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xfff1f5f9),
+                          foregroundColor: const Color(0xff475569),
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'ĐÓNG',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInvoiceInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xff64748b),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xff0b1c30),
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DashedLinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    double dashWidth = 5, dashSpace = 3, startX = 0;
+    final paint = Paint()
+      ..color = const Color(0xffe2e8f0)
+      ..strokeWidth = 1;
+    while (startX < size.width) {
+      canvas.drawLine(Offset(startX, 0), Offset(startX + dashWidth, 0), paint);
+      startX += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
