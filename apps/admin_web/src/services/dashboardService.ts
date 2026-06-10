@@ -66,14 +66,14 @@ export const subscribeDashboardStats = (callback: (stats: DashboardStats) => voi
 
         if (date >= startOfToday) nOrders++;
 
-        if (status === 'completed' || status === 'paid') {
+        if (['completed', 'hoan_thanh', 'HOAN_THANH', 'paid'].includes(status)) {
           totalRev += amount;
           completedCount++;
           if (date >= sevenDaysAgo) { curRev += amount; curOrdersCount++; }
           else if (date >= fourteenDaysAgo) { prevRev += amount; prevOrdersCount++; }
         }
 
-        if (status !== 'completed' && status !== 'paid' && (d.loaiDonHang === 'maintenance' || d.orderType === 'maintenance')) mCount++;
+        if (!['completed', 'hoan_thanh', 'HOAN_THANH', 'paid'].includes(status) && (d.loaiDonHang === 'maintenance' || d.orderType === 'maintenance')) mCount++;
       });
 
       callback({
@@ -169,7 +169,7 @@ export const subscribeRevenueTrend = (range: RevenueRange, callback: (data: any[
 
   return onSnapshot(q, (snap) => {
     let results: any[] = [];
-    const revenueOrders = snap.docs.filter(d => d.data().trangThai === 'completed' || d.data().trangThai === 'paid');
+    const revenueOrders = snap.docs.filter(d => ['completed', 'hoan_thanh', 'HOAN_THANH', 'paid'].includes(d.data().trangThai));
 
     if (range === 'year') {
       results = Array.from({ length: 12 }).map((_, i) => ({ label: `T${i + 1}`, amount: 0, sortKey: i }));
@@ -206,7 +206,7 @@ export const subscribeTopProducts = (cb: (p: any[]) => void, onError?: (err: any
     const sales: Record<string, any> = {};
     snap.forEach(doc => {
       const d = doc.data();
-      if (d.trangThai === 'completed' || d.trangThai === 'paid') {
+      if (['completed', 'hoan_thanh', 'HOAN_THANH', 'paid'].includes(d.trangThai)) {
         const name = d.tenSanPham || 'Khác';
         if (!sales[name]) sales[name] = { count: 0, name, price: d.tongTien || 0 };
         sales[name].count += (d.items?.length || 1);

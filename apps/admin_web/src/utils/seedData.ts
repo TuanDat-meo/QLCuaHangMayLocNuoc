@@ -168,7 +168,7 @@ export const seedData = async (shouldClear: boolean = false) => {
       const stats = techStats[techId][monthStr];
       const baseSalary = techInfo?.baseSalary || 5000000;
       const commissionAmount = stats.totalOrders * (techInfo?.commissionPerOrder || 150000);
-      
+
       // Thưởng thêm nếu làm trên 10 đơn/tháng
       let bonus = 0;
       if (stats.totalOrders >= 10) {

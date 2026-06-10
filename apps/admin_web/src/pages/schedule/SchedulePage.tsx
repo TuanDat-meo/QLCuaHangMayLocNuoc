@@ -92,7 +92,7 @@ const SchedulePage: React.FC = () => {
   const stats = useMemo(() => ({
     today: dailyOrders.length,
     backlog: backlogOrders.length,
-    done: dailyOrders.filter(o => o.status === 'completed' || o.status === 'paid').length
+    done: dailyOrders.filter(o => ['completed', 'hoan_thanh', 'HOAN_THANH', 'paid'].includes(o.status)).length
   }), [dailyOrders, backlogOrders]);
 
   // --- VALIDATION & UPDATE LOGIC ---
@@ -347,11 +347,11 @@ const SchedulePage: React.FC = () => {
                         </div>
                         <div className="text-right">
                            <span className={`px-4 py-2 rounded-2xl text-[9px] font-black uppercase border shadow-sm ${
-                              order.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                              ['completed', 'hoan_thanh', 'HOAN_THANH'].includes(order.status) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                               order.status === 'processing' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
                               'bg-amber-50 text-amber-600 border-amber-100'
                            }`}>
-                              {order.status === 'assigned' ? 'Đã giao ca' : order.status === 'processing' ? 'Đang thi công' : 'Hoàn tất'}
+                              {order.status === 'assigned' ? 'Đã giao ca' : order.status === 'processing' ? 'Đang thi công' : ['completed', 'hoan_thanh', 'HOAN_THANH'].includes(order.status) ? 'Hoàn tất' : order.status}
                            </span>
                         </div>
                       </div>

@@ -1,0 +1,150 @@
+﻿src/components/layouts/Sidebar.tsx(19,3): error TS6133: 'Activity' is declared but its value is never read.
+src/hooks/useAuth.ts(5,33): error TS6133: 'useContext' is declared but its value is never read.
+src/pages/audit/AuditLogsPage.tsx(3,28): error TS6133: 'Calendar' is declared but its value is never read.
+src/pages/audit/AuditLogsPage.tsx(3,38): error TS6133: 'User' is declared but its value is never read.
+src/pages/audit/AuditLogsPage.tsx(4,3): error TS6133: 'Tag' is declared but its value is never read.
+src/pages/audit/AuditLogsPage.tsx(4,8): error TS6133: 'Info' is declared but its value is never read.
+src/pages/audit/AuditLogsPage.tsx(4,14): error TS6133: 'ArrowRight' is declared but its value is never read.
+src/pages/audit/AuditLogsPage.tsx(4,33): error TS6133: 'Shield' is declared but its value is never read.
+src/pages/audit/AuditLogsPage.tsx(5,13): error TS6133: 'CheckCircle' is declared but its value is never read.
+src/pages/audit/AuditLogsPage.tsx(5,26): error TS6133: 'AlertTriangle' is declared but its value is never read.
+src/pages/audit/AuditLogsPage.tsx(5,41): error TS6133: 'XCircle' is declared but its value is never read.
+src/pages/audit/AuditLogsPage.tsx(7,32): error TS2305: Module '"../../services/auditService"' has no exported member 'AuditLog'.
+src/pages/auth/ResetPasswordPage.tsx(12,10): error TS2305: Module '"@/types/auth"' has no exported member 'ValidationError'.
+src/pages/customers/CustomersPage.tsx(3,31): error TS6133: 'MapPin' is declared but its value is never read.
+src/pages/customers/CustomersPage.tsx(4,16): error TS6133: 'Clock' is declared but its value is never read.
+src/pages/customers/CustomersPage.tsx(4,23): error TS6133: 'ExternalLink' is declared but its value is never read.
+src/pages/customers/CustomersPage.tsx(4,37): error TS6133: 'Filter' is declared but its value is never read.
+src/pages/customers/CustomersPage.tsx(4,45): error TS6133: 'ChevronRight' is declared but its value is never read.
+src/pages/customers/CustomersPage.tsx(5,31): error TS6133: 'MessageSquare' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(3,1): error TS6133: 'useMutation' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(5,29): error TS6133: 'Clock' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(5,36): error TS6133: 'Download' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(6,3): error TS6133: 'Activity' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(6,20): error TS6133: 'RefreshCw' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(6,41): error TS6133: 'Lock' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(6,47): error TS6133: 'XCircle' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(7,3): error TS6133: 'ArrowUpRight' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(7,17): error TS6133: 'ArrowDownRight' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(11,27): error TS6133: 'Cell' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(20,3): error TS6133: 'updateOrderStatus' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(21,3): error TS6133: 'exportDashboardToCSV' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(25,1): error TS6133: 'toast' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(28,9): error TS6133: 'navigate' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(30,9): error TS6133: 'theme' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(39,10): error TS6133: 'pendingOrders' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(40,10): error TS6133: 'recentLogs' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(41,10): error TS6133: 'maintenanceTasks' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(42,10): error TS6133: 'isExporting' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(42,23): error TS6133: 'setIsExporting' is declared but its value is never read.
+src/pages/dashboard/DashboardPage.tsx(70,52): error TS2345: Argument of type '(data: any) => void' is not assignable to parameter of type 'RevenueRange'.
+src/pages/dashboard/DashboardPage.tsx(70,53): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/pages/devices/DevicesPage.tsx(3,33): error TS6133: 'Filter' is declared but its value is never read.
+src/pages/devices/DevicesPage.tsx(4,8): error TS6133: 'Edit3' is declared but its value is never read.
+src/pages/devices/DevicesPage.tsx(4,15): error TS6133: 'Trash2' is declared but its value is never read.
+src/pages/devices/DevicesPage.tsx(5,38): error TS6133: 'MapPin' is declared but its value is never read.
+src/pages/devices/DevicesPage.tsx(6,13): error TS6133: 'User' is declared but its value is never read.
+src/pages/devices/DevicesPage.tsx(6,19): error TS6133: 'Package' is declared but its value is never read.
+src/pages/devices/DevicesPage.tsx(13,3): error TS2459: Module '"../../services/deviceService"' declares 'Device' locally, but it is not exported.
+src/pages/devices/DevicesPage.tsx(14,3): error TS2724: '"../../services/deviceService"' has no exported member named 'DeviceHistory'. Did you mean 'addDeviceHistory'?
+src/pages/devices/DevicesPage.tsx(403,47): error TS6133: 'i' is declared but its value is never read.
+src/pages/notifications/NotificationsPage.tsx(4,10): error TS6133: 'ChevronRight' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(3,28): error TS6133: 'ChevronRight' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(4,16): error TS6133: 'XCircle' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(5,9): error TS6133: 'Bell' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(5,30): error TS6133: 'ArrowRight' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(5,58): error TS6133: 'Navigation' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(6,12): error TS6133: 'LayoutGrid' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(6,24): error TS6133: 'DollarSign' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(6,46): error TS6133: 'Activity' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(7,3): error TS6133: 'AlertOctagon' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(7,17): error TS6133: 'CreditCard' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(7,29): error TS6133: 'Briefcase' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(7,40): error TS6133: 'UserCheck' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(7,51): error TS6133: 'ShieldCheck' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(7,64): error TS6133: 'History' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(8,13): error TS6133: 'Tag' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(8,21): error TS6133: 'ChevronDown' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(8,34): error TS6133: 'Check' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(8,41): error TS6133: 'AlertCircle' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(98,9): error TS6133: 'navigate' is declared but its value is never read.
+src/pages/orders/OrdersPage.tsx(202,53): error TS2339: Property 'tenKhachHang' does not exist on type 'Order'.
+src/pages/orders/OrdersPage.tsx(411,54): error TS6133: 'k' is declared but its value is never read.
+src/pages/products/ProductsPage.tsx(3,3): error TS6133: 'Package' is declared but its value is never read.
+src/pages/products/ProductsPage.tsx(4,23): error TS6133: 'Truck' is declared but its value is never read.
+src/pages/products/ProductsPage.tsx(7,29): error TS6133: 'MinusCircle' is declared but its value is never read.
+src/pages/profile/ProfilePage.tsx(3,30): error TS6133: 'Calendar' is declared but its value is never read.
+src/pages/profile/ProfilePage.tsx(3,40): error TS6133: 'Smartphone' is declared but its value is never read.
+src/pages/profile/ProfilePage.tsx(12,32): error TS2305: Module '"../../services/auditService"' has no exported member 'AuditLog'.
+src/pages/profile/ProfilePage.tsx(37,13): error TS7030: Not all code paths return a value.
+src/pages/profile/ProfilePage.tsx(95,21): error TS2339: Property 'MANAGER' does not exist on type 'typeof UserRole'.
+src/pages/profile/ProfilePage.tsx(225,219): error TS2304: Cannot find name 'ChevronRight'.
+src/pages/profile/ProfilePage.tsx(240,47): error TS2552: Cannot find name 'formatDate'. Did you mean 'formData'?
+src/pages/reports/ReportsPage.tsx(3,3): error TS6133: 'BarChart' is declared but its value is never read.
+src/pages/reports/ReportsPage.tsx(3,13): error TS6133: 'Bar' is declared but its value is never read.
+src/pages/reports/ReportsPage.tsx(4,3): error TS6133: 'LineChart' is declared but its value is never read.
+src/pages/reports/ReportsPage.tsx(7,3): error TS6133: 'FileText' is declared but its value is never read.
+src/pages/schedule/SchedulePage.tsx(6,10): error TS6133: 'CheckCircle2' is declared but its value is never read.
+src/pages/schedule/SchedulePage.tsx(10,29): error TS6133: 'updateOrder' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(3,29): error TS6133: 'Loader' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(4,36): error TS6133: 'Key' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(5,3): error TS6133: 'CheckCircle' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(5,16): error TS6133: 'ChevronDown' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(5,29): error TS6133: 'Plus' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(5,35): error TS6133: 'Lock' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(5,41): error TS6133: 'Filter' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(6,3): error TS6133: 'Mail' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(6,9): error TS6133: 'Phone' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(6,27): error TS6133: 'ShieldAlert' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(7,3): error TS6133: 'Activity' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(7,22): error TS6133: 'UsersIcon' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(8,11): error TS6133: 'Info' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(8,32): error TS6133: 'Sparkles' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(8,42): error TS6133: 'DollarSign' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(8,54): error TS6133: 'Wallet' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(9,25): error TS6133: 'MoreHorizontal' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(9,41): error TS6133: 'TrendingUp' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(9,53): error TS6133: 'Clock' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(9,60): error TS6133: 'Eye' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(9,65): error TS6133: 'EyeOff' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(14,20): error TS6133: 'adminDeleteUser' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(20,3): error TS6133: 'deleteRole' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(34,10): error TS6133: 'isLoading' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(36,10): error TS6133: 'showPassword' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(36,24): error TS6133: 'setShowPassword' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(40,22): error TS6133: 'setRoleFilter' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(43,10): error TS6133: 'isRoleModalOpen' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(63,20): error TS6133: 'setRoleForm' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(67,9): error TS6133: 'allPermissions' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(68,28): error TS6133: 'setPendingRoleValue' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(210,9): error TS6133: 'handleSeedRoles' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(222,9): error TS6133: 'handleRoleSubmit' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(235,9): error TS6133: 'handleQuickTogglePermission' is declared but its value is never read.
+src/pages/UsersPage.tsx(2,10): error TS6133: 'Check' is declared but its value is never read.
+src/pages/UsersPage.tsx(2,53): error TS6133: 'Search' is declared but its value is never read.
+src/pages/UsersPage.tsx(2,61): error TS6133: 'Filter' is declared but its value is never read.
+src/pages/UsersPage.tsx(3,10): error TS2305: Module '"../services/userService"' has no exported member 'getPendingUsers'.
+src/pages/UsersPage.tsx(109,62): error TS2345: Argument of type '"technician"' is not assignable to parameter of type 'UserRole'.
+src/pages/UsersPage.tsx(115,62): error TS2345: Argument of type '"admin"' is not assignable to parameter of type 'UserRole'.
+src/pages/UsersPage.tsx(122,60): error TS2345: Argument of type '"customer"' is not assignable to parameter of type 'UserRole'.
+src/pages/warranty/WarrantyPage.tsx(5,38): error TS6133: 'Info' is declared but its value is never read.
+src/pages/warranty/WarrantyPage.tsx(6,3): error TS6133: 'AlertTriangle' is declared but its value is never read.
+src/pages/warranty/WarrantyPage.tsx(6,18): error TS6133: 'Filter' is declared but its value is never read.
+src/services/auditService.ts(1,63): error TS6133: 'getDocs' is declared but its value is never read.
+src/services/chatService.ts(16,3): error TS6133: 'limit' is declared but its value is never read.
+src/services/invoiceService.ts(7,3): error TS6133: 'getDoc' is declared but its value is never read.
+src/services/invoiceService.ts(10,3): error TS6133: 'orderBy' is declared but its value is never read.
+src/services/notificationService.ts(24,3): error TS6133: 'userId' is declared but its value is never read.
+src/services/roleService.ts(5,3): error TS6133: 'getDoc' is declared but its value is never read.
+src/services/roleService.ts(13,3): error TS6133: 'Timestamp' is declared but its value is never read.
+src/services/technicianService.ts(5,3): error TS6133: 'getDocs' is declared but its value is never read.
+src/services/technicianService.ts(8,3): error TS6133: 'Timestamp' is declared but its value is never read.
+src/types/index.ts(10,3): error TS2305: Module '"./auth"' has no exported member 'PasswordResetHistory'.
+src/types/index.ts(11,3): error TS2305: Module '"./auth"' has no exported member 'ValidationError'.
+src/types/order.ts(1,1): error TS6133: 'Timestamp' is declared but its value is never read.
+src/utils/seedData.ts(18,7): error TS6133: 'SUPPLIERS' is declared but its value is never read.
+src/utils/seedData.ts(43,32): error TS6133: 'shouldClear' is declared but its value is never read.
+src/utils/seedData.ts(48,9): error TS6133: 'referenceNow' is declared but its value is never read.
+src/utils/seedData.ts(117,30): error TS2367: This comparison appears to be unintentional because the types '"pending" | "assigned" | "processing"' and '"completed"' have no overlap.
+src/utils/seedData.ts(135,30): error TS2367: This comparison appears to be unintentional because the types '"pending" | "assigned" | "processing"' and '"completed"' have no overlap.
+src/utils/validation.ts(5,10): error TS2305: Module '"../types/auth"' has no exported member 'ValidationError'.

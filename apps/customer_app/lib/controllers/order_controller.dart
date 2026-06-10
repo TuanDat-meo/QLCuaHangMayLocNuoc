@@ -124,10 +124,7 @@ class OrderController extends ChangeNotifier {
 
       _orders = snap.docs.map((doc) {
         final d = doc.data();
-        return Order(
-          id: doc.id,
-          orderCode: d['orderCode'] ?? doc.id.substring(0, 8).toUpperCase(),
-          items: (d['items'] as List? ?? [])
+        final itemsList = (d['items'] as List? ?? [])
               .map((e) => OrderItem(
                 id: e['id'] ?? '',
                 productId: e['id'] ?? '',
@@ -136,7 +133,18 @@ class OrderController extends ChangeNotifier {
                 quantity: e['quantity'] ?? 1,
                 subtotal: ((e['price'] as num? ?? 0) * (e['quantity'] as num? ?? 1)).toDouble(),
                 imageUrl: e['imageUrl'],
-              )).toList(),
+              )).toList();
+              
+        final double calculatedTotal = itemsList.fold(0.0, (sum, item) => sum + item.subtotal);
+
+        final double discount = (d['discount'] as num?)?.toDouble() ?? 0.0;
+        final double shippingFee = (d['Shipping fee'] ?? d['shippingFee'] as num? ?? 0).toDouble();
+        final double finalTotal = calculatedTotal - discount + shippingFee;
+
+        return Order(
+          id: doc.id,
+          orderCode: d['orderCode'] ?? doc.id.substring(0, 8).toUpperCase(),
+          items: itemsList,
           deliveryAddress: Address.fromMap({
             ...(d['deliveryAddress'] as Map<String, dynamic>? ?? {}),
             'recipientName': d['tenKhachHang'] ?? d['customerName'],
@@ -154,10 +162,10 @@ class OrderController extends ChangeNotifier {
             endHour: 0,
           ),
           notes: d['note'] ?? d['notes'],
-          subtotal: (d['subtotal'] as num?)?.toDouble() ?? 0.0,
-          discount: (d['discount'] as num?)?.toDouble() ?? 0.0,
-          shippingFee: (d['Shipping fee'] ?? d['shippingFee'] as num? ?? 0).toDouble(),
-          totalAmount: (d['tongTien'] ?? d['totalAmount'] as num?)?.toDouble() ?? 0.0,
+          subtotal: calculatedTotal,
+          discount: discount,
+          shippingFee: shippingFee,
+          totalAmount: finalTotal,
           status: d['trangThai'] ?? d['status'] ?? 'pending',
           createdAt: (d['ngayTao'] ?? d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         );

@@ -52,7 +52,7 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   /// Lấy danh sách jobs cho 1 ngày cụ thể
   List<JobModel> _getJobsForDay(DateTime day, List<JobModel> allJobs) {
-    return allJobs.where((job) => _isSameDay(job.date, day)).toList();
+    return allJobs.where((job) => _isSameDay(job.scheduledDate ?? job.date, day)).toList();
   }
 
   Color _statusColor(JobModel job) => job.status.color;
@@ -346,9 +346,11 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   Widget _buildStatsCard(List<JobModel> allJobs) {
     // Thống kê cho tháng đang hiển thị (_focusedDay.month)
-    final monthJobs = allJobs.where((j) =>
-        j.date.month == _focusedDay.month &&
-        j.date.year == _focusedDay.year).toList();
+    final monthJobs = allJobs.where((j) {
+      final dateToUse = j.scheduledDate ?? j.date;
+      return dateToUse.month == _focusedDay.month &&
+          dateToUse.year == _focusedDay.year;
+    }).toList();
     
     final completedCount = monthJobs.where((j) => j.status == JobStatus.completed).length;
     final inProgressCount = monthJobs.where((j) => j.status == JobStatus.installing || j.status == JobStatus.arrived || j.status == JobStatus.onTheWay).length;
@@ -490,11 +492,13 @@ class _CalendarScreenState extends State<CalendarScreen>
   }
 
   Widget _buildMonthStats(List<JobModel> allJobs) {
-    final monthJobs = allJobs.where((j) =>
-        j.date.month == _focusedDay.month &&
-        j.date.year == _focusedDay.year).toList();
+    final monthJobs = allJobs.where((j) {
+      final dateToUse = j.scheduledDate ?? j.date;
+      return dateToUse.month == _focusedDay.month &&
+          dateToUse.year == _focusedDay.year;
+    }).toList();
     final completedCount = monthJobs.where((j) =>
-        j.status.rawValue == 'hoan_thanh').length;
+        j.status == JobStatus.completed || j.status.rawValue == 'hoan_thanh' || j.status.rawValue == 'completed').length;
     final pendingCount = monthJobs.length - completedCount;
 
     final selectedCount = _getJobsForDay(_selectedDay, allJobs).length;

@@ -92,12 +92,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
       href: '/reports',
       roles: [UserRole.ADMIN, UserRole.ACCOUNTANT]
     },
-    {
-      icon: <Activity className="w-5 h-5" />,
-      label: 'Lịch sử hệ thống',
-      href: '/audit-logs',
-      roles: [UserRole.ADMIN]
-    },
+    // {
+    //   icon: <Activity className="w-5 h-5" />,
+    //   label: 'Lịch sử hệ thống',
+    //   href: '/audit-logs',
+    //   roles: [UserRole.ADMIN]
+    // },
     {
       icon: <ShieldCheck className="w-5 h-5" />,
       label: 'Quản lý nhân sự',

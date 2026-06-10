@@ -43,7 +43,7 @@ extension JobStatusExtension on JobStatus {
       case JobStatus.installing:
         return 'Đang lắp đặt';
       case JobStatus.completed:
-        return 'Đã hoàn thành';
+        return 'Hoàn tất';
       case JobStatus.needSupport:
         return 'Cần hỗ trợ';
     }
@@ -528,7 +528,9 @@ class JobController extends ChangeNotifier {
           if (jobsMap.containsKey(doc.id)) {
             final oldJob = jobsMap[doc.id]!;
             NotificationService.instance.cancelNotification(oldJob.id.hashCode);
-            NotificationService.instance.cancelNotification(oldJob.id.hashCode + 100000);
+            NotificationService.instance.cancelNotification(
+              oldJob.id.hashCode + 100000,
+            );
           }
           jobsMap.remove(doc.id);
         }
@@ -538,7 +540,9 @@ class JobController extends ChangeNotifier {
         if (change.type == DocumentChangeType.removed) {
           final docId = change.doc.id;
           NotificationService.instance.cancelNotification(docId.hashCode);
-          NotificationService.instance.cancelNotification(docId.hashCode + 100000);
+          NotificationService.instance.cancelNotification(
+            docId.hashCode + 100000,
+          );
           jobsMap.remove(docId);
         }
       }
@@ -555,7 +559,8 @@ class JobController extends ChangeNotifier {
           NotificationService.instance.showLocalNotificationDirect(
             id: job.id.hashCode,
             title: '🔧 Bạn có công việc mới được phân công!',
-            body: 'Đơn hàng #${job.id}\nKH: ${job.customerName} - ${job.address}',
+            body:
+                'Đơn hàng #${job.id}\nKH: ${job.customerName} - ${job.address}',
             payloadData: {'jobId': job.id, 'type': 'new_job'},
           );
 
@@ -569,7 +574,8 @@ class JobController extends ChangeNotifier {
               NotificationService.instance.scheduleNotification(
                 id: job.id.hashCode + 100000,
                 title: '⏰ Nhắc nhở: Sắp đến giờ hẹn lịch làm việc!',
-                body: 'Đơn hàng #${job.id} của KH ${job.customerName} sẽ bắt đầu lúc ${job.appointmentTime}.',
+                body:
+                    'Đơn hàng #${job.id} của KH ${job.customerName} sẽ bắt đầu lúc ${job.appointmentTime}.',
                 scheduledDateTime: reminderTime,
               );
             }
@@ -584,9 +590,13 @@ class JobController extends ChangeNotifier {
               job.status == JobStatus.needSupport ||
               job.status == JobStatus.arrived) {
             NotificationService.instance.cancelNotification(job.id.hashCode);
-            NotificationService.instance.cancelNotification(job.id.hashCode + 100000);
+            NotificationService.instance.cancelNotification(
+              job.id.hashCode + 100000,
+            );
           } else {
-            NotificationService.instance.cancelNotification(job.id.hashCode + 100000);
+            NotificationService.instance.cancelNotification(
+              job.id.hashCode + 100000,
+            );
             final schedDate = job.scheduledDate;
             if (schedDate != null) {
               final reminderTime = schedDate.subtract(const Duration(hours: 1));
@@ -594,7 +604,8 @@ class JobController extends ChangeNotifier {
                 NotificationService.instance.scheduleNotification(
                   id: job.id.hashCode + 100000,
                   title: '⏰ Nhắc nhở: Sắp đến giờ hẹn lịch làm việc!',
-                  body: 'Đơn hàng #${job.id} của KH ${job.customerName} sẽ bắt đầu lúc ${job.appointmentTime}.',
+                  body:
+                      'Đơn hàng #${job.id} của KH ${job.customerName} sẽ bắt đầu lúc ${job.appointmentTime}.',
                   scheduledDateTime: reminderTime,
                 );
               }
@@ -616,7 +627,8 @@ class JobController extends ChangeNotifier {
               NotificationService.instance.scheduleNotification(
                 id: job.id.hashCode + 100000,
                 title: '⏰ Nhắc nhở: Sắp đến giờ hẹn lịch làm việc!',
-                body: 'Đơn hàng #${job.id} của KH ${job.customerName} sẽ bắt đầu lúc ${job.appointmentTime}.',
+                body:
+                    'Đơn hàng #${job.id} của KH ${job.customerName} sẽ bắt đầu lúc ${job.appointmentTime}.',
                 scheduledDateTime: reminderTime,
               );
             }
@@ -653,7 +665,8 @@ class JobController extends ChangeNotifier {
           if (change.type == DocumentChangeType.added) {
             final doc = change.doc;
             final data = doc.data() as Map<String, dynamic>;
-            final isForMe = data['ktvId'] == uid ||
+            final isForMe =
+                data['ktvId'] == uid ||
                 data['nguoiNhanId'] == uid ||
                 data['nguoiDungId'] == uid ||
                 data['userId'] == uid ||
@@ -738,6 +751,7 @@ class JobController extends ChangeNotifier {
         status = JobStatus.installing;
         break;
       case 'hoan_thanh':
+      case 'HOAN_THANH':
       case 'completed':
         status = JobStatus.completed;
         break;
@@ -816,7 +830,7 @@ class JobController extends ChangeNotifier {
       productName: prodName,
       productSpecs: prodSpecs,
       adminNotes: data['ghiChuAdmin'] ?? data['note'] ?? '',
-      codAmount: _toDouble(data['soTienCOD'] ?? data['tongTien'] ?? 0) ?? 0.0,
+      codAmount: _toDouble(data['tongTien'] ?? data['totalAmount'] ?? data['soTienCOD'] ?? 0) ?? 0.0,
       tipAmount: _toDouble(data['soTienTip'] ?? 0) ?? 0.0,
       status: status,
       date: (data['ngayTao'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -908,18 +922,23 @@ class JobController extends ChangeNotifier {
           .timeout(const Duration(seconds: 5));
 
       if (uid != null) {
-        await _firestore.collection('nhatKyHoatDong').add({
-          'nguoiDungId': uid,
-          'loaiSuKien': 'CAP_NHAT_TRANG_THAI',
-          'moTa':
-              'Cập nhật trạng thái đơn $jobId → ${newStatus.displayName}${ktvLatitude != null ? ' (Check-in GPS)' : ''}',
-          'ngayTao': FieldValue.serverTimestamp(),
-        }).timeout(const Duration(seconds: 3));
+        await _firestore
+            .collection('nhatKyHoatDong')
+            .add({
+              'nguoiDungId': uid,
+              'loaiSuKien': 'CAP_NHAT_TRANG_THAI',
+              'moTa':
+                  'Cập nhật trạng thái đơn $jobId → ${newStatus.displayName}${ktvLatitude != null ? ' (Check-in GPS)' : ''}',
+              'ngayTao': FieldValue.serverTimestamp(),
+            })
+            .timeout(const Duration(seconds: 3));
       }
       return true;
     } catch (e) {
       _lastError = e.toString();
-      debugPrint('Firestore status sync error/timeout (will retry offline): $e');
+      debugPrint(
+        'Firestore status sync error/timeout (will retry offline): $e',
+      );
       // Trả về true để tối ưu trải nghiệm offline-first, thay đổi đã được áp dụng local và sẽ tự động sync khi có mạng
       return true;
     }
@@ -964,27 +983,36 @@ class JobController extends ChangeNotifier {
 
     try {
       final uid = _auth.currentUser?.uid;
-      await _firestore.collection('donHang').doc(jobId).update({
-        'trangThai': 'incident',
-        'status': 'failed',
-        'lyDoSuCo': reason,
-        'moTaSuCo': description,
-        'lyDoHuy': '$reason: $description',
-        'anhSuCo': photos,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }).timeout(const Duration(seconds: 5));
+      await _firestore
+          .collection('donHang')
+          .doc(jobId)
+          .update({
+            'trangThai': 'incident',
+            'status': 'failed',
+            'lyDoSuCo': reason,
+            'moTaSuCo': description,
+            'lyDoHuy': '$reason: $description',
+            'anhSuCo': photos,
+            'updatedAt': FieldValue.serverTimestamp(),
+          })
+          .timeout(const Duration(seconds: 5));
       if (uid != null) {
-        await _firestore.collection('nhatKyHoatDong').add({
-          'nguoiDungId': uid,
-          'loaiSuKien': 'BAO_CAO_SU_CO',
-          'moTa': 'Báo cáo sự cố đơn hàng $jobId: $reason',
-          'ngayTao': FieldValue.serverTimestamp(),
-        }).timeout(const Duration(seconds: 3));
+        await _firestore
+            .collection('nhatKyHoatDong')
+            .add({
+              'nguoiDungId': uid,
+              'loaiSuKien': 'BAO_CAO_SU_CO',
+              'moTa': 'Báo cáo sự cố đơn hàng $jobId: $reason',
+              'ngayTao': FieldValue.serverTimestamp(),
+            })
+            .timeout(const Duration(seconds: 3));
       }
       return true;
     } catch (e) {
       _lastError = e.toString();
-      debugPrint('Firestore issue report sync error/timeout (will retry offline): $e');
+      debugPrint(
+        'Firestore issue report sync error/timeout (will retry offline): $e',
+      );
       // Trả về true để tối ưu trải nghiệm offline-first, thay đổi đã được áp dụng local và sẽ tự động sync khi có mạng
       return true;
     }
@@ -1032,30 +1060,40 @@ class JobController extends ChangeNotifier {
 
     try {
       final uid = _auth.currentUser?.uid;
-      await _firestore.collection('donHang').doc(jobId).update({
-        'trangThai': 'hoan_thanh',
-        'status': 'completed',
-        'soTienCOD': codCollected,
-        'soTienTip': tipAmount,
-        'totalAmount': codCollected,
-        'tipAmount': tipAmount,
-        'anhHoanThanh': photos,
-        'chuKyKhachHang': customerSignature,
-        'hoanThanhVao': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }).timeout(const Duration(seconds: 5));
+      await _firestore
+          .collection('donHang')
+          .doc(jobId)
+          .update({
+            'trangThai': 'hoan_thanh',
+            'status': 'completed',
+            'soTienCOD': codCollected,
+            'soTienTip': tipAmount,
+            'tongTien': codCollected,
+            'totalAmount': codCollected,
+            'tipAmount': tipAmount,
+            'anhHoanThanh': photos,
+            'chuKyKhachHang': customerSignature,
+            'hoanThanhVao': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          })
+          .timeout(const Duration(seconds: 5));
       if (uid != null) {
-        await _firestore.collection('nhatKyHoatDong').add({
-          'nguoiDungId': uid,
-          'loaiSuKien': 'HOAN_THANH',
-          'moTa':
-              'Hoàn thành lắp đặt đơn hàng $jobId, thu COD: $codCollected, Tip: $tipAmount',
-          'ngayTao': FieldValue.serverTimestamp(),
-        }).timeout(const Duration(seconds: 3));
+        await _firestore
+            .collection('nhatKyHoatDong')
+            .add({
+              'nguoiDungId': uid,
+              'loaiSuKien': 'HOAN_THANH',
+              'moTa':
+                  'Hoàn thành lắp đặt đơn hàng $jobId, thu COD: $codCollected, Tip: $tipAmount',
+              'ngayTao': FieldValue.serverTimestamp(),
+            })
+            .timeout(const Duration(seconds: 3));
       }
       return true;
     } catch (e) {
-      debugPrint('Firestore complete sync error/timeout (will retry offline): $e');
+      debugPrint(
+        'Firestore complete sync error/timeout (will retry offline): $e',
+      );
       // Trả về true để tối ưu trải nghiệm offline-first, thay đổi đã được áp dụng local và sẽ tự động sync khi có mạng
       return true;
     }
@@ -1130,6 +1168,53 @@ class JobController extends ChangeNotifier {
     }
   }
 
+  /// Đồng bộ danh sách vật tư phát sinh vào danh sách items trên Firestore để hiển thị ở Admin Web & Customer App
+  Future<void> _syncVatTuToItemsInFirestore(
+    String jobId,
+    List<Map<String, dynamic>> vatTuList,
+  ) async {
+    try {
+      final docRef = _firestore.collection('donHang').doc(jobId);
+      final docSnap = await docRef.get();
+      if (!docSnap.exists) return;
+
+      final data = docSnap.data() as Map<String, dynamic>;
+      final rawItems = data['items'] ?? [];
+
+      // Lọc bỏ các item cũ được đánh dấu là vật tư phát sinh
+      final originalItems = [];
+      if (rawItems is List) {
+        for (var item in rawItems) {
+          if (item is Map && item['isVatTuPhatSinh'] != true) {
+            originalItems.add(item);
+          }
+        }
+      }
+
+      // Thêm các vật tư phát sinh mới dưới dạng item đơn hàng để Admin Web & Customer App hiển thị
+      for (var vt in vatTuList) {
+        originalItems.add({
+          'id': 'vattu_${vt['tenVatTu']}',
+          'name': vt['tenVatTu'],
+          'price': vt['donGia'] ?? 0.0,
+          'quantity': vt['soLuong'] ?? 1,
+          'imageUrl': null,
+          'thoiGianBaoHanh': 0,
+          'isVatTuPhatSinh': true,
+        });
+      }
+
+      await docRef.update({
+        'items': originalItems,
+        'vatTuPhatSinh': vatTuList,
+        'ngayCapNhat': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('Error syncing vatTu to items in Firestore: $e');
+      rethrow;
+    }
+  }
+
   /// Thêm vật tư phát sinh
   Future<bool> addVatTuPhatSinh({
     required String jobId,
@@ -1157,10 +1242,10 @@ class JobController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _firestore.collection('donHang').doc(jobId).update({
-        'vatTuPhatSinh': updated,
-        'ngayCapNhat': FieldValue.serverTimestamp(),
-      }).timeout(const Duration(seconds: 5));
+      await _syncVatTuToItemsInFirestore(
+        jobId,
+        updated,
+      ).timeout(const Duration(seconds: 5));
       return true;
     } catch (e) {
       debugPrint('Firestore vatTu error/timeout (will retry offline): $e');
@@ -1186,13 +1271,15 @@ class JobController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _firestore.collection('donHang').doc(jobId).update({
-        'vatTuPhatSinh': updated,
-        'ngayCapNhat': FieldValue.serverTimestamp(),
-      }).timeout(const Duration(seconds: 5));
+      await _syncVatTuToItemsInFirestore(
+        jobId,
+        updated,
+      ).timeout(const Duration(seconds: 5));
       return true;
     } catch (e) {
-      debugPrint('Firestore delete vatTu error/timeout (will retry offline): $e');
+      debugPrint(
+        'Firestore delete vatTu error/timeout (will retry offline): $e',
+      );
       // Không revert local, trả về true để giữ trải nghiệm offline-first
       return true;
     }
@@ -1228,13 +1315,15 @@ class JobController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _firestore.collection('donHang').doc(jobId).update({
-        'vatTuPhatSinh': updated,
-        'ngayCapNhat': FieldValue.serverTimestamp(),
-      }).timeout(const Duration(seconds: 5));
+      await _syncVatTuToItemsInFirestore(
+        jobId,
+        updated,
+      ).timeout(const Duration(seconds: 5));
       return true;
     } catch (e) {
-      debugPrint('Firestore update vatTu error/timeout (will retry offline): $e');
+      debugPrint(
+        'Firestore update vatTu error/timeout (will retry offline): $e',
+      );
       // Không revert local, trả về true để giữ trải nghiệm offline-first
       return true;
     }
@@ -1328,6 +1417,9 @@ class JobController extends ChangeNotifier {
         'status': 'completed',
         'paymentStatus': 'paid',
         'paymentMethod': method,
+        'tongTien': amount,
+        'totalAmount': amount,
+        'soTienCOD': amount,
         'lichSuTrangThai': FieldValue.arrayUnion([
           {
             'trangThai': 'hoan_thanh',
@@ -1356,24 +1448,32 @@ class JobController extends ChangeNotifier {
           .timeout(const Duration(seconds: 5));
 
       if (uid != null) {
-        await _firestore.collection('nhatKyHoatDong').add({
-          'nguoiDungId': uid,
-          'loaiSuKien': 'CAP_NHAT_TRANG_THAI',
-          'moTa':
-              'Cập nhật trạng thái đơn $jobId → Đã hoàn thành (Tự động sau thanh toán)',
-          'ngayTao': FieldValue.serverTimestamp(),
-        }).timeout(const Duration(seconds: 3));
-        await _firestore.collection('nhatKyHoatDong').add({
-          'nguoiDungId': uid,
-          'loaiSuKien': 'THANH_TOAN_DON_HANG',
-          'moTa':
-              'Đã nhận thanh toán ${amount.toInt()}đ qua $method cho đơn $jobId',
-          'ngayTao': FieldValue.serverTimestamp(),
-        }).timeout(const Duration(seconds: 3));
+        await _firestore
+            .collection('nhatKyHoatDong')
+            .add({
+              'nguoiDungId': uid,
+              'loaiSuKien': 'CAP_NHAT_TRANG_THAI',
+              'moTa':
+                  'Cập nhật trạng thái đơn $jobId → Đã hoàn thành (Tự động sau thanh toán)',
+              'ngayTao': FieldValue.serverTimestamp(),
+            })
+            .timeout(const Duration(seconds: 3));
+        await _firestore
+            .collection('nhatKyHoatDong')
+            .add({
+              'nguoiDungId': uid,
+              'loaiSuKien': 'THANH_TOAN_DON_HANG',
+              'moTa':
+                  'Đã nhận thanh toán ${amount.toInt()}đ qua $method cho đơn $jobId',
+              'ngayTao': FieldValue.serverTimestamp(),
+            })
+            .timeout(const Duration(seconds: 3));
       }
       return true;
     } catch (e) {
-      debugPrint('Firestore confirm payment error/timeout (will retry offline): $e');
+      debugPrint(
+        'Firestore confirm payment error/timeout (will retry offline): $e',
+      );
       // Không revert local, trả về true để giữ trải nghiệm offline-first
       return true;
     }

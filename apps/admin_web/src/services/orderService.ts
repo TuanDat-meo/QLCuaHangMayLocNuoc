@@ -171,7 +171,11 @@ export const subscribeToOrders = (callback: (orders: Order[]) => void, statusFil
       'Đã tất toán': 'paid',
       'Đã hủy': 'cancelled'
     };
-    if (statusMap[statusFilter]) constraints.push(where('trangThai', '==', statusMap[statusFilter]));
+    if (statusFilter === 'Hoàn tất') {
+      constraints.push(where('trangThai', 'in', ['completed', 'hoan_thanh', 'HOAN_THANH']));
+    } else if (statusMap[statusFilter]) {
+      constraints.push(where('trangThai', '==', statusMap[statusFilter]));
+    }
   }
   const q = query(collection(db, COLLECTION_NAME), ...constraints);
   return onSnapshot(q, (snapshot) => {

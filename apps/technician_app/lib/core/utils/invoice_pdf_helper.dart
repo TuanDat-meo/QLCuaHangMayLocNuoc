@@ -51,7 +51,7 @@ class InvoicePdfHelper {
       0.0,
       (s, item) => s + ((item['thanhTien'] as num?)?.toDouble() ?? 0.0),
     );
-    final double grandTotal = collectedAmount + tipAmount;
+    final double grandTotal = collectedAmount + totalVatTu + tipAmount;
 
     pdf.addPage(
       pw.Page(
@@ -384,7 +384,10 @@ class InvoicePdfHelper {
                           pw.Container(
                             height: 35,
                             width: 60,
-                            child: pw.Image(signatureImage, fit: pw.BoxFit.contain),
+                            child: pw.Image(
+                              signatureImage,
+                              fit: pw.BoxFit.contain,
+                            ),
                           ),
                         ] else
                           pw.SizedBox(height: 39),

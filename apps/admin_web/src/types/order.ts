@@ -22,6 +22,7 @@ export interface OrderTechnician {
 export interface Order {
   id: string;
   customerName: string;
+  tenKhachHang?: string;
   phoneNumber: string;
   address: string;
   street?: string;
@@ -32,6 +33,9 @@ export interface Order {
   longitude?: number;
   productName: string; // Tên gộp hiển thị nhanh
   items: OrderItem[];  // Danh sách chi tiết sản phẩm
+  subtotal?: number;
+  discount?: number;
+  shippingFee?: number;
   totalAmount: number;
   status: OrderStatus;
   orderType: OrderType;

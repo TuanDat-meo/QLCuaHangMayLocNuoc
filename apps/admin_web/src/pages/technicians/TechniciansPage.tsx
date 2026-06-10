@@ -234,7 +234,9 @@ const TechniciansPage: React.FC = () => {
       case 'pending': return 'Chờ xử lý';
       case 'assigned': return 'Đã bàn giao';
       case 'processing': return 'Đang thực hiện';
-      case 'completed': return 'Hoàn thành';
+      case 'completed':
+      case 'hoan_thanh':
+      case 'HOAN_THANH': return 'Hoàn tất';
       case 'incident': return 'Sự cố';
       case 'paid': return 'Đã thanh toán';
       case 'cancelled': return 'Đã hủy';
@@ -245,6 +247,8 @@ const TechniciansPage: React.FC = () => {
   const getOrderStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
+      case 'hoan_thanh':
+      case 'HOAN_THANH':
       case 'paid': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
       case 'cancelled': return 'bg-rose-50 text-rose-600 border-rose-100';
       case 'processing': return 'bg-blue-50 text-blue-600 border-blue-100';

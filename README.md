@@ -136,6 +136,7 @@ Chi tiết xem tại → [`docs/PHASE_ROADMAP.md`](docs/PHASE_ROADMAP.md)
 
 | Tệp tin | Nội dung |
 |---------|----------|
+| [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | **Hướng dẫn sử dụng chi tiết hệ thống** |
 | [`docs/PROJECT_OVERVIEW.md`](docs/PROJECT_OVERVIEW.md) | Tổng quan kiến trúc & chức năng |
 | [`docs/FIREBASE_SETUP.md`](docs/FIREBASE_SETUP.md) | Hướng dẫn cấu hình Firebase đầy đủ |
 | [`docs/FIRESTORE_SCHEMA.md`](docs/FIRESTORE_SCHEMA.md) | Cấu trúc dữ liệu Firestore |
