@@ -25,7 +25,7 @@ export const getMonthlyRevenueData = async (year: number, month: number): Promis
 
   const q = query(
     collection(firestore, 'donHang'),
-    where('trangThai', 'in', ['completed', 'paid']),
+    where('trangThai', 'in', ['completed', 'hoan_thanh', 'HOAN_THANH', 'paid']),
     where('ngayTao', '>=', Timestamp.fromDate(startDate)),
     where('ngayTao', '<=', Timestamp.fromDate(endDate)),
     orderBy('ngayTao', 'asc')
@@ -61,7 +61,7 @@ export const getYearlyRevenueData = async (year: number): Promise<RevenueData[]>
 
   const q = query(
     collection(firestore, 'donHang'),
-    where('trangThai', 'in', ['completed', 'paid']),
+    where('trangThai', 'in', ['completed', 'hoan_thanh', 'HOAN_THANH', 'paid']),
     where('ngayTao', '>=', Timestamp.fromDate(startDate)),
     where('ngayTao', '<=', Timestamp.fromDate(endDate)),
     orderBy('ngayTao', 'asc')
@@ -105,7 +105,7 @@ export const exportRevenueReport = async (year: number, month?: number) => {
 
   const q = query(
     collection(firestore, 'donHang'),
-    where('trangThai', 'in', ['completed', 'paid']),
+    where('trangThai', 'in', ['completed', 'hoan_thanh', 'HOAN_THANH', 'paid']),
     where('ngayTao', '>=', Timestamp.fromDate(startDate)),
     where('ngayTao', '<=', Timestamp.fromDate(endDate)),
     orderBy('ngayTao', 'asc')

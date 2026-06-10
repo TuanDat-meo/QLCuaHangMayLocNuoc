@@ -131,16 +131,18 @@ const OrdersPage: React.FC = () => {
     note: '',
     latitude: undefined as number | undefined,
     longitude: undefined as number | undefined,
-    scheduledDate: ''
+    scheduledDate: '',
+    discount: 0,
+    shippingFee: 0
   });
 
-  const [showAssignModal, setShowAssignModal] = useState<{orderId: string, currentTechs: OrderTechnician[], scheduledDate: string, visible: boolean}>({
+  const [showAssignModal, setShowAssignModal] = useState<{ orderId: string, currentTechs: OrderTechnician[], scheduledDate: string, visible: boolean }>({
     orderId: '', currentTechs: [], scheduledDate: '', visible: false
   });
   const [selectedTechsInModal, setSelectedTechsInModal] = useState<OrderTechnician[]>([]);
 
-  const [showOrderModal, setShowOrderModal] = useState<{type: 'add' | 'edit' | 'detail', order?: Order, visible: boolean}>({ type: 'add', visible: false });
-  const [showInvoiceModal, setShowInvoiceModal] = useState<{visible: boolean, invoice?: Invoice}>({ visible: false });
+  const [showOrderModal, setShowOrderModal] = useState<{ type: 'add' | 'edit' | 'detail', order?: Order, visible: boolean }>({ type: 'add', visible: false });
+  const [showInvoiceModal, setShowInvoiceModal] = useState<{ visible: boolean, invoice?: Invoice }>({ visible: false });
 
   const [showCustomProductForm, setShowCustomProductForm] = useState(false);
   const [customProduct, setCustomProduct] = useState({ name: '', price: 0, thoiGianBaoHanh: 0 });
@@ -192,8 +194,8 @@ const OrdersPage: React.FC = () => {
 
         let formattedScheduledDate = '';
         if (order.scheduledDate) {
-           const d = order.scheduledDate.toDate ? order.scheduledDate.toDate() : new Date(order.scheduledDate);
-           formattedScheduledDate = d.toISOString().slice(0, 16);
+          const d = order.scheduledDate.toDate ? order.scheduledDate.toDate() : new Date(order.scheduledDate);
+          formattedScheduledDate = d.toISOString().slice(0, 16);
         }
 
         setFormDataState({
@@ -208,7 +210,9 @@ const OrdersPage: React.FC = () => {
           note: order.note || '',
           latitude: order.latitude,
           longitude: order.longitude,
-          scheduledDate: formattedScheduledDate
+          scheduledDate: formattedScheduledDate,
+          discount: order.discount || 0,
+          shippingFee: order.shippingFee || 0
         });
 
         if (order.provinceCode) {
@@ -229,7 +233,8 @@ const OrdersPage: React.FC = () => {
         setFormDataState({
           customerName: '', phoneNumber: '', provinceCode: '', districtCode: '', wardCode: '',
           street: '', orderType: 'installation', status: 'pending', note: '',
-          latitude: undefined, longitude: undefined, scheduledDate: ''
+          latitude: undefined, longitude: undefined, scheduledDate: '',
+          discount: 0, shippingFee: 0
         });
         setSelectedItems([]);
         setDistricts([]);
@@ -244,7 +249,7 @@ const OrdersPage: React.FC = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormDataState(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors(prev => { const n = {...prev}; delete n[name]; return n; });
+    if (errors[name]) setErrors(prev => { const n = { ...prev }; delete n[name]; return n; });
   };
 
   const calculateTotal = () => {
@@ -270,7 +275,7 @@ const OrdersPage: React.FC = () => {
     }
     setProductSearch('');
     setShowProductSuggestions(false);
-    if (errors.products) setErrors(prev => { const n = {...prev}; delete n.products; return n; });
+    if (errors.products) setErrors(prev => { const n = { ...prev }; delete n.products; return n; });
   };
 
   const handleAddCustomProduct = () => {
@@ -285,16 +290,16 @@ const OrdersPage: React.FC = () => {
 
     const customId = `custom-${Date.now()}`;
     setSelectedItems([...selectedItems, {
-       id: customId,
-       name: customProduct.name,
-       price: customProduct.price,
-       quantity: 1,
-       thoiGianBaoHanh: customProduct.thoiGianBaoHanh
+      id: customId,
+      name: customProduct.name,
+      price: customProduct.price,
+      quantity: 1,
+      thoiGianBaoHanh: customProduct.thoiGianBaoHanh
     }]);
     setCustomProduct({ name: '', price: 0, thoiGianBaoHanh: 0 });
     setShowCustomProductForm(false);
     toast.success("Đã thêm sản phẩm linh động");
-    if (errors.products) setErrors(prev => { const n = {...prev}; delete n.products; return n; });
+    if (errors.products) setErrors(prev => { const n = { ...prev }; delete n.products; return n; });
   };
 
   const handleProvinceChange = async (code: string) => {
@@ -394,7 +399,10 @@ const OrdersPage: React.FC = () => {
       address: `${formDataState.street}, ${wName}, ${dName}, ${pName}`,
       productName: selectedItems.map(item => item.quantity > 1 ? `${item.name} (x${item.quantity})` : item.name).join(', '),
       items: selectedItems,
-      totalAmount: calculateTotal(),
+      subtotal: calculateTotal(),
+      discount: Number(formDataState.discount) || 0,
+      shippingFee: Number(formDataState.shippingFee) || 0,
+      totalAmount: calculateTotal() - (Number(formDataState.discount) || 0) + (Number(formDataState.shippingFee) || 0),
       updatedBy: user.uid,
       updatedByName: user.displayName || user.email || "Quản trị viên",
       scheduledDate: formDataState.scheduledDate ? new Date(formDataState.scheduledDate) : null
@@ -414,8 +422,8 @@ const OrdersPage: React.FC = () => {
 
         // Tự động tạo thiết bị khi hoàn tất lắp đặt (Bảo hành)
         if (data.status === 'completed' && showOrderModal.order.status !== 'completed' && data.orderType === 'installation') {
-           await createDevicesFromOrder({ ...showOrderModal.order, ...data });
-           toast.success("Đã tự động kích hoạt bảo hành cho thiết bị");
+          await createDevicesFromOrder({ ...showOrderModal.order, ...data });
+          toast.success("Đã tự động kích hoạt bảo hành cho thiết bị");
         }
 
         await logActivity("Cập nhật đơn hàng", "Đơn hàng", showOrderModal.order.id, { before: showOrderModal.order, after: data });
@@ -795,10 +803,10 @@ const OrdersPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6 shrink-0 text-left">
         <div>
           <h1 className="text-xl md:text-2xl font-black text-[#0b1c30] dark:text-white uppercase tracking-tight flex items-center gap-3">
-             <div className="p-2.5 bg-white dark:bg-[#1e293b] rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                <ShoppingCart className="text-[#00459a]" size={24} />
-             </div>
-             Trung tâm Đơn hàng
+            <div className="p-2.5 bg-white dark:bg-[#1e293b] rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+              <ShoppingCart className="text-[#00459a]" size={24} />
+            </div>
+            Trung tâm Đơn hàng
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-[11px] font-medium uppercase tracking-wider mt-1">Điều phối nhân sự & Nghiệp vụ tài chính AquaCare</p>
         </div>
@@ -817,10 +825,10 @@ const OrdersPage: React.FC = () => {
       {/* Main content table */}
       <div className="bg-white dark:bg-[#1e293b] rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col overflow-x-auto">
         <div className="p-4 md:p-6 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row gap-4 items-center justify-between text-left">
-           <div className="relative w-full md:max-w-md">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-              <input type="text" placeholder="Tìm kiếm đơn hàng..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold text-xs uppercase dark:text-white" />
-           </div>
+          <div className="relative w-full md:max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+            <input type="text" placeholder="Tìm kiếm đơn hàng..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold text-xs uppercase dark:text-white" />
+          </div>
         </div>
 
         <div className="overflow-auto flex-1 custom-scrollbar">
@@ -840,33 +848,33 @@ const OrdersPage: React.FC = () => {
                 <tr key={order.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
                   <td className="px-6 py-4 text-left">
                     <div className="flex flex-col text-left">
-                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">#{order.id.slice(-6).toUpperCase()}</span>
-                       <span className="text-xs font-black text-[#0b1c30] dark:text-white uppercase truncate max-w-[150px]">{order.productName || 'N/A'}</span>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">#{order.id.slice(-6).toUpperCase()}</span>
+                      <span className="text-xs font-black text-[#0b1c30] dark:text-white uppercase truncate max-w-[150px]">{order.productName || 'N/A'}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                     <div className="flex flex-col text-left">
-                        <div className="flex items-center gap-2">
-                           <User size={12} className="text-[#00459a]" />
-                           <span className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase">{order.customerName}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                           <MapPin size={12} className="text-slate-300" />
-                           <span className="text-[10px] font-medium text-slate-400 truncate max-w-[200px]">{order.address}</span>
-                        </div>
-                     </div>
+                    <div className="flex flex-col text-left">
+                      <div className="flex items-center gap-2">
+                        <User size={12} className="text-[#00459a]" />
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase">{order.customerName}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <MapPin size={12} className="text-slate-300" />
+                        <span className="text-[10px] font-medium text-slate-400 truncate max-w-[200px]">{order.address}</span>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
-                     <div className="flex flex-col text-left">
-                        <div className="flex items-center gap-2">
-                           <Calendar size={12} className="text-blue-500" />
-                           <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase">{formatDate(order.scheduledDate)}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                           <Clock size={12} className="text-slate-300" />
-                           <span className="text-[10px] font-bold text-slate-400">{order.scheduledDate ? formatDateTime(order.scheduledDate).split(' ')[1] : 'Chưa hẹn'}</span>
-                        </div>
-                     </div>
+                    <div className="flex flex-col text-left">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={12} className="text-blue-500" />
+                        <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase">{formatDate(order.scheduledDate)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Clock size={12} className="text-slate-300" />
+                        <span className="text-[10px] font-bold text-slate-400">{order.scheduledDate ? formatDateTime(order.scheduledDate).split(' ')[1] : 'Chưa hẹn'}</span>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-1 items-center">
@@ -879,13 +887,13 @@ const OrdersPage: React.FC = () => {
                           ))}
                           {isCoordinator && !['completed', 'paid', 'cancelled'].includes(order.status) && (
                             <button onClick={() => {
-                                let formattedDate = '';
-                                if (order.scheduledDate) {
-                                  const d = order.scheduledDate.toDate ? order.scheduledDate.toDate() : new Date(order.scheduledDate);
-                                  formattedDate = d.toISOString().slice(0, 16);
-                                }
-                                setSelectedTechsInModal(order.technicians || []);
-                                setShowAssignModal({ orderId: order.id, currentTechs: order.technicians || [], scheduledDate: formattedDate, visible: true });
+                              let formattedDate = '';
+                              if (order.scheduledDate) {
+                                const d = order.scheduledDate.toDate ? order.scheduledDate.toDate() : new Date(order.scheduledDate);
+                                formattedDate = d.toISOString().slice(0, 16);
+                              }
+                              setSelectedTechsInModal(order.technicians || []);
+                              setShowAssignModal({ orderId: order.id, currentTechs: order.technicians || [], scheduledDate: formattedDate, visible: true });
                             }} className="p-1 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/40 rounded transition-colors">
                               <UserPlus size={14} />
                             </button>
@@ -894,13 +902,13 @@ const OrdersPage: React.FC = () => {
                       ) : (
                         isCoordinator && !['completed', 'paid', 'cancelled'].includes(order.status) && (
                           <button onClick={() => {
-                              let formattedDate = '';
-                              if (order.scheduledDate) {
-                                const d = order.scheduledDate.toDate ? order.scheduledDate.toDate() : new Date(order.scheduledDate);
-                                formattedDate = d.toISOString().slice(0, 16);
-                              }
-                              setSelectedTechsInModal([]);
-                              setShowAssignModal({ orderId: order.id, currentTechs: [], scheduledDate: formattedDate, visible: true });
+                            let formattedDate = '';
+                            if (order.scheduledDate) {
+                              const d = order.scheduledDate.toDate ? order.scheduledDate.toDate() : new Date(order.scheduledDate);
+                              formattedDate = d.toISOString().slice(0, 16);
+                            }
+                            setSelectedTechsInModal([]);
+                            setShowAssignModal({ orderId: order.id, currentTechs: [], scheduledDate: formattedDate, visible: true });
                           }} className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1 hover:underline">
                             <UserPlus size={14} /> Phân công
                           </button>
@@ -909,49 +917,49 @@ const OrdersPage: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                     <div className="flex items-center gap-2">
-                        {isCoordinator ? (
-                           <div className="relative group/locked">
-                              <select
-                                 value={order.status}
-                                 onChange={(e) => handleUpdateStatus(order.id, order.status, e.target.value as OrderStatus)}
-                                 className={`px-3 py-1.5 pr-8 rounded-lg text-[9px] font-black uppercase border appearance-none cursor-pointer outline-none transition-colors ${getStatusColor(order.status)}`}
-                                 style={{ backgroundImage: `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22currentColor%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem top 50%', backgroundSize: '0.65rem auto' }}
-                              >
-                                 <option value={order.status}>{getStatusText(order.status)}</option>
-                                 {getAllowedStatuses(order).map(s => (
-                                    <option key={s} value={s}>{getStatusText(s)}</option>
-                                 ))}
-                              </select>
-                              {isBeforeScheduledDate(order.scheduledDate) && (
-                                 <div className="absolute left-0 top-full mt-1 bg-slate-900 dark:bg-slate-950 text-white rounded-xl shadow-xl border border-slate-700 z-50 py-3 px-3 hidden group-hover/locked:block min-w-[160px] text-[9px] font-bold text-center pointer-events-none">
-                                    <AlertTriangle size={14} className="mx-auto mb-2 text-amber-400" />
-                                    <p className="leading-tight">Chưa đến ngày hẹn</p>
-                                    <p className="text-slate-400 mt-1">Các trạng thái xử lý bị khóa.</p>
-                                    <p className="text-slate-400 mt-1">Còn {getDaysUntilScheduled(order.scheduledDate)} ngày</p>
-                                 </div>
-                              )}
-                           </div>
-                        ) : (
-                           <span className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase border ${getStatusColor(order.status)}`}>
-                              {getStatusText(order.status)}
-                           </span>
-                        )}
-                     </div>
+                    <div className="flex items-center gap-2">
+                      {isCoordinator ? (
+                        <div className="relative group/locked">
+                          <select
+                            value={order.status}
+                            onChange={(e) => handleUpdateStatus(order.id, order.status, e.target.value as OrderStatus)}
+                            className={`px-3 py-1.5 pr-8 rounded-lg text-[9px] font-black uppercase border appearance-none cursor-pointer outline-none transition-colors ${getStatusColor(order.status)}`}
+                            style={{ backgroundImage: `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22currentColor%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem top 50%', backgroundSize: '0.65rem auto' }}
+                          >
+                            <option value={order.status}>{getStatusText(order.status)}</option>
+                            {getAllowedStatuses(order).map(s => (
+                              <option key={s} value={s}>{getStatusText(s)}</option>
+                            ))}
+                          </select>
+                          {isBeforeScheduledDate(order.scheduledDate) && (
+                            <div className="absolute left-0 top-full mt-1 bg-slate-900 dark:bg-slate-950 text-white rounded-xl shadow-xl border border-slate-700 z-50 py-3 px-3 hidden group-hover/locked:block min-w-[160px] text-[9px] font-bold text-center pointer-events-none">
+                              <AlertTriangle size={14} className="mx-auto mb-2 text-amber-400" />
+                              <p className="leading-tight">Chưa đến ngày hẹn</p>
+                              <p className="text-slate-400 mt-1">Các trạng thái xử lý bị khóa.</p>
+                              <p className="text-slate-400 mt-1">Còn {getDaysUntilScheduled(order.scheduledDate)} ngày</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase border ${getStatusColor(order.status)}`}>
+                          {getStatusText(order.status)}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                       <button onClick={() => setShowOrderModal({ type: 'detail', order, visible: true })} className="p-2 text-slate-400 hover:text-blue-500 bg-slate-50 dark:bg-slate-900 rounded-xl" title="Chi tiết"><Info size={16} /></button>
-                       {(order.status === 'paid' || order.status === 'completed') && (
-                         <button onClick={() => handleViewInvoice(order.id)} className="p-2 text-purple-500 hover:text-purple-700 bg-purple-50 dark:bg-purple-900/30 rounded-xl transition-all" title="Hóa đơn"><Receipt size={16} /></button>
-                       )}
-                       <button onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.address)}`, '_blank')} className="p-2 text-slate-400 hover:text-emerald-500 bg-slate-50 dark:bg-slate-900 rounded-xl" title="Xem bản đồ"><MapIcon size={16} /></button>
-                       {isCoordinator && order.status !== 'deleted' && (
-                         <button onClick={() => setShowOrderModal({ type: 'edit', order, visible: true })} className="p-2 text-slate-400 hover:text-amber-500 bg-slate-50 dark:bg-slate-900 rounded-xl" title="Chỉnh sửa"><Edit size={16} /></button>
-                       )}
-                       {isAdmin && (
-                         <button onClick={() => { if(confirm('Xóa đơn hàng này?')) deleteOrder(order.id, order.status); }} className="p-2 text-slate-400 hover:text-rose-500 bg-slate-50 dark:bg-slate-900 rounded-xl" title="Xóa"><Trash2 size={16} /></button>
-                       )}
+                      <button onClick={() => setShowOrderModal({ type: 'detail', order, visible: true })} className="p-2 text-slate-400 hover:text-blue-500 bg-slate-50 dark:bg-slate-900 rounded-xl" title="Chi tiết"><Info size={16} /></button>
+                      {(order.status === 'paid' || order.status === 'completed') && (
+                        <button onClick={() => handleViewInvoice(order.id)} className="p-2 text-purple-500 hover:text-purple-700 bg-purple-50 dark:bg-purple-900/30 rounded-xl transition-all" title="Hóa đơn"><Receipt size={16} /></button>
+                      )}
+                      <button onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.address)}`, '_blank')} className="p-2 text-slate-400 hover:text-emerald-500 bg-slate-50 dark:bg-slate-900 rounded-xl" title="Xem bản đồ"><MapIcon size={16} /></button>
+                      {isCoordinator && order.status !== 'deleted' && (
+                        <button onClick={() => setShowOrderModal({ type: 'edit', order, visible: true })} className="p-2 text-slate-400 hover:text-amber-500 bg-slate-50 dark:bg-slate-900 rounded-xl" title="Chỉnh sửa"><Edit size={16} /></button>
+                      )}
+                      {isAdmin && (
+                        <button onClick={() => { if (confirm('Xóa đơn hàng này?')) deleteOrder(order.id, order.status); }} className="p-2 text-slate-400 hover:text-rose-500 bg-slate-50 dark:bg-slate-900 rounded-xl" title="Xóa"><Trash2 size={16} /></button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -965,177 +973,188 @@ const OrdersPage: React.FC = () => {
       {showOrderModal.visible && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#1e293b] rounded-[2.5rem] shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[95vh] border border-slate-100 dark:border-slate-800 animate-in zoom-in duration-200 text-left">
-             <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-                <div className="flex items-center gap-4 text-left">
-                   <div className="w-12 h-12 bg-[#0b1c30] text-white rounded-2xl flex items-center justify-center shadow-lg"><FileText size={24} /></div>
-                   <div>
-                      <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-sm">{showOrderModal.type === 'add' ? 'Khởi tạo đơn hàng mới' : 'Chi tiết nghiệp vụ'}</h3>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5 tracking-widest">Hệ thống AquaCare Professional</p>
-                   </div>
+            <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+              <div className="flex items-center gap-4 text-left">
+                <div className="w-12 h-12 bg-[#0b1c30] text-white rounded-2xl flex items-center justify-center shadow-lg"><FileText size={24} /></div>
+                <div>
+                  <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-sm">{showOrderModal.type === 'add' ? 'Khởi tạo đơn hàng mới' : 'Chi tiết nghiệp vụ'}</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5 tracking-widest">Hệ thống AquaCare Professional</p>
                 </div>
-                <button onClick={() => setShowOrderModal({ ...showOrderModal, visible: false })} className="text-slate-300 hover:text-rose-500 p-2 transition-colors"><X size={28} /></button>
-             </div>
+              </div>
+              <button onClick={() => setShowOrderModal({ ...showOrderModal, visible: false })} className="text-slate-300 hover:text-rose-500 p-2 transition-colors"><X size={28} /></button>
+            </div>
 
-             <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-                <form onSubmit={handleSubmitOrder} className="grid grid-cols-1 lg:grid-cols-2 gap-10 text-left">
-                   {/* Column 1: Info & Map */}
-                   <div className="space-y-6">
-                      <div className="p-6 bg-slate-50/30 dark:bg-slate-800/20 rounded-[2.5rem] space-y-4">
-                         <div className="flex items-center gap-2 px-1 text-left"><User size={16} className="text-blue-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Thông tin khách hàng</span></div>
-                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5 text-left">
-                               <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tên khách hàng</label>
-                               <input name="customerName" value={formDataState.customerName} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} className={`w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl outline-none font-bold text-xs uppercase ${errors.customerName ? 'border border-rose-500' : 'border-none shadow-sm'}`} placeholder="Nhập họ tên..." />
-                               {errors.customerName && <p className="text-[9px] text-rose-500 font-bold ml-1">{errors.customerName}</p>}
-                            </div>
-                            <div className="space-y-1.5 text-left">
-                               <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Số điện thoại</label>
-                               <input name="phoneNumber" value={formDataState.phoneNumber} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} className={`w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl outline-none font-bold text-xs ${errors.phoneNumber ? 'border border-rose-500' : 'border-none shadow-sm'}`} placeholder="090..." />
-                               {errors.phoneNumber && <p className="text-[9px] text-rose-500 font-bold ml-1">{errors.phoneNumber}</p>}
-                            </div>
-                         </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+              <form onSubmit={handleSubmitOrder} className="grid grid-cols-1 lg:grid-cols-2 gap-10 text-left">
+                {/* Column 1: Info & Map */}
+                <div className="space-y-6">
+                  <div className="p-6 bg-slate-50/30 dark:bg-slate-800/20 rounded-[2.5rem] space-y-4">
+                    <div className="flex items-center gap-2 px-1 text-left"><User size={16} className="text-blue-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Thông tin khách hàng</span></div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5 text-left">
+                        <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tên khách hàng</label>
+                        <input name="customerName" value={formDataState.customerName} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} className={`w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl outline-none font-bold text-xs uppercase ${errors.customerName ? 'border border-rose-500' : 'border-none shadow-sm'}`} placeholder="Nhập họ tên..." />
+                        {errors.customerName && <p className="text-[9px] text-rose-500 font-bold ml-1">{errors.customerName}</p>}
                       </div>
-
-                      <div className="p-6 bg-slate-50/30 dark:bg-slate-800/20 rounded-[2.5rem] space-y-4">
-                         <div className="flex items-center gap-2 px-1 text-left"><MapPin size={16} className="text-blue-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Địa chỉ thi công</span></div>
-                         <div className="grid grid-cols-3 gap-3">
-                            <select value={formDataState.provinceCode} onChange={e => handleProvinceChange(e.target.value)} disabled={showOrderModal.type === 'detail'} className={`w-full px-3 py-3 bg-white dark:bg-slate-800 rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white ${errors.provinceCode ? 'border border-rose-500' : 'border-none shadow-sm'}`}>
-                               <option value="">Tỉnh/Thành</option>
-                               {provinces.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
-                            </select>
-                            <select value={formDataState.districtCode} onChange={e => handleDistrictChange(e.target.value)} disabled={showOrderModal.type === 'detail'} className={`w-full px-3 py-3 bg-white dark:bg-slate-800 rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white ${errors.districtCode ? 'border border-rose-500' : 'border-none shadow-sm'}`}>
-                               <option value="">Quận/Huyện</option>
-                               {districts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
-                            </select>
-                            <select value={formDataState.wardCode} onChange={e => {setFormDataState({...formDataState, wardCode: e.target.value}); setErrors(prev => {const n={...prev}; delete n.wardCode; return n;})}} disabled={showOrderModal.type === 'detail'} className={`w-full px-3 py-3 bg-white dark:bg-slate-800 rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white ${errors.wardCode ? 'border border-rose-500' : 'border-none shadow-sm'}`}>
-                               <option value="">Phường/Xã</option>
-                               {wards.map(w => <option key={w.code} value={w.code}>{w.name}</option>)}
-                            </select>
-                            {(errors.provinceCode || errors.districtCode || errors.wardCode) && (
-                               <p className="text-[9px] text-rose-500 font-bold ml-1 mt-1 col-span-3">
-                                  {errors.provinceCode || errors.districtCode || errors.wardCode}
-                               </p>
-                            )}
-                         </div>
-                         <div className="space-y-1.5 text-left">
-                            <input name="street" value={formDataState.street} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} placeholder="Số nhà, tên đường..." className={`w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl outline-none font-bold text-xs dark:text-white border-none shadow-sm ${errors.street ? 'border border-rose-500' : ''}`} />
-                            {errors.street && <p className="text-[9px] text-rose-500 font-bold ml-1">{errors.street}</p>}
-                         </div>
-
-                         {/* Google Maps Frame */}
-                         <div className="mt-4 rounded-3xl overflow-hidden h-48 border border-slate-100 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 relative">
-                            {formDataState.street ? (
-                               <iframe width="100%" height="100%" frameBorder="0" style={{ border: 0 }} src={`https://www.google.com/maps?q=${encodeURIComponent(formDataState.street + ' ' + (wards.find(w => w.code === Number(formDataState.wardCode))?.name || ''))}&output=embed`} allowFullScreen title="Map"></iframe>
-                            ) : (
-                               <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
-                                  <MapIcon size={32} className="opacity-20" />
-                                  <span className="text-[10px] font-black uppercase tracking-widest">Chưa xác định vị trí</span>
-                               </div>
-                            )}
-                         </div>
+                      <div className="space-y-1.5 text-left">
+                        <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Số điện thoại</label>
+                        <input name="phoneNumber" value={formDataState.phoneNumber} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} className={`w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl outline-none font-bold text-xs ${errors.phoneNumber ? 'border border-rose-500' : 'border-none shadow-sm'}`} placeholder="090..." />
+                        {errors.phoneNumber && <p className="text-[9px] text-rose-500 font-bold ml-1">{errors.phoneNumber}</p>}
                       </div>
-                   </div>
+                    </div>
+                  </div>
 
-                   {/* Column 2: Items & Summary */}
-                   <div className="space-y-6">
-                      <div className="grid grid-cols-2 gap-4">
-                         <div className="space-y-1.5 text-left">
-                            <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Lịch hẹn dự kiến</label>
-                            <input type="datetime-local" name="scheduledDate" value={formDataState.scheduledDate} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl outline-none font-bold text-xs border-none shadow-inner dark:text-white" />
-                         </div>
-                         <div className="space-y-1.5 text-left">
-                            <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Loại nghiệp vụ</label>
-                            <select name="orderType" value={formDataState.orderType} onChange={handleInputChange} disabled={showOrderModal.type === 'detail'} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl outline-none font-bold text-xs uppercase border-none shadow-inner dark:text-white">
-                               <option value="installation">Lắp đặt thiết bị</option>
-                               <option value="maintenance">Bảo trì lõi lọc</option>
-                               <option value="repair">Sửa chữa lỗi</option>
-                            </select>
-                         </div>
-                      </div>
-
-                      <div className="space-y-4">
-                         <div className="flex justify-between items-center px-1">
-                            <div className="flex items-center gap-2">
-                                <Package size={16} className="text-blue-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hạng mục hàng hóa</span>
-                                {errors.products && <span className="text-[9px] text-rose-500 font-bold ml-auto">{errors.products}</span>}
-                            </div>
-                            {showOrderModal.type !== 'detail' && (
-                               <button type="button" onClick={() => setShowCustomProductForm(!showCustomProductForm)} className="text-[9px] font-black text-blue-600 uppercase flex items-center gap-1 hover:brightness-125 transition-all">
-                                  {showCustomProductForm ? 'Quay lại kho' : <><Sparkles size={14} /> Tùy chỉnh linh động</>}
-                               </button>
-                            )}
-                         </div>
-
-                         {!showCustomProductForm && showOrderModal.type !== 'detail' && (
-                            <div className="relative" ref={productInputRef}>
-                               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                               <input type="text" placeholder="Tìm sản phẩm trong kho..." value={productSearch} onChange={(e) => {setProductSearch(e.target.value); setShowProductSuggestions(true);}} onFocus={() => setShowProductSuggestions(true)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold text-xs dark:text-white shadow-inner" />
-                               {showProductSuggestions && (
-                                  <div className="absolute top-full left-0 right-0 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 mt-2 z-[110] max-h-60 overflow-y-auto no-scrollbar">
-                                     {filteredProducts.length > 0 ? filteredProducts.map(p => (
-                                        <button key={p.id} type="button" onClick={() => handleAddProduct(p)} className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700 transition-all border-b border-slate-50 dark:border-slate-700 last:border-0 text-left">
-                                           <div>
-                                              <p className="text-[11px] font-black text-slate-800 dark:text-white uppercase">{p.tenSanPham}</p>
-                                              <p className="text-[8px] text-slate-400 font-bold uppercase">Kho: {p.tonKho}</p>
-                                           </div>
-                                           <span className="text-[11px] font-black text-blue-600">{p.giaBan?.toLocaleString()}₫</span>
-                                        </button>
-                                     )) : (
-                                        <div className="p-4 text-center text-slate-400 text-[10px] font-bold uppercase">Không tìm thấy sản phẩm</div>
-                                     )}
-                                  </div>
-                               )}
-                            </div>
-                         )}
-
-                         {showCustomProductForm && showOrderModal.type !== 'detail' && (
-                            <div className="p-5 bg-blue-50/30 dark:bg-blue-900/10 rounded-[2rem] border border-blue-100 dark:border-blue-900/20 space-y-4 animate-in slide-in-from-top-2">
-                               <input placeholder="Tên hàng hóa..." value={customProduct.name} onChange={e => setCustomProduct({...customProduct, name: e.target.value})} className="w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl font-bold text-xs uppercase dark:text-white outline-none shadow-sm" />
-                               <div className="flex gap-3">
-                                  <input type="number" placeholder="Đơn giá" value={customProduct.price} onChange={e => setCustomProduct({...customProduct, price: Number(e.target.value)})} className="w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl font-bold text-xs text-blue-600 outline-none shadow-sm" />
-                                  <button type="button" onClick={handleAddCustomProduct} className="px-8 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-500/20 active:scale-95 transition-all">Thêm</button>
-                               </div>
-                            </div>
-                         )}
-
-                         <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
-                            {selectedItems.map((item, idx) => (
-                               <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-transparent group transition-all">
-                                  <div className="text-left">
-                                     <p className="text-[11px] font-black text-slate-700 dark:text-white uppercase">{item.name}</p>
-                                     <p className="text-[9px] text-slate-400 font-bold">{item.price?.toLocaleString()}₫ x {item.quantity}</p>
-                                  </div>
-                                  <div className="flex items-center gap-4">
-                                     <div className="flex items-center gap-3 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
-                                        {showOrderModal.type !== 'detail' && <button type="button" onClick={() => setSelectedItems(selectedItems.map((si, i) => i === idx ? { ...si, quantity: Math.max(1, si.quantity - 1) } : si))} className="text-slate-400 hover:text-rose-500"><Minus size={14} /></button>}
-                                        <span className="text-xs font-black dark:text-white min-w-[20px] text-center">{item.quantity}</span>
-                                        {showOrderModal.type !== 'detail' && <button type="button" onClick={() => setSelectedItems(selectedItems.map((si, i) => i === idx ? { ...si, quantity: si.quantity + 1 } : si))} className="text-slate-400 hover:text-blue-500"><Plus size={14} /></button>}
-                                     </div>
-                                     {showOrderModal.type !== 'detail' && <button type="button" onClick={() => setSelectedItems(selectedItems.filter((_, i) => i !== idx))} className="text-slate-300 hover:text-rose-500 transition-all"><Trash2 size={16} /></button>}
-                                  </div>
-                               </div>
-                            ))}
-                            {errors.products && <p className="text-[10px] text-rose-500 font-bold text-center mt-2">{errors.products}</p>}
-                         </div>
-                      </div>
-
-                      <div className="p-8 bg-[#0b1c30] rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
-                         <div className="flex justify-between items-center text-slate-400 text-[10px] font-black uppercase tracking-widest mb-4">
-                            <span>Tổng thanh toán dự kiến</span>
-                            <span>{selectedItems.length} hạng mục</span>
-                         </div>
-                         <div className="flex justify-between items-end border-t border-white/5 pt-4">
-                            <span className="text-[10px] font-black uppercase text-slate-400">Thành tiền (VND)</span>
-                            <span className="text-4xl font-black text-emerald-400 tracking-tighter">{calculateTotal().toLocaleString()}₫</span>
-                         </div>
-                      </div>
-
-                      {showOrderModal.type !== 'detail' && (
-                        <button type="submit" className="w-full py-5 bg-[#00459a] text-white rounded-[2rem] font-black uppercase text-xs shadow-xl shadow-blue-500/20 hover:scale-[1.02] active:scale-95 transition-all">Xác nhận nghiệp vụ</button>
+                  <div className="p-6 bg-slate-50/30 dark:bg-slate-800/20 rounded-[2.5rem] space-y-4">
+                    <div className="flex items-center gap-2 px-1 text-left"><MapPin size={16} className="text-blue-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Địa chỉ thi công</span></div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <select value={formDataState.provinceCode} onChange={e => handleProvinceChange(e.target.value)} disabled={showOrderModal.type === 'detail'} className={`w-full px-3 py-3 bg-white dark:bg-slate-800 rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white ${errors.provinceCode ? 'border border-rose-500' : 'border-none shadow-sm'}`}>
+                        <option value="">Tỉnh/Thành</option>
+                        {provinces.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
+                      </select>
+                      <select value={formDataState.districtCode} onChange={e => handleDistrictChange(e.target.value)} disabled={showOrderModal.type === 'detail'} className={`w-full px-3 py-3 bg-white dark:bg-slate-800 rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white ${errors.districtCode ? 'border border-rose-500' : 'border-none shadow-sm'}`}>
+                        <option value="">Quận/Huyện</option>
+                        {districts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
+                      </select>
+                      <select value={formDataState.wardCode} onChange={e => { setFormDataState({ ...formDataState, wardCode: e.target.value }); setErrors(prev => { const n = { ...prev }; delete n.wardCode; return n; }) }} disabled={showOrderModal.type === 'detail'} className={`w-full px-3 py-3 bg-white dark:bg-slate-800 rounded-xl outline-none font-bold text-[10px] uppercase dark:text-white ${errors.wardCode ? 'border border-rose-500' : 'border-none shadow-sm'}`}>
+                        <option value="">Phường/Xã</option>
+                        {wards.map(w => <option key={w.code} value={w.code}>{w.name}</option>)}
+                      </select>
+                      {(errors.provinceCode || errors.districtCode || errors.wardCode) && (
+                        <p className="text-[9px] text-rose-500 font-bold ml-1 mt-1 col-span-3">
+                          {errors.provinceCode || errors.districtCode || errors.wardCode}
+                        </p>
                       )}
-                   </div>
-                </form>
-             </div>
+                    </div>
+                    <div className="space-y-1.5 text-left">
+                      <input name="street" value={formDataState.street} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} placeholder="Số nhà, tên đường..." className={`w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl outline-none font-bold text-xs dark:text-white border-none shadow-sm ${errors.street ? 'border border-rose-500' : ''}`} />
+                      {errors.street && <p className="text-[9px] text-rose-500 font-bold ml-1">{errors.street}</p>}
+                    </div>
+
+                    {/* Google Maps Frame */}
+                    <div className="mt-4 rounded-3xl overflow-hidden h-48 border border-slate-100 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 relative">
+                      {formDataState.street ? (
+                        <iframe width="100%" height="100%" frameBorder="0" style={{ border: 0 }} src={`https://www.google.com/maps?q=${encodeURIComponent(formDataState.street + ' ' + (wards.find(w => w.code === Number(formDataState.wardCode))?.name || ''))}&output=embed`} allowFullScreen title="Map"></iframe>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
+                          <MapIcon size={32} className="opacity-20" />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Chưa xác định vị trí</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Column 2: Items & Summary */}
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5 text-left">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Lịch hẹn dự kiến</label>
+                      <input type="datetime-local" name="scheduledDate" value={formDataState.scheduledDate} onChange={handleInputChange} readOnly={showOrderModal.type === 'detail'} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl outline-none font-bold text-xs border-none shadow-inner dark:text-white" />
+                    </div>
+                    <div className="space-y-1.5 text-left">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Loại nghiệp vụ</label>
+                      <select name="orderType" value={formDataState.orderType} onChange={handleInputChange} disabled={showOrderModal.type === 'detail'} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl outline-none font-bold text-xs uppercase border-none shadow-inner dark:text-white">
+                        <option value="installation">Lắp đặt thiết bị</option>
+                        <option value="maintenance">Bảo trì lõi lọc</option>
+                        <option value="repair">Sửa chữa lỗi</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center px-1">
+                      <div className="flex items-center gap-2">
+                        <Package size={16} className="text-blue-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hạng mục hàng hóa</span>
+                        {errors.products && <span className="text-[9px] text-rose-500 font-bold ml-auto">{errors.products}</span>}
+                      </div>
+                      {showOrderModal.type !== 'detail' && (
+                        <button type="button" onClick={() => setShowCustomProductForm(!showCustomProductForm)} className="text-[9px] font-black text-blue-600 uppercase flex items-center gap-1 hover:brightness-125 transition-all">
+                          {showCustomProductForm ? 'Quay lại kho' : <><Sparkles size={14} /> Tùy chỉnh linh động</>}
+                        </button>
+                      )}
+                    </div>
+
+                    {!showCustomProductForm && showOrderModal.type !== 'detail' && (
+                      <div className="relative" ref={productInputRef}>
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                        <input type="text" placeholder="Tìm sản phẩm trong kho..." value={productSearch} onChange={(e) => { setProductSearch(e.target.value); setShowProductSuggestions(true); }} onFocus={() => setShowProductSuggestions(true)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl outline-none font-bold text-xs dark:text-white shadow-inner" />
+                        {showProductSuggestions && (
+                          <div className="absolute top-full left-0 right-0 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 mt-2 z-[110] max-h-60 overflow-y-auto no-scrollbar">
+                            {filteredProducts.length > 0 ? filteredProducts.map(p => (
+                              <button key={p.id} type="button" onClick={() => handleAddProduct(p)} className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700 transition-all border-b border-slate-50 dark:border-slate-700 last:border-0 text-left">
+                                <div>
+                                  <p className="text-[11px] font-black text-slate-800 dark:text-white uppercase">{p.tenSanPham}</p>
+                                  <p className="text-[8px] text-slate-400 font-bold uppercase">Kho: {p.tonKho}</p>
+                                </div>
+                                <span className="text-[11px] font-black text-blue-600">{p.giaBan?.toLocaleString()}₫</span>
+                              </button>
+                            )) : (
+                              <div className="p-4 text-center text-slate-400 text-[10px] font-bold uppercase">Không tìm thấy sản phẩm</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {showCustomProductForm && showOrderModal.type !== 'detail' && (
+                      <div className="p-5 bg-blue-50/30 dark:bg-blue-900/10 rounded-[2rem] border border-blue-100 dark:border-blue-900/20 space-y-4 animate-in slide-in-from-top-2">
+                        <input placeholder="Tên hàng hóa..." value={customProduct.name} onChange={e => setCustomProduct({ ...customProduct, name: e.target.value })} className="w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl font-bold text-xs uppercase dark:text-white outline-none shadow-sm" />
+                        <div className="flex gap-3">
+                          <input type="number" placeholder="Đơn giá" value={customProduct.price} onChange={e => setCustomProduct({ ...customProduct, price: Number(e.target.value) })} className="w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl font-bold text-xs text-blue-600 outline-none shadow-sm" />
+                          <button type="button" onClick={handleAddCustomProduct} className="px-8 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-500/20 active:scale-95 transition-all">Thêm</button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                      {selectedItems.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-transparent group transition-all">
+                          <div className="text-left">
+                            <p className="text-[11px] font-black text-slate-700 dark:text-white uppercase">{item.name}</p>
+                            <p className="text-[9px] text-slate-400 font-bold">{item.price?.toLocaleString()}₫ x {item.quantity}</p>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
+                              {showOrderModal.type !== 'detail' && <button type="button" onClick={() => setSelectedItems(selectedItems.map((si, i) => i === idx ? { ...si, quantity: Math.max(1, si.quantity - 1) } : si))} className="text-slate-400 hover:text-rose-500"><Minus size={14} /></button>}
+                              <span className="text-xs font-black dark:text-white min-w-[20px] text-center">{item.quantity}</span>
+                              {showOrderModal.type !== 'detail' && <button type="button" onClick={() => setSelectedItems(selectedItems.map((si, i) => i === idx ? { ...si, quantity: si.quantity + 1 } : si))} className="text-slate-400 hover:text-blue-500"><Plus size={14} /></button>}
+                            </div>
+                            {showOrderModal.type !== 'detail' && <button type="button" onClick={() => setSelectedItems(selectedItems.filter((_, i) => i !== idx))} className="text-slate-300 hover:text-rose-500 transition-all"><Trash2 size={16} /></button>}
+                          </div>
+                        </div>
+                      ))}
+                      {errors.products && <p className="text-[10px] text-rose-500 font-bold text-center mt-2">{errors.products}</p>}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5 text-left">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Giảm giá (VND)</label>
+                      <input type="number" name="discount" value={formDataState.discount} onChange={e => setFormDataState({ ...formDataState, discount: Number(e.target.value) })} readOnly={showOrderModal.type === 'detail'} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl outline-none font-bold text-xs border-none shadow-inner dark:text-white" />
+                    </div>
+                    <div className="space-y-1.5 text-left">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Phí vận chuyển (VND)</label>
+                      <input type="number" name="shippingFee" value={formDataState.shippingFee} onChange={e => setFormDataState({ ...formDataState, shippingFee: Number(e.target.value) })} readOnly={showOrderModal.type === 'detail'} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl outline-none font-bold text-xs border-none shadow-inner dark:text-white" />
+                    </div>
+                  </div>
+
+                  <div className="p-8 bg-[#0b1c30] rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
+                    <div className="flex justify-between items-center text-slate-400 text-[10px] font-black uppercase tracking-widest mb-4">
+                      <span>Tạm tính ({selectedItems.length} hạng mục)</span>
+                      <span>{calculateTotal().toLocaleString()}₫</span>
+                    </div>
+                    <div className="flex justify-between items-end border-t border-white/5 pt-4">
+                      <span className="text-[10px] font-black uppercase text-slate-400">Tổng thanh toán dự kiến</span>
+                      <span className="text-4xl font-black text-emerald-400 tracking-tighter">{(calculateTotal() - (Number(formDataState.discount) || 0) + (Number(formDataState.shippingFee) || 0)).toLocaleString()}₫</span>
+                    </div>
+                  </div>
+
+                  {showOrderModal.type !== 'detail' && (
+                    <button type="submit" className="w-full py-5 bg-[#00459a] text-white rounded-[2rem] font-black uppercase text-xs shadow-xl shadow-blue-500/20 hover:scale-[1.02] active:scale-95 transition-all">Xác nhận nghiệp vụ</button>
+                  )}
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
@@ -1143,79 +1162,79 @@ const OrdersPage: React.FC = () => {
       {/* Invoice Modal */}
       {showInvoiceModal.visible && showInvoiceModal.invoice && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
-           <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col animate-in zoom-in duration-200 text-left border border-slate-200 dark:border-slate-800">
-              <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded-xl text-purple-600"><Receipt size={24} /></div>
-                    <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-sm">Hóa đơn điện tử</h3>
-                 </div>
-                 <button onClick={() => setShowInvoiceModal({ visible: false })} className="text-slate-300 hover:text-rose-500 p-2 transition-colors"><X size={28} /></button>
+          <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col animate-in zoom-in duration-200 text-left border border-slate-200 dark:border-slate-800">
+            <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded-xl text-purple-600"><Receipt size={24} /></div>
+                <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-sm">Hóa đơn điện tử</h3>
+              </div>
+              <button onClick={() => setShowInvoiceModal({ visible: false })} className="text-slate-300 hover:text-rose-500 p-2 transition-colors"><X size={28} /></button>
+            </div>
+
+            <div className="p-10 space-y-8 overflow-y-auto max-h-[75vh] custom-scrollbar bg-[radial-gradient(#f1f5f9_1px,transparent_1px)] dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:20px_20px]">
+              {/* Invoice Header */}
+              <div className="flex justify-between items-start">
+                <div className="text-left">
+                  <h2 className="text-2xl font-black text-[#00459a] tracking-tighter uppercase italic">AquaCare</h2>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Hệ thống giải pháp lọc nước thông minh</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-slate-400 uppercase">Số hóa đơn</p>
+                  <p className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">{showInvoiceModal.invoice.invoiceNumber}</p>
+                </div>
               </div>
 
-              <div className="p-10 space-y-8 overflow-y-auto max-h-[75vh] custom-scrollbar bg-[radial-gradient(#f1f5f9_1px,transparent_1px)] dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:20px_20px]">
-                 {/* Invoice Header */}
-                 <div className="flex justify-between items-start">
-                    <div className="text-left">
-                       <h2 className="text-2xl font-black text-[#00459a] tracking-tighter uppercase italic">AquaCare</h2>
-                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Hệ thống giải pháp lọc nước thông minh</p>
-                    </div>
-                    <div className="text-right">
-                       <p className="text-[10px] font-black text-slate-400 uppercase">Số hóa đơn</p>
-                       <p className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">{showInvoiceModal.invoice.invoiceNumber}</p>
-                    </div>
-                 </div>
+              <div className="grid grid-cols-2 gap-8 py-6 border-y border-dashed border-slate-200 dark:border-slate-800">
+                <div className="text-left space-y-1">
+                  <p className="text-[9px] font-black text-slate-400 uppercase">Khách hàng</p>
+                  <p className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase">{showInvoiceModal.invoice.customerName}</p>
+                  <p className="text-[10px] font-bold text-slate-500 italic">{showInvoiceModal.invoice.customerPhone}</p>
+                </div>
+                <div className="text-right space-y-1">
+                  <p className="text-[9px] font-black text-slate-400 uppercase">Ngày phát hành</p>
+                  <p className="text-xs font-black text-slate-700 dark:text-slate-200">{formatDateTime(showInvoiceModal.invoice.issuedAt)}</p>
+                  <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded inline-block">Đã thanh toán (COD)</p>
+                </div>
+              </div>
 
-                 <div className="grid grid-cols-2 gap-8 py-6 border-y border-dashed border-slate-200 dark:border-slate-800">
-                    <div className="text-left space-y-1">
-                       <p className="text-[9px] font-black text-slate-400 uppercase">Khách hàng</p>
-                       <p className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase">{showInvoiceModal.invoice.customerName}</p>
-                       <p className="text-[10px] font-bold text-slate-500 italic">{showInvoiceModal.invoice.customerPhone}</p>
+              {/* Items Table */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-12 gap-2 text-[9px] font-black text-slate-400 uppercase tracking-widest px-2">
+                  <div className="col-span-6">Diễn giải hạng mục</div>
+                  <div className="col-span-2 text-center">SL</div>
+                  <div className="col-span-4 text-right">Thành tiền</div>
+                </div>
+                <div className="space-y-2">
+                  {showInvoiceModal.invoice.items.map((item, i) => (
+                    <div key={i} className="grid grid-cols-12 gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-transparent hover:border-slate-100 dark:hover:border-slate-700 transition-all">
+                      <div className="col-span-6 text-xs font-black text-slate-700 dark:text-slate-200 uppercase truncate">{item.name}</div>
+                      <div className="col-span-2 text-xs font-bold text-slate-500 text-center">{item.quantity}</div>
+                      <div className="col-span-4 text-xs font-black text-[#00459a] dark:text-blue-400 text-right">{(item.price * item.quantity).toLocaleString()}₫</div>
                     </div>
-                    <div className="text-right space-y-1">
-                       <p className="text-[9px] font-black text-slate-400 uppercase">Ngày phát hành</p>
-                       <p className="text-xs font-black text-slate-700 dark:text-slate-200">{formatDateTime(showInvoiceModal.invoice.issuedAt)}</p>
-                       <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded inline-block">Đã thanh toán (COD)</p>
-                    </div>
-                 </div>
+                  ))}
+                </div>
+              </div>
 
-                 {/* Items Table */}
-                 <div className="space-y-4">
-                    <div className="grid grid-cols-12 gap-2 text-[9px] font-black text-slate-400 uppercase tracking-widest px-2">
-                       <div className="col-span-6">Diễn giải hạng mục</div>
-                       <div className="col-span-2 text-center">SL</div>
-                       <div className="col-span-4 text-right">Thành tiền</div>
-                    </div>
-                    <div className="space-y-2">
-                       {showInvoiceModal.invoice.items.map((item, i) => (
-                          <div key={i} className="grid grid-cols-12 gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-transparent hover:border-slate-100 dark:hover:border-slate-700 transition-all">
-                             <div className="col-span-6 text-xs font-black text-slate-700 dark:text-slate-200 uppercase truncate">{item.name}</div>
-                             <div className="col-span-2 text-xs font-bold text-slate-500 text-center">{item.quantity}</div>
-                             <div className="col-span-4 text-xs font-black text-[#00459a] dark:text-blue-400 text-right">{(item.price * item.quantity).toLocaleString()}₫</div>
-                          </div>
-                       ))}
-                    </div>
-                 </div>
-
-                 {/* Totals */}
-                 <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-                    <div className="flex justify-between items-end">
-                       <div>
-                          <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Chữ ký điện tử</p>
-                          <div className="w-24 h-12 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center italic text-slate-400 text-[8px] font-bold uppercase tracking-widest border border-dashed border-slate-200 dark:border-slate-700">Digital Signed</div>
-                       </div>
-                       <div className="text-right">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng cộng thanh toán</p>
-                          <p className="text-4xl font-black text-slate-800 dark:text-white tracking-tighter">{showInvoiceModal.invoice.amount.toLocaleString()}₫</p>
-                        </div>
-                     </div>
+              {/* Totals */}
+              <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Chữ ký điện tử</p>
+                    <div className="w-24 h-12 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center italic text-slate-400 text-[8px] font-bold uppercase tracking-widest border border-dashed border-slate-200 dark:border-slate-700">Digital Signed</div>
                   </div>
-               </div>
-
-               <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex gap-4">
-                  <button onClick={() => handleDownloadPdf(showInvoiceModal.invoice!)} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:brightness-110 active:scale-95 transition-all"><Printer size={18} /> In bản vật lý</button>
-                  <button onClick={() => handleDownloadPdf(showInvoiceModal.invoice!)} className="flex-1 py-4 bg-[#00459a] text-white rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:brightness-110 active:scale-95 transition-all"><Download size={18} /> Tải PDF (E-Invoice)</button>
-               </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng cộng thanh toán</p>
+                    <p className="text-4xl font-black text-slate-800 dark:text-white tracking-tighter">{showInvoiceModal.invoice.amount.toLocaleString()}₫</p>
+                  </div>
+                </div>
+              </div>
             </div>
+
+            <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex gap-4">
+              <button onClick={() => handleDownloadPdf(showInvoiceModal.invoice!)} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:brightness-110 active:scale-95 transition-all"><Printer size={18} /> In bản vật lý</button>
+              <button onClick={() => handleDownloadPdf(showInvoiceModal.invoice!)} className="flex-1 py-4 bg-[#00459a] text-white rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:brightness-110 active:scale-95 transition-all"><Download size={18} /> Tải PDF (E-Invoice)</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1223,34 +1242,34 @@ const OrdersPage: React.FC = () => {
       {showAssignModal.visible && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#1e293b] rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in duration-200 text-left">
-             <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                <h3 className="font-black text-slate-800 dark:text-white uppercase text-sm tracking-widest">Phân công thi công</h3>
-                <button onClick={() => setShowAssignModal({...showAssignModal, visible: false})} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-all text-slate-400"><X size={24}/></button>
-             </div>
-             <div className="p-6 bg-blue-50/30 dark:bg-blue-900/10 border-b border-slate-100 dark:border-slate-800">
-                <label className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest block mb-2">Lịch hẹn khách hàng</label>
-                <input type="datetime-local" value={showAssignModal.scheduledDate} onChange={e => setShowAssignModal({...showAssignModal, scheduledDate: e.target.value})} className={`w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl font-bold text-xs outline-none shadow-sm dark:text-white ${!showAssignModal.scheduledDate ? 'border border-rose-500/50' : ''}`} />
-                {!showAssignModal.scheduledDate && <p className="text-[9px] text-rose-500 font-bold mt-1 ml-1 uppercase">Bắt buộc phải có lịch hẹn</p>}
-             </div>
-             <div className="p-4 space-y-2 overflow-y-auto max-h-80 custom-scrollbar">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2">Chọn kỹ thuật viên ({selectedTechsInModal.length})</p>
-                {technicians.map(tech => {
-                  const isSelected = selectedTechsInModal.some(t => t.id === tech.uid);
-                  return (
-                    <button key={tech.uid} onClick={() => toggleTechSelection(tech.uid, tech.displayName || 'KTV')} className={`w-full p-4 rounded-2xl border flex items-center justify-between transition-all ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}>
-                       <div className="text-left">
-                          <p className={`text-xs font-black uppercase ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-200'}`}>{tech.displayName}</p>
-                          <p className="text-[9px] text-slate-400 font-bold uppercase">{tech.email}</p>
-                       </div>
-                       {isSelected && <CheckCircle size={20} className="text-blue-600 dark:text-blue-400" />}
-                    </button>
-                  );
-                })}
-                {selectedTechsInModal.length === 0 && <p className="text-[9px] text-rose-500 font-bold text-center mt-2 uppercase">Vui lòng chọn ít nhất 1 nhân sự</p>}
-             </div>
-             <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-                <button onClick={handleSaveTechnicians} className="w-full py-4 bg-[#00459a] text-white rounded-2xl font-black text-[11px] uppercase shadow-lg shadow-blue-500/20 active:scale-95 transition-all">Xác nhận phân công ({selectedTechsInModal.length})</button>
-             </div>
+            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <h3 className="font-black text-slate-800 dark:text-white uppercase text-sm tracking-widest">Phân công thi công</h3>
+              <button onClick={() => setShowAssignModal({ ...showAssignModal, visible: false })} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-all text-slate-400"><X size={24} /></button>
+            </div>
+            <div className="p-6 bg-blue-50/30 dark:bg-blue-900/10 border-b border-slate-100 dark:border-slate-800">
+              <label className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest block mb-2">Lịch hẹn khách hàng</label>
+              <input type="datetime-local" value={showAssignModal.scheduledDate} onChange={e => setShowAssignModal({ ...showAssignModal, scheduledDate: e.target.value })} className={`w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-2xl font-bold text-xs outline-none shadow-sm dark:text-white ${!showAssignModal.scheduledDate ? 'border border-rose-500/50' : ''}`} />
+              {!showAssignModal.scheduledDate && <p className="text-[9px] text-rose-500 font-bold mt-1 ml-1 uppercase">Bắt buộc phải có lịch hẹn</p>}
+            </div>
+            <div className="p-4 space-y-2 overflow-y-auto max-h-80 custom-scrollbar">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2">Chọn kỹ thuật viên ({selectedTechsInModal.length})</p>
+              {technicians.map(tech => {
+                const isSelected = selectedTechsInModal.some(t => t.id === tech.uid);
+                return (
+                  <button key={tech.uid} onClick={() => toggleTechSelection(tech.uid, tech.displayName || 'KTV')} className={`w-full p-4 rounded-2xl border flex items-center justify-between transition-all ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}>
+                    <div className="text-left">
+                      <p className={`text-xs font-black uppercase ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-200'}`}>{tech.displayName}</p>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">{tech.email}</p>
+                    </div>
+                    {isSelected && <CheckCircle size={20} className="text-blue-600 dark:text-blue-400" />}
+                  </button>
+                );
+              })}
+              {selectedTechsInModal.length === 0 && <p className="text-[9px] text-rose-500 font-bold text-center mt-2 uppercase">Vui lòng chọn ít nhất 1 nhân sự</p>}
+            </div>
+            <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+              <button onClick={handleSaveTechnicians} className="w-full py-4 bg-[#00459a] text-white rounded-2xl font-black text-[11px] uppercase shadow-lg shadow-blue-500/20 active:scale-95 transition-all">Xác nhận phân công ({selectedTechsInModal.length})</button>
+            </div>
           </div>
         </div>
       )}

@@ -57,7 +57,7 @@ export const subscribeToTechnicianStats = (technicianId: string, callback: (stat
 
     const stats = {
       total: orders.length,
-      completed: orders.filter(o => o.trangThai === 'completed').length,
+      completed: orders.filter(o => ['completed', 'hoan_thanh', 'HOAN_THANH'].includes(o.trangThai)).length,
       processing: orders.filter(o => o.trangThai === 'processing' || o.trangThai === 'assigned').length,
       cancelled: orders.filter(o => o.trangThai === 'cancelled').length
     };

@@ -207,6 +207,8 @@ Trạng thái: ${getStatusDisplayName(order.status)}
       'in_progress': 'Đang thực hiện',
       'installing': 'Đang lắp đặt',
       'completed': 'Hoàn tất',
+      'hoan_thanh': 'Hoàn tất',
+      'HOAN_THANH': 'Hoàn tất',
       'incident': 'Sự cố',
       'paid': 'Đã tất toán',
       'cancelled': 'Đã hủy',
@@ -225,6 +227,8 @@ Trạng thái: ${getStatusDisplayName(order.status)}
       'in_progress': '#1E90FF',
       'installing': '#EA580C', // Orange Red
       'completed': '#32CD32', // Lime Green
+      'hoan_thanh': '#32CD32',
+      'HOAN_THANH': '#32CD32',
       'incident': '#FF4500', // Orange Red
       'paid': '#228B22', // Forest Green
       'cancelled': '#DC143C', // Crimson

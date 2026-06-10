@@ -77,6 +77,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         }
 
         final data = snapshot.data!.data() as Map<String, dynamic>;
+        
+        final itemsList = data['items'] as List? ?? [];
+        double calculatedTotal = 0.0;
+        for (var item in itemsList) {
+          final price = (item['price'] as num?)?.toDouble() ?? 0.0;
+          final qty = (item['quantity'] as num?)?.toInt() ?? 1;
+          calculatedTotal += price * qty;
+        }
+
         // Ưu tiên lấy trangThai từ Admin Web, fallback về status của App
         final status = data['trangThai'] ?? data['status'] ?? 'pending';
         final createdAt = (data['ngayTao'] ?? data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
@@ -102,9 +111,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   child: Column(
                     children: [
                       _buildStatusStep('Đã đặt đơn', 'Ngày ${DateFormat('dd/MM/yyyy').format(createdAt)}', true, status == 'pending'),
-                      _buildStatusStep('Đã xác nhận', 'Đã phân công nhân sự', ['assigned', 'approved', 'processing', 'completed', 'paid', 'incident'].contains(status), ['assigned', 'approved'].contains(status)),
-                      _buildStatusStep('Đang thực hiện', 'Kỹ thuật viên đang xử lý', ['processing', 'completed', 'paid', 'incident'].contains(status), status == 'processing' || status == 'incident'),
-                      _buildStatusStep('Hoàn tất', 'Dịch vụ đã hoàn thành', ['completed', 'paid'].contains(status), status == 'completed', isLast: true),
+                      _buildStatusStep('Đã xác nhận', 'Đã phân công nhân sự', ['assigned', 'approved', 'processing', 'completed', 'hoan_thanh', 'HOAN_THANH', 'paid', 'incident'].contains(status), ['assigned', 'approved'].contains(status)),
+                      _buildStatusStep('Đang thực hiện', 'Kỹ thuật viên đang xử lý', ['processing', 'completed', 'hoan_thanh', 'HOAN_THANH', 'paid', 'incident'].contains(status), status == 'processing' || status == 'incident'),
+                      _buildStatusStep('Hoàn tất', 'Dịch vụ đã hoàn tất', ['completed', 'hoan_thanh', 'HOAN_THANH', 'paid'].contains(status), ['completed', 'hoan_thanh', 'HOAN_THANH'].contains(status), isLast: true),
                     ],
                   ),
                 ),
@@ -120,35 +129,51 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 _buildSectionCard(
                   title: 'Sản phẩm & Dịch vụ',
                   child: Column(
-                    children: (data['items'] as List? ?? []).map((item) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 50, height: 50,
-                              decoration: BoxDecoration(
-                                color: const Color(0xfff1f5f9),
-                                borderRadius: BorderRadius.circular(10),
+                    children: [
+                      ...(data['items'] as List? ?? []).map((item) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 50, height: 50,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xfff1f5f9),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.water_drop, color: Color(0xff00459a)),
                               ),
-                              child: const Icon(Icons.water_drop, color: Color(0xff00459a)),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(item['name'] ?? item['productName'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                  Text('Số lượng: ${item['quantity']}', style: const TextStyle(fontSize: 11, color: Color(0xff64748b))),
-                                ],
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(item['name'] ?? item['productName'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                    Text('Số lượng: ${item['quantity']}', style: const TextStyle(fontSize: 11, color: Color(0xff64748b))),
+                                  ],
+                                ),
                               ),
-                            ),
-                            Text('₫${NumberFormat("#,###", "vi_VN").format(item['price'] ?? 0)}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xff00459a))),
-                          ],
-                        ),
-                      );
-                    }).toList(),
+                              Text('₫${NumberFormat("#,###", "vi_VN").format(item['price'] ?? 0)}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xff00459a))),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      const Divider(height: 24, color: Color(0xfff1f5f9)),
+                      _buildPriceRow('Tạm tính:', calculatedTotal),
+                      if ((data['discount'] as num? ?? 0) > 0)
+                        _buildPriceRow('Giảm giá:', -(data['discount'] as num).toDouble()),
+                      _buildPriceRow('Phí vận chuyển:', (data['Shipping fee'] ?? data['shippingFee'] ?? 0.0).toDouble()),
+                      const Divider(height: 24, color: Color(0xfff1f5f9)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Tổng thanh toán:', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xff0b1c30))),
+                          Text('₫${NumberFormat("#,###", "vi_VN").format(calculatedTotal - ((data['discount'] as num?)?.toDouble() ?? 0.0) + ((data['Shipping fee'] ?? data['shippingFee'] as num?)?.toDouble() ?? 0.0))}',
+                              style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.redAccent, fontSize: 16)),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -175,7 +200,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   ),
                 ),
                 if (status == 'completed' || status == 'paid')
-                  _buildInvoiceSection(context, data),
+                  _buildInvoiceSection(context, data, calculatedTotal),
                 const SizedBox(height: 24),
                 // Nút hủy chỉ hiện khi đơn mới tạo (pending) và chưa có thợ
                 if (status == 'pending' && technicians.isEmpty)
@@ -269,20 +294,27 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Widget _buildPriceRow(String label, double value) {
+    final isNegative = value < 0;
+    final absVal = value.abs();
+    final formattedValue = (isNegative ? '-' : '') + '₫${NumberFormat("#,###", "vi_VN").format(absVal)}';
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(color: Color(0xff64748b), fontSize: 13)),
-          Text('₫${NumberFormat("#,###", "vi_VN").format(value)}',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          Text(formattedValue,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: isNegative ? Colors.red : const Color(0xff0b1c30),
+              )),
         ],
       ),
     );
   }
 
-  Widget _buildInvoiceSection(BuildContext context, Map<String, dynamic> orderData) {
+  Widget _buildInvoiceSection(BuildContext context, Map<String, dynamic> orderData, double calculatedTotal) {
     return FutureBuilder<QuerySnapshot>(
       future: FirebaseFirestore.instance
           .collection('invoices')
@@ -297,7 +329,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         Map<String, dynamic> invoiceData;
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           // Fallback: Generate invoice data dynamically from orderData
-          final double amount = (orderData['tongTien'] ?? orderData['totalAmount'] ?? 0.0).toDouble();
+          final double amount = calculatedTotal - ((orderData['discount'] as num?)?.toDouble() ?? 0.0) + ((orderData['Shipping fee'] ?? orderData['shippingFee'] as num?)?.toDouble() ?? 0.0);
           invoiceData = {
             'invoiceNumber': 'E-INV-${_orderId.length > 8 ? _orderId.substring(0, 8).toUpperCase() : _orderId.toUpperCase()}',
             'amount': amount,

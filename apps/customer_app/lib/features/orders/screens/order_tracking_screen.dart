@@ -112,6 +112,15 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
+          
+          final itemsList = data['items'] as List? ?? [];
+          double calculatedTotal = 0.0;
+          for (var item in itemsList) {
+            final price = (item['price'] as num?)?.toDouble() ?? 0.0;
+            final qty = (item['quantity'] as num?)?.toInt() ?? 1;
+            calculatedTotal += price * qty;
+          }
+
           // Ưu tiên trangThai của Admin Web
           final status = data['trangThai'] ?? data['status'] ?? 'pending';
           final technicians = data['technicians'] as List? ?? [];
@@ -322,7 +331,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                                   fontSize: 14,
                                   color: Color(0xff0b1c30))),
                           Text(
-                            '${_formatCurrency((data['tongTien'] ?? data['totalAmount'] as num? ?? 0).toDouble())} đ',
+                            '${_formatCurrency(calculatedTotal - ((data['discount'] as num?)?.toDouble() ?? 0.0) + ((data['Shipping fee'] ?? data['shippingFee'] as num?)?.toDouble() ?? 0.0))} đ',
                             style: const TextStyle(
                               fontWeight: FontWeight.w900,
                               fontSize: 16,
@@ -526,7 +535,7 @@ class _TrackingTimeline extends StatelessWidget {
         isActive: currentIndex == 2,
       ),
       _StepData(
-        title: 'Hoàn thành',
+        title: 'Hoàn tất',
         subtitle: 'Kích hoạt bảo hành & Thiết bị.',
         isCompleted: currentIndex >= 3,
         isActive: false,

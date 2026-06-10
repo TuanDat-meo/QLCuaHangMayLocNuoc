@@ -498,7 +498,7 @@ class _CalendarScreenState extends State<CalendarScreen>
           dateToUse.year == _focusedDay.year;
     }).toList();
     final completedCount = monthJobs.where((j) =>
-        j.status.rawValue == 'hoan_thanh').length;
+        j.status == JobStatus.completed || j.status.rawValue == 'hoan_thanh' || j.status.rawValue == 'completed').length;
     final pendingCount = monthJobs.length - completedCount;
 
     final selectedCount = _getJobsForDay(_selectedDay, allJobs).length;
